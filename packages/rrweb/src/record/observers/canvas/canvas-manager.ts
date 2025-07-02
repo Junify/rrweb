@@ -15,8 +15,8 @@ import { CanvasContext } from '@rrweb/types';
 import initCanvas2DMutationObserver from './2d';
 import initCanvasContextObserver from './canvas';
 import initCanvasWebGLMutationObserver from './webgl';
-import ImageBitmapDataURLWorker from '../../workers/image-bitmap-data-url-worker?worker&inline';
-import type { ImageBitmapDataURLRequestWorker } from '../../workers/image-bitmap-data-url-worker';
+
+import { encode } from 'base64-arraybuffer';
 
 export type RafStamps = { latestId: number; invokeId: number | null };
 
@@ -24,6 +24,84 @@ type pendingCanvasMutationsMap = Map<
   HTMLCanvasElement,
   canvasMutationWithType[]
 >;
+
+/**
+ * Cache management for canvas still images (base64)
+ *  - key: rrweb id of the canvas element
+ *  - value: previously sent base64 (do not resend if transparent or identical image)
+ */
+const lastBlobMap: Map<number, string> = new Map();
+
+/**
+ * Cache for transparent images
+ *  - key: "width-height"
+ *  - value: base64 of a fully transparent image of that size
+ */
+const transparentBlobMap: Map<string, string> = new Map();
+
+/**
+ * Get a transparent image (base64) of the specified size
+ *  - Returns an empty string if OffscreenCanvas cannot be used
+ */
+async function getTransparentBlobBase64(
+  width: number,
+  height: number,
+  dataURLOptions: DataURLOptions,
+): Promise<string> {
+  const id = `${width}-${height}`;
+  if (transparentBlobMap.has(id)) {
+    return transparentBlobMap.get(id)!;
+  }
+  if ('OffscreenCanvas' in window) {
+    const offscreen = new OffscreenCanvas(width, height);
+    const ctx = offscreen.getContext('2d');
+    // Draw nothing → fully transparent
+    if (!ctx) {
+      return '';
+    }
+    const blob = await offscreen.convertToBlob(dataURLOptions);
+    const arrayBuffer = await blob.arrayBuffer();
+    const base64 = encode(arrayBuffer);
+    transparentBlobMap.set(id, base64);
+    return base64;
+  }
+  return '';
+}
+
+/**
+ * Encode the canvas on the main thread and return base64
+ *  - If OffscreenCanvas is available, encode off‑screen
+ *  - Otherwise, use .toDataURL()
+ */
+async function getCanvasBase64(
+  canvas: HTMLCanvasElement,
+  dataURLOptions: DataURLOptions,
+): Promise<string> {
+  if ('OffscreenCanvas' in window) {
+    // Path using OffscreenCanvas + convertToBlob
+    const offscreen = new OffscreenCanvas(canvas.width, canvas.height);
+    const ctx = offscreen.getContext('2d');
+    if (!ctx) {
+      return '';
+    }
+    ctx.drawImage(canvas, 0, 0);
+    const blob = await offscreen.convertToBlob(dataURLOptions);
+    const arrayBuffer = await blob.arrayBuffer();
+    return encode(arrayBuffer);
+  } else {
+    // fallback: convert directly to base64 with <canvas>.toDataURL()
+    // The dataURLOptions.quality option is only applicable for image/jpeg, image/webp, etc.
+    // You can pass the quality as the second argument, but be careful when type/quality are not specified.
+    let type = dataURLOptions?.type || 'image/png';
+    let quality = dataURLOptions?.quality;
+    if (quality === undefined) {
+      // The second argument of toDataURL can be omitted
+      return canvas.toDataURL(type).split(',')[1]; // "data:image/xxx;base64,..." → extract only the base64 part
+    } else {
+      return canvas.toDataURL(type, quality).split(',')[1];
+    }
+  }
+}
 
 export class CanvasManager {
   private pendingCanvasMutations: pendingCanvasMutationsMap = new Map();
@@ -77,12 +155,14 @@ export class CanvasManager {
     this.mutationCb = options.mutationCb;
     this.mirror = options.mirror;
 
-    if (recordCanvas && sampling === 'all')
+    if (recordCanvas && sampling === 'all') {
       this.initCanvasMutationObserver(win, blockClass, blockSelector);
-    if (recordCanvas && typeof sampling === 'number')
+    }
+    if (recordCanvas && typeof sampling === 'number') {
       this.initCanvasFPSObserver(sampling, win, blockClass, blockSelector, {
         dataURLOptions,
       });
+    }
   }
 
   private processMutation: canvasManagerMutationCallback = (
@@ -92,8 +172,9 @@ export class CanvasManager {
     const newFrame =
       this.rafStamps.invokeId &&
       this.rafStamps.latestId !== this.rafStamps.invokeId;
-    if (newFrame || !this.rafStamps.invokeId)
+    if (newFrame || !this.rafStamps.invokeId) {
       this.rafStamps.invokeId = this.rafStamps.latestId;
+    }
 
     if (!this.pendingCanvasMutations.has(target)) {
       this.pendingCanvasMutations.set(target, []);
@@ -102,6 +183,11 @@ export class CanvasManager {
     this.pendingCanvasMutations.get(target)!.push(mutation);
   };
 
+  /**
+   * Change points:
+   * - Removed the part that created a Worker and switched to using OffscreenCanvas / toDataURL on the main thread
+   * - Transparency check and diff check are now performed within the main thread
+   */
   private initCanvasFPSObserver(
     fps: number,
     win: IWindow,
@@ -117,49 +203,15 @@ export class CanvasManager {
       blockSelector,
       true,
     );
-    const snapshotInProgressMap: Map<number, boolean> = new Map();
-    const worker =
-      new ImageBitmapDataURLWorker() as ImageBitmapDataURLRequestWorker;
-    worker.onmessage = (e) => {
-      const { id } = e.data;
-      snapshotInProgressMap.set(id, false);
-
-      if (!('base64' in e.data)) return;
-
-      const { base64, type, width, height } = e.data;
-      this.mutationCb({
-        id,
-        type: CanvasContext['2D'],
-        commands: [
-          {
-            property: 'clearRect', // wipe canvas
-            args: [0, 0, width, height],
-          },
-          {
-            property: 'drawImage', // draws (semi-transparent) image
-            args: [
-              {
-                rr_type: 'ImageBitmap',
-                args: [
-                  {
-                    rr_type: 'Blob',
-                    data: [{ rr_type: 'ArrayBuffer', base64 }],
-                    type,
-                  },
-                ],
-              } as CanvasArg,
-              0,
-              0,
-            ],
-          },
-        ],
-      });
-    };
 
     const timeBetweenSnapshots = 1000 / fps;
     let lastSnapshotTime = 0;
     let rafId: number;
 
+    // Prevent multiple concurrent canvas encodings (in‑progress flag)
+    const snapshotInProgressMap: Map<number, boolean> = new Map();
+
+    // Get canvases in the specified document
     const getCanvas = (): HTMLCanvasElement[] => {
       const matchedCanvas: HTMLCanvasElement[] = [];
       win.document.querySelectorAll('canvas').forEach((canvas) => {
@@ -170,7 +222,7 @@ export class CanvasManager {
       return matchedCanvas;
     };
 
-    const takeCanvasSnapshots = (timestamp: DOMHighResTimeStamp) => {
+    const takeCanvasSnapshots = async (timestamp: DOMHighResTimeStamp) => {
       if (
         lastSnapshotTime &&
         timestamp - lastSnapshotTime < timeBetweenSnapshots
@@ -180,52 +232,113 @@ export class CanvasManager {
       }
       lastSnapshotTime = timestamp;
 
-      getCanvas()
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        .forEach(async (canvas: HTMLCanvasElement) => {
-          const id = this.mirror.getId(canvas);
-          if (snapshotInProgressMap.get(id)) return;
+      const canvases = getCanvas();
+      for (const canvas of canvases) {
+        const id = this.mirror.getId(canvas);
+        if (snapshotInProgressMap.get(id)) {
+          continue;
+        }
+        // Skip if width/height is 0 to avoid errors
+        if (canvas.width === 0 || canvas.height === 0) {
+          continue;
+        }
 
-          // The browser throws if the canvas is 0 in size
-          // Uncaught (in promise) DOMException: Failed to execute 'createImageBitmap' on 'Window': The source image width is 0.
-          // Assuming the same happens with height
-          if (canvas.width === 0 || canvas.height === 0) return;
+        snapshotInProgressMap.set(id, true);
 
-          snapshotInProgressMap.set(id, true);
-          if (['webgl', 'webgl2'].includes((canvas as ICanvas).__context)) {
-            // if the canvas hasn't been modified recently,
-            // its contents won't be in memory and `createImageBitmap`
-            // will return a transparent imageBitmap
-
-            const context = canvas.getContext((canvas as ICanvas).__context) as
-              | WebGLRenderingContext
-              | WebGL2RenderingContext
-              | null;
-            if (
-              context?.getContextAttributes()?.preserveDrawingBuffer === false
-            ) {
-              // Hack to load canvas back into memory so `createImageBitmap` can grab it's contents.
-              // Context: https://twitter.com/Juice10/status/1499775271758704643
-              // Preferably we set `preserveDrawingBuffer` to true, but that's not always possible,
-              // especially when canvas is loaded before rrweb.
-              // This hack can wipe the background color of the canvas in the (unlikely) event that
-              // the canvas background was changed but clear was not called directly afterwards.
-              // Example of this hack having negative side effect: https://visgl.github.io/react-map-gl/examples/layers
-              context.clear(context.COLOR_BUFFER_BIT);
-            }
+        // Hack to force redraw when WebGL canvas has preserveDrawingBuffer=false
+        if (['webgl', 'webgl2'].includes((canvas as ICanvas).__context)) {
+          const context = canvas.getContext((canvas as ICanvas).__context) as
+            | WebGLRenderingContext
+            | WebGL2RenderingContext
+            | null;
+          if (
+            context?.getContextAttributes()?.preserveDrawingBuffer === false
+          ) {
+            // Clear to reload contents (may make it transparent)
+            context.clear(context.COLOR_BUFFER_BIT);
           }
-          const bitmap = await createImageBitmap(canvas);
-          worker.postMessage(
-            {
-              id,
-              bitmap,
-              width: canvas.width,
-              height: canvas.height,
-              dataURLOptions: options.dataURLOptions,
-            },
-            [bitmap],
+        }
+
+        // --- Obtain base64 on the main thread ---
+        let base64: string = '';
+        try {
+          base64 = await getCanvasBase64(canvas, options.dataURLOptions);
+        } catch (e) {
+          console.error('failed to get base64 for the canvas');
+          // Leave as empty string on failure
+        }
+
+        const base64Len = base64.length;
+        const estimatedBytes = Math.floor((base64Len * 3) / 4);
+        console.log(
+          `[rrweb-canvas] id=${id}, new snapshot: base64 length=${base64Len}, approx bytes=${estimatedBytes}`,
+        );
+
+        snapshotInProgressMap.set(id, false);
+
+        if (!base64) {
+          // Encoding failed or unsupported
+          continue;
+        }
+
+        // Only on the first time, check whether it is the same as a transparent image
+        if (!lastBlobMap.has(id)) {
+          // Generate a transparent image and compare
+          const transparentBase64 = await getTransparentBlobBase64(
+            canvas.width,
+            canvas.height,
+            options.dataURLOptions,
           );
+          if (transparentBase64 === base64) {
+            // If transparent, treat as "no update"
+            lastBlobMap.set(id, base64);
+            continue;
+          }
+        }
+
+        // Check if same image as last time
+        if (lastBlobMap.get(id) === base64) {
+          // No change
+          continue;
+        }
+
+        // New image detected, send event
+        lastBlobMap.set(id, base64);
+
+        // Call canvasMutationCallback in line with rrweb's original implementation
+        // Whether 2D or WebGL, the final rendering sends the same 'drawImage' command
+        const { type: blobType = 'image/png' } = options.dataURLOptions;
+
+        // Format expected by rrweb (drawImage call + base64 Blob)
+        this.mutationCb({
+          id,
+          type: CanvasContext['2D'],
+          commands: [
+            {
+              property: 'clearRect', // wipe canvas
+              args: [0, 0, canvas.width, canvas.height],
+            },
+            {
+              property: 'drawImage', // draws (semi-transparent) image
+              args: [
+                {
+                  rr_type: 'ImageBitmap',
+                  args: [
+                    {
+                      rr_type: 'Blob',
+                      data: [{ rr_type: 'ArrayBuffer', base64 }],
+                      type: blobType,
+                    },
+                  ],
+                } as CanvasArg,
+                0,
+                0,
+              ],
+            },
+          ],
         });
+      }
+
       rafId = requestAnimationFrame(takeCanvasSnapshots);
     };
 
