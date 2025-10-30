@@ -1,5 +1,13 @@
 # rrweb-player
 
+## 2.0.0-alpha.21
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @junify-app/replay@2.0.0-alpha.21
+  - @junify-app/packer@2.0.0-alpha.21
+
 ## 2.0.0-alpha.18
 
 ### Patch Changes

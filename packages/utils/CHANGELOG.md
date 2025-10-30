@@ -1,5 +1,11 @@
 # @junify-app/utils
 
+## 2.0.0-alpha.21
+
+### Patch Changes
+
+- [#1631](https://github.com/rrweb-io/rrweb/pull/1631) [`88ea2d0`](https://github.com/rrweb-io/rrweb/commit/88ea2d05c1869026111c91f7aa14ea7a7193fcd8) Thanks [@pauldambra](https://github.com/pauldambra)! - Move patch function into @junify-app/utils to improve bundling
+
 ## 2.0.0-alpha.18
 
 ## 2.0.0-alpha.17
