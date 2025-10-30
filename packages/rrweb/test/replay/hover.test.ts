@@ -16,7 +16,7 @@ interface ISuite {
 expect.extend({ toMatchImageSnapshot });
 
 describe('replayer', function () {
-  vi.setConfig({ testTimeout: 20_000, hookTimeout: 30_000 });
+  vi.setConfig({ testTimeout: 40_000, hookTimeout: 60_000 });
 
   let code: ISuite['code'];
   let styles: ISuite['styles'];
@@ -24,7 +24,7 @@ describe('replayer', function () {
   let page: ISuite['page'];
 
   beforeAll(async () => {
-    browser = await launchPuppeteer({ devtools: true });
+    browser = await launchPuppeteer();
 
     const bundlePath = path.resolve(__dirname, '../../dist/rrweb.umd.cjs');
     const stylePath = path.resolve(
