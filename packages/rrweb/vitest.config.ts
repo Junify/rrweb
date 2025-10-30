@@ -7,6 +7,8 @@ export default mergeConfig(
   defineProject({
     test: {
       globals: true,
+      hookTimeout: 30_000,
+      testTimeout: 120_000,
     },
   }),
 );

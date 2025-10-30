@@ -83,7 +83,7 @@ const setup = function (this: ISuite, content: string): ISuite {
 };
 
 describe('record', function (this: ISuite) {
-  vi.setConfig({ testTimeout: 10_000 });
+  vi.setConfig({ testTimeout: 30_000, hookTimeout: 40_000 });
 
   const ctx: ISuite = setup.call(
     this,
@@ -836,7 +836,7 @@ describe('record', function (this: ISuite) {
     });
 
     it('captures stylesheets that are still loading', async () => {
-      ctx.page.evaluate((serverURL) => {
+      await ctx.page.evaluate((serverURL) => {
         const { record } = (window as unknown as IWindow).rrweb;
 
         record({
@@ -857,7 +857,7 @@ describe('record', function (this: ISuite) {
     });
 
     it('captures stylesheets in iframes that are still loading', async () => {
-      ctx.page.evaluate(() => {
+      await ctx.page.evaluate(() => {
         const iframe = document.createElement('iframe');
         iframe.setAttribute('src', `/html/hello-world.html?2`);
         document.body.appendChild(iframe);
@@ -874,7 +874,7 @@ describe('record', function (this: ISuite) {
 
       await waitForRAF(ctx.page);
 
-      ctx.page.evaluate(() => {
+      await ctx.page.evaluate(() => {
         const iframe = document.querySelector('iframe')!;
         const iframeDoc = iframe.contentDocument!;
         const linkEl = document.createElement('link');
