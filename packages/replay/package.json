@@ -1,6 +1,6 @@
 {
   "name": "@junify-app/replay",
-  "version": "2.0.0-alpha.20",
+  "version": "2.0.0-alpha.21",
   "publishConfig": {
     "access": "public"
   },
@@ -56,8 +56,8 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "@junify-app/rrweb": "^2.0.0-alpha.20",
-    "@junify-app/types": "^2.0.0-alpha.20"
+    "@junify-app/rrweb": "^2.0.0-alpha.21",
+    "@junify-app/types": "^2.0.0-alpha.21"
   },
   "browserslist": [
     "supports es6-class"
