@@ -51,6 +51,17 @@ worker and long-session/restart cleanup are still observable effects of the two
 contract rows, so production MV3 Task 9 and bounded lifecycle Task 7 evidence
 remain required.
 
+Task 6 closes the package-local privacy gaps without over-promoting the
+cross-repository contract. Authentic stable REDs cover hidden values,
+placeholder values, all approved sensitive-autocomplete tokens, the leaking
+value-before-type password mutation order, and synchronous Input emission
+before the observer flush. Candidate tests scan serialized FullSnapshot,
+Mutation, Input, and dynamically added-node payloads plus a temporary persisted
+JSON artifact. Textarea protection remains inherited from upstream 2.1.1;
+placeholder removal remains `null`; normal autocomplete/text controls remain
+visible. `junify.privacy.persisted-sentinels` stays `red-known-risk` until Task
+9 observes real extension Chrome storage and decoded V1/V2 request bodies.
+
 ## Status Summary
 
 | Status                      | Count | Meaning here                                                                                                 |
@@ -102,15 +113,16 @@ Layer counts are non-exclusive.
 | Task 2 authenticated fixtures         | loaded UMD-to-registry-tarball integrity, temporary real-browser regeneration, target-ID mutation evidence, marker-terminated SPA/seek-ready/stylesheet sinks, full official 2.1.1 replay, hashes, and 13.6 MB CSS | future Junify candidate recording output, Rails main/static consumers, extension storage/transport/fragmentation, or privacy acceptance |
 | Task 5 local Canvas gates             | injectable factories, worker failure/timeout/dispose, strict fallback, application/replay pixels, temporary JSON persistence, and post-stop silence                                                                | browser_extension packaged-worker execution under real MV3, bridge/Blob URL cleanup, or full repeated-recorder observer lifecycle       |
 
-## Task 2 Privacy Characterization
+## Privacy Characterization And Local Fixes
 
 The fixtures contain only distinct synthetic values. Scans are assertions of
 observed historical behavior, not privacy acceptance: password and dynamic
 password sentinels are absent; placeholder, hidden, and sensitive-autocomplete
 sentinels occur in all four comprehensive artifacts; alpha.4 additionally
-contains the textarea sentinel. `junify.privacy.persisted-sentinels` therefore
-remains `red-known-risk`, and Task 6 must prove absence through Chrome storage
-and both ingest request bodies.
+contains the textarea sentinel. `junify.privacy.persisted-sentinels` remains
+`red-known-risk`. Task 6 proves candidate absence through snapshot,
+real-recorder, and temporary persisted-JSON sinks; Task 9 must still prove real
+Chrome storage and both ingest request bodies.
 
 ## Status Transition Rules
 

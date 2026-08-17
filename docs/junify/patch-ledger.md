@@ -22,9 +22,10 @@ patch is already present or that coverage is green.
 | `BND-002`      | implemented; release-gated      | Publish `@junify-app/rrweb-player@2.1.1-junify.0` and force it to bundle the patched local replayer (`junify.package-boundary.player`)                       | approved integration design; old scoped player package is behavior reference only                                                                  | `G-PKG-PLAYER`; prove packed player does not resolve unpatched official replay; Task 3 evidence below | Junify package boundary is not an upstream concern                                                       | player can consume an upstream release that includes every required Junify replayer patch, or the fork is retired |
 | `SEEK-001`     | implemented; upstream-candidate | First synchronization after explicit forward/backward seek must use correct real DOM (`junify.replay.seek-visible-dom`)                                      | Junify `8d0afa80f6fdf94226c914964a7a647c7f44f9c5`; upstream PR 1806 evaluated as a narrower separate issue                                         | `G-SEEK`; focused RED/GREEN plus eight authenticated historical seeks and 13.6 MB timing              | absent from 2.1.1; suitable for a focused upstream correctness PR with the behavior fixture              | an upstream stable release passes the same forward/backward fixture without this patch                            |
 | `CANVAS-001`   | implemented; consumer-gated     | Preserve consumer-used injected ImageBitmap processor, packaged MV3 worker, inline fallback, transfer/close, and non-destructive capture (`junify.canvas.*`) | Junify `45ea914e78f70f54d386bf341f7d55567f200b68`; Sentry PR 307 / `027138c9`; upstream Vite PR 1762 / `22bc4c33` does not replace packaged worker | `G-CANVAS-PROCESSOR`, `G-CANVAS-PIXELS`; Task 5 local RED/GREEN plus Task 9 production MV3 evidence   | injectable API absent from 2.1.1; upstream Vite 6 still uses an inline-worker import                     | upstream exposes an equivalent tested injectable/packaged-worker API and passes Junify MV3/pixel/cleanup gates    |
-| `PRIV-001`     | planned                         | Mask hidden input values in initial and mutated persisted payloads (`junify.privacy.persisted-sentinels`)                                                    | Mixpanel PR 4 / `c68ae046`; upstream open PR 1745                                                                                                  | `G-PRIVACY`; unique hidden-value sentinels absent from Full/Incremental/storage/V1/V2                 | absent from 2.1.1                                                                                        | upstream stable masks hidden inputs under the Junify policy and passes the same persisted sentinel gate           |
-| `PRIV-002`     | planned                         | Mask placeholders for masked inputs/textareas, including mutations (`junify.privacy.persisted-sentinels`)                                                    | Mixpanel PR 18 / `2a8326d0`                                                                                                                        | `G-PRIVACY`; unique initial/mutated placeholder sentinels                                             | absent from 2.1.1                                                                                        | upstream stable provides equivalent placeholder masking and passes the persisted sentinel gate                    |
-| `PRIV-003`     | planned                         | Always protect values for sensitive autocomplete tokens (`junify.privacy.persisted-sentinels`)                                                               | Sentry PR 166 / `432fe1f9`                                                                                                                         | `G-PRIVACY`; distinct autocomplete sentinels absent from all persisted sinks                          | absent from 2.1.1                                                                                        | upstream stable provides equivalent sensitive-autocomplete handling and passes the persisted sentinel gate        |
+| `PRIV-001`     | implemented; consumer-gated     | Mask hidden input values in initial and mutated persisted payloads (`junify.privacy.persisted-sentinels`)                                                    | Mixpanel PR 4 / `c68ae046`; upstream open PR 1745                                                                                                  | Task 6 package-local `G-PRIVACY`; Task 9 storage/V1/V2 residual                                      | absent from 2.1.1                                                                                        | upstream stable masks hidden inputs under the Junify policy and passes the same persisted sentinel gate           |
+| `PRIV-002`     | implemented; consumer-gated     | Mask placeholders for masked inputs/textareas, including mutations while preserving removal as `null` (`junify.privacy.persisted-sentinels`)                 | Mixpanel PR 18 / `2a8326d0`                                                                                                                        | Task 6 package-local `G-PRIVACY`; Task 9 storage/V1/V2 residual                                      | absent from 2.1.1                                                                                        | upstream stable provides equivalent placeholder masking and passes the persisted sentinel gate                    |
+| `PRIV-003`     | implemented; consumer-gated     | Always protect values for sensitive autocomplete tokens, even with an identity mask function (`junify.privacy.persisted-sentinels`)                         | Sentry PR 166 / `432fe1f9`                                                                                                                         | Task 6 package-local `G-PRIVACY`; Task 9 storage/V1/V2 residual                                      | absent from 2.1.1                                                                                        | upstream stable provides equivalent sensitive-autocomplete handling and passes the persisted sentinel gate        |
+| `PRIV-004`     | implemented; upstream-candidate | Preserve password masking across both same-batch type/value mutation orders and synchronous Input before observer flush (`junify.privacy.persisted-sentinels`) | Task 6 differential against upstream 2.1.1                                                                                                         | Task 6 package-local `G-PRIVACY`; Task 9 storage/V1/V2 residual                                      | absent from 2.1.1; suitable for a focused upstream correctness PR                                      | upstream stable passes both same-batch orders and synchronous Input fixture without this patch                    |
 | `LIFE-REC-001` | planned                         | Stop must release MutationObserver, iframe, stylesheet, shadow-root, Canvas RAF/worker, and mirror resources (`junify.lifecycle.recorder-stop`)              | PostHog PRs 91, 94, 142, 157, 159, 162, 163 as a coherent train; Mixpanel PRs 8 and 12 / upstream PR 1791 as design references                     | `G-RECORDER-LIFECYCLE`; record churn count/duration/retention assertions                              | coherent cleanup behavior absent/incomplete in 2.1.1; isolated PostHog PR 142 has follow-up shadow fixes | upstream stable passes the full bounded-churn gate without Junify adaptation                                      |
 | `LIFE-REP-001` | planned                         | Destroy must release timers, subscriptions, pending callbacks, iframe maps, and roots (`junify.lifecycle.replayer-destroy`)                                  | PostHog PRs 92, 121, 122, 123                                                                                                                      | `G-REPLAYER-LIFECYCLE`; no callback/reference after repeated destroy                                  | 2.1.1 destroy test proves wrapper removal only                                                           | upstream stable passes the complete lifecycle gate without Junify adaptation                                      |
 | `DEF-001`      | planned                         | Malformed legacy media nodes must not abort replay matrix (`junify.compatibility.historical-replay`)                                                         | Mixpanel PR 10 / `dfeeb602`; upstream open PR 1673                                                                                                 | `G-REPLAYER-LIFECYCLE` plus malformed legacy fixture in replay matrix                                 | absent from 2.1.1                                                                                        | upstream stable contains the guard and passes the legacy fixture                                                  |
@@ -144,6 +145,48 @@ and response `reason` field are not retained.
   bridge/Blob strict-CSP fallbacks in real MV3, and Task 7 must close the
   broader repeated-recorder lifecycle contract. Both Canvas inventory rows
   therefore remain `red-known-risk` rather than being over-promoted.
+
+## Task 6 Privacy Evidence
+
+Task 6 keeps the rrweb event schema and official `@rrweb/types` unchanged. It
+adapts only the narrow behavior proved missing by an authentic stable RED; the
+general attribute-masking callback remains deferred.
+
+- `PRIV-001`: `8d0d5ffe` adapts Mixpanel's hidden-input policy. Unmodified
+  2.1.1 failed 1/1 focused snapshot case and 1/1 real-Chrome case. The candidate
+  passes both focused gates and the temporary persisted-JSON scan.
+- `PRIV-002`: `e9472203` adapts placeholder masking. Unmodified 2.1.1 failed
+  1/1 focused snapshot case and 1/1 real-Chrome case. The candidate masks
+  initial and mutated placeholders while preserving attribute removal as
+  `null` and leaving normal text placeholders visible.
+- `PRIV-003`: `0da4b388` adapts Sentry's sensitive-autocomplete rule with
+  whitespace tokenization and case folding. Unmodified 2.1.1 failed 7/7
+  focused snapshot cases and 1/1 real-Chrome case. The first implementation
+  exposed a second Input-event leak; the final candidate protects all approved
+  tokens, mixed-case and compound forms, even with an identity mask function,
+  while a non-sensitive `name` control remains visible.
+- `PRIV-004`: `ce6ee88e` is a Task 6 differential. Unmodified 2.1.1 failed the
+  leaking value-before-type same-batch order in 1/1 real-Chrome case and leaked
+  synchronous Input before MutationObserver flush in a separate 1/1 case. The
+  candidate premarks password nodes for the entire batch, keeps a local input
+  observer marker, and passes both mutation orders plus synchronous Input.
+- Textarea: `313fd37b` adds characterization only. Upstream 2.1.1 already
+  protects initial, dynamically added, value-attribute, child-text, and Input
+  payloads under the explicit masking policy, so no duplicate production patch
+  is retained.
+- Persisted compatibility: each run creates distinct `randomUUID`-based
+  synthetic sentinels, serializes a candidate recording to a temporary JSON
+  file, scans it, and removes the temporary directory. No privacy secret or
+  generated privacy artifact is tracked, and no authenticated fixture hash is
+  changed.
+- Upstream plan: submit `PRIV-001`, `PRIV-002`, and `PRIV-003` as focused
+  behavior/test proposals based on their cited sources; submit `PRIV-004` as a
+  focused correctness proposal. Delete each patch when upstream stable passes
+  its exact sentinel gate without the patch.
+- Residual blocker: Task 9 must use the same policy and distinct sentinels to
+  prove absence from real extension Chrome storage and decoded V1/V2 request
+  bodies. The cross-repository privacy row therefore remains
+  `red-known-risk`.
 
 ## Deferred Or Rejected Candidates
 

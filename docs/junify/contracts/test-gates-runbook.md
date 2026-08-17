@@ -192,8 +192,14 @@ Scan emitted FullSnapshot and IncrementalSnapshot JSON, Chrome storage, and V1/
 V2 requests for distinct password, textarea, placeholder, dynamic password,
 hidden, and sensitive-autocomplete sentinels. Task 2 characterizes emitted
 artifacts: placeholder, hidden, and sensitive-autocomplete leak in all four;
-alpha.4 also leaks textarea. Current blocker: Chrome storage and V1/V2 request
-scans plus the approved narrow fixes are added in Task 6.
+alpha.4 also leaks textarea. Task 6 passes the package-local snapshot,
+real-Chrome recorder, and temporary persisted-JSON portions under Node 20.9.0
+and Chrome 151. It covers FullSnapshot, Mutation, Input, and added-node payloads;
+both same-batch password type orders; synchronous Input before observer flush;
+all approved sensitive autocomplete tokens with compound/mixed-case forms and
+an identity mask function; placeholder removal as `null`; and visible negative
+controls. Current blocker: Task 9 must scan real extension Chrome storage and
+decoded V1/V2 request bodies with the same policy and sentinels.
 
 ### Task 2 Fixture Regeneration
 
