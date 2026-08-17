@@ -68,13 +68,15 @@ node -e "JSON.parse(require('fs').readFileSync('docs/junify/contracts/contract-i
 git diff --check
 ```
 
-The reconciliation command compares every contract ID, status, recommended
-layer set, and stable gate ID between JSON and the Markdown matrix, verifies
-that each gate has exactly one runbook heading, and compares status counts.
-Prove sensitivity with
+The reconciliation command treats JSON as the source of truth and compares a
+deterministically generated Markdown matrix containing all 11 required fields.
+It also verifies that each gate has exactly one runbook heading and compares
+status counts. Prove gate and non-gate descriptive-field sensitivity with
 `node docs/junify/contracts/reconcile-contract-inventory.mjs --simulate-gate-divergence`;
-that command must fail with a gate mismatch. The layer summary is
-non-exclusive: one contract may count in more than one layer.
+and
+`node docs/junify/contracts/reconcile-contract-inventory.mjs --simulate-description-divergence`.
+Both commands must fail with a generated-matrix mismatch. The layer summary
+is non-exclusive: one contract may count in more than one layer.
 
 ## Evidence And Verdict Log
 
@@ -85,6 +87,7 @@ one of: `blocking`, `non-blocking`, or `clear`.
 | --- | --- | --- | --- | --- |
 | 2026-08-17 | Task 1 initial census | implementing agent | approved design; rrweb baseline and cached fork history; dedicated extension and Rails worktrees; read-only service source/build/zip census; fixture metadata | Initial documentation committed at `ff1f9236`; independent reconciliation checkpoint required before the next implementation task or merge. |
 | 2026-08-17 | Task 1 fix round 1 | independent reviewer plus implementing agent | human/JSON gate fields; candidate ledger; service artifact labels; audit checkpoint | Important findings fixed: stable gate IDs now reconcile through a sensitivity-checked script; PR 1806 and non-candidate boundaries are explicit; artifact evidence is accurately labeled. |
+| 2026-08-17 | Task 1 fix round 2 | scoped re-review plus implementing agent | all 11 required inventory fields; generated Markdown matrix; gate and descriptive mutation probes | JSON is the single source of truth; deterministic generation/comparison rejects drift in any required human-readable field before the next implementation task or merge. |
 
 ## Promotion And Escalation Rules
 

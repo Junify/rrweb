@@ -1,20 +1,14 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const contractDir = dirname(fileURLToPath(import.meta.url));
-const inventory = JSON.parse(
-  readFileSync(join(contractDir, 'contract-inventory.json'), 'utf8'),
-);
-let human = readFileSync(join(contractDir, 'contract-inventory.md'), 'utf8');
-const runbook = readFileSync(join(contractDir, 'test-gates-runbook.md'), 'utf8');
-
-if (process.argv.includes('--simulate-gate-divergence')) {
-  human = human.replace(
-    '| `G-COMPAT-CANDIDATE` |',
-    '| `G-WIRE-FORMAT` |',
-  );
-}
+const inventoryPath = join(contractDir, 'contract-inventory.json');
+const humanPath = join(contractDir, 'contract-inventory.md');
+const runbookPath = join(contractDir, 'test-gates-runbook.md');
+const inventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
+let human = readFileSync(humanPath, 'utf8');
+const runbook = readFileSync(runbookPath, 'utf8');
 
 const allowedStatuses = new Set([
   'covered',
@@ -37,49 +31,99 @@ const requiredFields = [
   'gate_id',
   'test_notes',
 ];
+const arrayFields = [
+  'source',
+  'recommended_layers',
+  'entrypoints',
+  'observable_effects',
+];
+const generatedStart = '<!-- BEGIN GENERATED CONTRACT MATRIX -->';
+const generatedEnd = '<!-- END GENERATED CONTRACT MATRIX -->';
 
-const unquote = (value) => value.replaceAll('`', '').trim();
-const normalizeLayer = (value) =>
-  value
-    .toLowerCase()
-    .replace('static analysis', 'static-analysis')
-    .replace('e2e', 'e2e');
-const normalizeLayers = (value) => {
-  if (value === 'none') return [];
-  return value.split(',').map((item) => normalizeLayer(item.trim())).sort();
-};
+const escapeCell = (value) => String(value).replaceAll('|', '\\|');
+const arrayCell = (values) =>
+  values.length === 0 ? 'none' : values.map(escapeCell).join('; ');
+const codeCell = (value) => `\`${escapeCell(value)}\``;
+const renderContractRow = (contract) =>
+  [
+    codeCell(contract.id),
+    escapeCell(contract.title),
+    arrayCell(contract.source),
+    codeCell(contract.status),
+    arrayCell(contract.recommended_layers),
+    arrayCell(contract.entrypoints),
+    arrayCell(contract.observable_effects),
+    escapeCell(contract.expected_current_behavior),
+    codeCell(contract.gate_id),
+    escapeCell(contract.risk_if_broken),
+    escapeCell(contract.test_notes),
+  ].join(' | ');
+const renderGeneratedMatrix = (contracts) =>
+  [
+    generatedStart,
+    '| ID | Title | Source | Status | Recommended layers | Entrypoints | Observable effects | Expected/current behavior | Exact gate | Risk if broken | Test notes |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    ...contracts.map((contract) => `| ${renderContractRow(contract)} |`),
+    generatedEnd,
+  ].join('\n');
 
-const matrix = human
-  .split('## Contract Matrix')[1]
-  .split('## Current Consumer Matrix')[0]
-  .split('\n')
-  .filter((line) => line.startsWith('| `junify.'))
-  .map((line) => {
-    const cells = line.split('|').slice(1, -1).map((cell) => cell.trim());
-    return {
-      id: unquote(cells[0]),
-      status: unquote(cells[3]),
-      recommendedLayers: normalizeLayers(unquote(cells[4])),
-      gateId: unquote(cells[5]),
-      risk: cells[6],
-    };
-  });
-const humanById = new Map(matrix.map((contract) => [contract.id, contract]));
+const generatedMatrix = renderGeneratedMatrix(inventory.contracts);
+
+if (process.argv.includes('--write')) {
+  const sectionStart = human.indexOf('## Contract Matrix');
+  const sectionEnd = human.indexOf('## Current Consumer Matrix');
+  if (sectionStart < 0 || sectionEnd < 0 || sectionEnd <= sectionStart) {
+    throw new Error('cannot locate Contract Matrix section');
+  }
+  const replacement = [
+    '## Contract Matrix',
+    '',
+    'This matrix is generated from `contract-inventory.json`. Do not edit its',
+    'rows by hand; update JSON and run',
+    '`node docs/junify/contracts/reconcile-contract-inventory.mjs --write`.',
+    '',
+    generatedMatrix,
+    '',
+    '',
+  ].join('\n');
+  human = human.slice(0, sectionStart) + replacement + human.slice(sectionEnd);
+  writeFileSync(humanPath, human);
+  console.log('updated generated Markdown contract matrix');
+}
+
+if (process.argv.includes('--simulate-gate-divergence')) {
+  human = human.replace(
+    '| `G-COMPAT-CANDIDATE` |',
+    '| `G-WIRE-FORMAT` |',
+  );
+}
+
+if (process.argv.includes('--simulate-description-divergence')) {
+  human = human.replace(
+    inventory.contracts[0].title,
+    `${inventory.contracts[0].title} [simulated divergence]`,
+  );
+}
+
 const gateHeadings = [...runbook.matchAll(/^### `(G-[A-Z0-9-]+)`$/gm)].map(
   (match) => match[1],
 );
-
 const errors = [];
 const ids = inventory.contracts.map((contract) => contract.id);
+
 if (new Set(ids).size !== ids.length) errors.push('duplicate JSON contract ID');
 if (ids.join('\n') !== [...ids].sort().join('\n')) {
   errors.push('JSON contracts are not sorted by ID');
 }
-if (humanById.size !== matrix.length) errors.push('duplicate Markdown contract ID');
 
 for (const contract of inventory.contracts) {
   for (const field of requiredFields) {
     if (!(field in contract)) errors.push(`${contract.id}: missing ${field}`);
+  }
+  for (const field of arrayFields) {
+    if (!Array.isArray(contract[field])) {
+      errors.push(`${contract.id}: ${field} must be an array`);
+    }
   }
   if ('exact_gate' in contract) {
     errors.push(`${contract.id}: exact_gate duplicates the runbook; use gate_id`);
@@ -87,34 +131,23 @@ for (const contract of inventory.contracts) {
   if (!allowedStatuses.has(contract.status)) {
     errors.push(`${contract.id}: invalid status ${contract.status}`);
   }
-  const row = humanById.get(contract.id);
-  if (!row) {
-    errors.push(`${contract.id}: missing Markdown row`);
-    continue;
-  }
-  if (row.status !== contract.status) {
-    errors.push(`${contract.id}: status mismatch (${row.status} != ${contract.status})`);
-  }
-  const jsonLayers = [...contract.recommended_layers].sort();
-  if (row.recommendedLayers.join(',') !== jsonLayers.join(',')) {
-    errors.push(
-      `${contract.id}: layer mismatch (${row.recommendedLayers} != ${jsonLayers})`,
-    );
-  }
-  if (row.gateId !== contract.gate_id) {
-    errors.push(
-      `${contract.id}: gate mismatch (${row.gateId} != ${contract.gate_id})`,
-    );
-  }
-  if (!row.risk) errors.push(`${contract.id}: empty Markdown risk`);
   const gateCount = gateHeadings.filter((gate) => gate === contract.gate_id).length;
   if (gateCount !== 1) {
     errors.push(`${contract.id}: runbook has ${gateCount} ${contract.gate_id} headings`);
   }
 }
 
-for (const row of matrix) {
-  if (!ids.includes(row.id)) errors.push(`${row.id}: Markdown-only contract`);
+const actualStart = human.indexOf(generatedStart);
+const actualEnd = human.indexOf(generatedEnd);
+if (actualStart < 0 || actualEnd < 0 || actualEnd < actualStart) {
+  errors.push('Markdown generated contract matrix is missing');
+} else {
+  const actualMatrix = human.slice(actualStart, actualEnd + generatedEnd.length);
+  if (actualMatrix !== generatedMatrix) {
+    errors.push(
+      'generated Markdown contract matrix differs from required JSON fields',
+    );
+  }
 }
 
 const statusCounts = Object.fromEntries(
@@ -137,6 +170,6 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `contract inventory reconciliation passed: ${ids.length} contracts, ${new Set(gateHeadings).size} gates`,
+    `contract inventory reconciliation passed: ${ids.length} contracts, ${requiredFields.length} fields, ${new Set(gateHeadings).size} gates`,
   );
 }
