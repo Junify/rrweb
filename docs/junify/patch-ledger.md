@@ -111,8 +111,8 @@ and response `reason` field are not retained.
 - RED: unmodified 2.1.1 failed 8/9 focused processor tests because the three
   public factories were absent. A separate real-Chrome stop case failed with
   zero disposer calls when `recordDOM: false`.
-- GREEN: the processor suite passes 11/11 and the focused record/replay WebGL
-  suites pass 16/16 and 1/1 respectively under Node 20.9.0 and Chrome
+- GREEN: the processor suite passes 13/13 and the focused record/replay WebGL
+  suites pass 17/17 and 1/1 respectively under Node 20.9.0 and Chrome
   151.0.7922.138. Coverage includes transfer/result, synchronous post failure,
   worker `error`/`messageerror`, silent timeout, dispose/late response,
   per-instance caches, transparent/identical suppression, dimension and
@@ -129,6 +129,14 @@ and response `reason` field are not retained.
   `[255, 0, 0, 255]` and WebGL `[0, 128, 0, 255]` pixels survive, while
   Canvas mutations retain the upstream clearRect/drawImage ImageBitmap wire
   shape.
+- Fix round 1: two independent-review Important findings have authentic REDs.
+  A throwing public error observer previously interrupted worker settlement,
+  timer/listener cleanup, and termination for both worker-error and silent-
+  timeout paths. A throwing injected disposer previously escaped stop before
+  processed-node destruction, inactive recording state, and error-handler
+  removal. Cleanup now precedes and contains error notification; real Chrome
+  proves disposer failure containment, first-stop completion, idempotence,
+  restart/stop, and late-result suppression.
 - Upstream plan: propose the injectable processor/factory contract,
   non-destructive WebGL warm-up, and focused tests without Junify package
   names. Delete the patch after upstream stable passes the same gates.

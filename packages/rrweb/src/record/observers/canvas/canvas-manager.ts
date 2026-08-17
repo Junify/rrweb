@@ -67,7 +67,14 @@ export class CanvasManager {
     this.active = false;
     this.pendingCanvasMutations.clear();
     this.resetObservers && this.resetObservers();
-    this.processImageBitmap?.dispose?.();
+    try {
+      this.processImageBitmap?.dispose?.();
+    } catch (error) {
+      console.warn(
+        '[rrweb] Failed to dispose canvas snapshot processor',
+        error,
+      );
+    }
   }
 
   public freeze() {

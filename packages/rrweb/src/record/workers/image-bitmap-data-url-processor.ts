@@ -187,9 +187,13 @@ export const createWorkerImageBitmapProcessor = (
   function failWorker(error: unknown): void {
     if (workerFailed || disposed) return;
     workerFailed = true;
-    onError(error);
     settleAllWithoutFrame();
     removeWorkerListeners();
+    try {
+      onError(error);
+    } catch {
+      // Error observers must not interrupt worker failure cleanup.
+    }
   }
 
   if (worker.addEventListener) {

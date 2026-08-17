@@ -44,7 +44,8 @@ Task 5 implements the local `CANVAS-001` patch without promoting either
 cross-repository Canvas row. Unit and real-Chrome gates cover processor
 injection, transfer/fallback/error/timeout/dispose, transparent and unchanged
 suppression, format/dimension changes, bitmap closure, post-stop silence,
-non-destructive WebGL screenshots, and a JSON-persisted candidate
+failure containment for injected error/dispose callbacks, non-destructive
+WebGL screenshots, and a JSON-persisted candidate
 Canvas2D/WebGL record-to-replay pixel round trip. The extension's packaged MV3
 worker and long-session/restart cleanup are still observable effects of the two
 contract rows, so production MV3 Task 9 and bounded lifecycle Task 7 evidence

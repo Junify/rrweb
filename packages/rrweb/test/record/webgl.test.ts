@@ -9,6 +9,8 @@ import {
   EventType,
   IncrementalSource,
   CanvasContext,
+  type ImageBitmapDataURLWorkerParams,
+  type ImageBitmapDataURLWorkerResponse,
 } from '@rrweb/types';
 import {
   assertSnapshot,
@@ -541,6 +543,141 @@ describe('recordCanvas FPS processor integration', () => {
     });
 
     expect(disposeCalls).toBe(1);
+  });
+
+  it('contains an injected disposer failure and completes idempotent stop cleanup', async () => {
+    const lateBase64 = 'SlVOSUZZX1RIUk9XSU5HX0RJU1BPU0VfTEFURQ==';
+    await page.evaluate(() => {
+      type RecordFunction = ((
+        options: recordOptions<eventWithTime>,
+      ) => listenerHandler | undefined) & {
+        addCustomEvent<T>(tag: string, payload: T): void;
+      };
+      const pageWindow = window as typeof window & {
+        rrweb: { record: RecordFunction };
+        emitCanvasEvent: (event: eventWithTime) => void;
+        throwingDisposeCalls: number;
+        throwingProcessorCalls: number;
+        resolveThrowingProcessor?: () => void;
+        stopThrowingRecording?: listenerHandler;
+      };
+      pageWindow.throwingDisposeCalls = 0;
+      pageWindow.throwingProcessorCalls = 0;
+      const processor = Object.assign(
+        ({ id, bitmap, width, height }: ImageBitmapDataURLWorkerParams) => {
+          pageWindow.throwingProcessorCalls += 1;
+          bitmap.close();
+          return new Promise<ImageBitmapDataURLWorkerResponse>((resolve) => {
+            pageWindow.resolveThrowingProcessor = () =>
+              resolve({
+                id,
+                type: 'image/png',
+                base64: 'SlVOSUZZX1RIUk9XSU5HX0RJU1BPU0VfTEFURQ==',
+                width,
+                height,
+              });
+          });
+        },
+        {
+          dispose: () => {
+            pageWindow.throwingDisposeCalls += 1;
+            throw new Error('synthetic dispose failure');
+          },
+        },
+      );
+      pageWindow.stopThrowingRecording = pageWindow.rrweb.record({
+        emit: pageWindow.emitCanvasEvent,
+        recordDOM: false,
+        recordCanvas: true,
+        sampling: { canvas: 60 },
+        imageBitmapProcessor: processor,
+      });
+      const canvas = document.querySelector('#canvas') as HTMLCanvasElement;
+      canvas.getContext('2d')!.fillRect(0, 0, 2, 2);
+    });
+    await page.waitForFunction(
+      () =>
+        (window as typeof window & { throwingProcessorCalls?: number })
+          .throwingProcessorCalls! > 0,
+    );
+
+    const firstStop = await page.evaluate(() => {
+      type RecordFunction = {
+        addCustomEvent<T>(tag: string, payload: T): void;
+      };
+      const pageWindow = window as typeof window & {
+        rrweb: { record: RecordFunction };
+        throwingDisposeCalls: number;
+        stopThrowingRecording?: listenerHandler;
+      };
+      let stopError: string | null = null;
+      try {
+        pageWindow.stopThrowingRecording?.();
+      } catch (error) {
+        stopError = String(error);
+      }
+      let recordingInactive = false;
+      try {
+        pageWindow.rrweb.record.addCustomEvent('after-first-stop', true);
+      } catch {
+        recordingInactive = true;
+      }
+      return {
+        stopError,
+        recordingInactive,
+        disposeCalls: pageWindow.throwingDisposeCalls,
+      };
+    });
+
+    expect(firstStop).toEqual({
+      stopError: null,
+      recordingInactive: true,
+      disposeCalls: 1,
+    });
+
+    await page.evaluate(() => {
+      (
+        window as typeof window & { resolveThrowingProcessor?: () => void }
+      ).resolveThrowingProcessor?.();
+    });
+    await page.waitForTimeout(50);
+    expect(JSON.stringify(events)).not.toContain(lateBase64);
+
+    const restart = await page.evaluate(() => {
+      type RecordFunction = ((
+        options: recordOptions<eventWithTime>,
+      ) => listenerHandler | undefined) & {
+        addCustomEvent<T>(tag: string, payload: T): void;
+      };
+      const pageWindow = window as typeof window & {
+        rrweb: { record: RecordFunction };
+        emitCanvasEvent: (event: eventWithTime) => void;
+      };
+      const stop = pageWindow.rrweb.record({
+        emit: pageWindow.emitCanvasEvent,
+        recordDOM: false,
+      });
+      let stopError: string | null = null;
+      try {
+        stop?.();
+        stop?.();
+      } catch (error) {
+        stopError = String(error);
+      }
+      let recordingInactive = false;
+      try {
+        pageWindow.rrweb.record.addCustomEvent('after-restart-stop', true);
+      } catch {
+        recordingInactive = true;
+      }
+      return { stopType: typeof stop, stopError, recordingInactive };
+    });
+
+    expect(restart).toEqual({
+      stopType: 'function',
+      stopError: null,
+      recordingInactive: true,
+    });
   });
 
   it('does not alter pixels on a pre-existing preserveDrawingBuffer:false WebGL canvas', async () => {

@@ -147,14 +147,18 @@ PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/image-bitmap
 yarn workspace @junify/rrweb-compatibility test -- record-fixtures
 ```
 
-Task 5 passes 28/28 focused rrweb tests and 3/3 compatibility tests under
+Task 5 plus fix round 1 passes 31/31 focused rrweb tests and 3/3 compatibility
+tests under
 Node 20.9.0 and Chrome 151.0.7922.138. They assert injected processor use,
 worker transfer/result, post failure, `error`/`messageerror`, silent timeout,
-dispose/late reply, transparent and unchanged suppression, strict-CSP inline
-fallback, dimension/MIME/quality behavior, and absent OffscreenCanvas/WebGL
-constructors. The compatibility test serializes a candidate artifact to JSON
-and visibly replays exact Canvas2D/WebGL pixels. Current blocker: Task 9 must
-exercise browser_extension's packaged worker under production MV3.
+throwing error-observer containment, dispose/late reply, transparent and
+unchanged suppression, strict-CSP inline fallback, dimension/MIME/quality
+behavior, and absent OffscreenCanvas/WebGL constructors. A real-Chrome
+throwing-disposer sentinel verifies non-throwing idempotent stop, inactive
+recording state, restart/stop, and no late emit. The compatibility test
+serializes a candidate artifact to JSON and visibly replays exact
+Canvas2D/WebGL pixels. Current blocker: Task 9 must exercise
+browser_extension's packaged worker under production MV3.
 
 ### `G-CANVAS-PIXELS`
 

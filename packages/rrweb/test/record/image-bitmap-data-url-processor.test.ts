@@ -291,6 +291,74 @@ describe('ImageBitmap data URL processors', () => {
     },
   );
 
+  it('settles and cleans up a worker error when the error observer throws', async () => {
+    const worker = new FakeWorker();
+    const processor = createWorkerImageBitmapProcessor(
+      worker as unknown as Worker,
+      {
+        onError: () => {
+          throw new Error('synthetic observer failure');
+        },
+      },
+    );
+    const pending = processor(params(22, fakeBitmap('transferred')));
+    let settled = false;
+    void pending.then(() => {
+      settled = true;
+    });
+
+    let emittedError: unknown;
+    try {
+      worker.emit('error', new Error('synthetic worker failure'));
+    } catch (error) {
+      emittedError = error;
+    }
+    await Promise.resolve();
+
+    expect(emittedError).toBeUndefined();
+    expect(settled).toBe(true);
+    await expect(pending).resolves.toEqual({ id: 22 });
+    expect(worker.terminate).toHaveBeenCalledTimes(1);
+    expect(
+      [...worker.listeners.values()].every((listeners) => listeners.size === 0),
+    ).toBe(true);
+  });
+
+  it('settles and cleans up a silent timeout when the error observer throws', async () => {
+    vi.useFakeTimers();
+    const worker = new FakeWorker();
+    const processor = createWorkerImageBitmapProcessor(
+      worker as unknown as Worker,
+      {
+        timeoutMs: 25,
+        onError: () => {
+          throw new Error('synthetic observer failure');
+        },
+      },
+    );
+    const pending = processor(params(23, fakeBitmap('silent')));
+    let settled = false;
+    void pending.then(() => {
+      settled = true;
+    });
+
+    let timerError: unknown;
+    try {
+      vi.advanceTimersByTime(25);
+    } catch (error) {
+      timerError = error;
+    }
+    await Promise.resolve();
+
+    expect(timerError).toBeUndefined();
+    expect(settled).toBe(true);
+    await expect(pending).resolves.toEqual({ id: 23 });
+    expect(worker.terminate).toHaveBeenCalledTimes(1);
+    expect(
+      [...worker.listeners.values()].every((listeners) => listeners.size === 0),
+    ).toBe(true);
+  });
+
   it('times out a silent worker, disposes resources, and ignores late replies', async () => {
     vi.useFakeTimers();
     const worker = new FakeWorker();
