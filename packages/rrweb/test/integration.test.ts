@@ -445,6 +445,86 @@ describe('record integration tests', function (this: ISuite) {
     expect(inputPayload).toContain(visibleControl);
   });
 
+  it('keeps configured textarea initial, add, attribute, child, and Input values out of payloads', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const initialSecret = 'textarea-full-secret-001';
+    const addedSecret = 'textarea-added-secret-0002';
+    const attributeSecret = 'textarea-attribute-secret-00003';
+    const childSecret = 'textarea-child-secret-000004';
+    const inputSecret = 'textarea-input-secret-000005';
+    await page.setContent(`<!doctype html><html><body>
+      <textarea id="textarea-private">${initialSecret}</textarea>
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { textarea: true },
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate((addedSecret) => {
+      const added = document.createElement('textarea');
+      added.id = 'textarea-added';
+      added.textContent = addedSecret;
+      document.body.append(added);
+    }, addedSecret);
+    await waitForRAF(page);
+    await page.evaluate((attributeSecret) => {
+      document
+        .querySelector('#textarea-private')
+        ?.setAttribute('value', attributeSecret);
+    }, attributeSecret);
+    await waitForRAF(page);
+    await page.evaluate((childSecret) => {
+      const textarea = document.querySelector(
+        '#textarea-private',
+      ) as HTMLTextAreaElement;
+      textarea.textContent = childSecret;
+    }, childSecret);
+    await waitForRAF(page);
+    await page.evaluate((inputSecret) => {
+      const textarea = document.querySelector(
+        '#textarea-private',
+      ) as HTMLTextAreaElement;
+      textarea.value = inputSecret;
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    }, inputSecret);
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullPayload = JSON.stringify(
+      events.find((event) => event.type === EventType.FullSnapshot),
+    );
+    const incrementalPayload = JSON.stringify(
+      events.filter(
+        (event) =>
+          event.type === EventType.IncrementalSnapshot &&
+          (event.data.source === IncrementalSource.Mutation ||
+            event.data.source === IncrementalSource.Input),
+      ),
+    );
+
+    expect(fullPayload).not.toContain(initialSecret);
+    expect(fullPayload).toContain('*'.repeat(initialSecret.length));
+    for (const secret of [
+      addedSecret,
+      attributeSecret,
+      childSecret,
+      inputSecret,
+    ]) {
+      expect(incrementalPayload).not.toContain(secret);
+      expect(incrementalPayload).toContain('*'.repeat(secret.length));
+    }
+  });
+
   it('can record and replay textarea mutations correctly', async () => {
     const page: puppeteer.Page = await browser.newPage();
     await page.goto('about:blank');

@@ -368,6 +368,11 @@ describe('junify.privacy candidate persisted artifact', () => {
       passwordValueBeforeType: `password-value-before-type-${nonce}-ddddddddddddd`,
       passwordTypeBeforeValue: `password-type-before-value-${nonce}-eeeeeeeeeeeeee`,
       passwordSyncInput: `password-sync-input-${nonce}-fffffffffffffff`,
+      textareaInitial: `textarea-initial-${nonce}-gggggggggggggggg`,
+      textareaAdded: `textarea-added-${nonce}-hhhhhhhhhhhhhhhhh`,
+      textareaAttribute: `textarea-attribute-${nonce}-iiiiiiiiiiiiiiiiii`,
+      textareaChild: `textarea-child-${nonce}-jjjjjjjjjjjjjjjjjjj`,
+      textareaInput: `textarea-input-${nonce}-kkkkkkkkkkkkkkkkkkkk`,
     };
 
     try {
@@ -380,6 +385,7 @@ describe('junify.privacy candidate persisted artifact', () => {
         <input id="password-value-before-type" type="password" value="">
         <input id="password-type-before-value" type="password" value="">
         <input id="password-sync-input" type="password" value="">
+        <textarea id="textarea-private">${sentinels.textareaInitial}</textarea>
       </body></html>`);
       await page.addScriptTag({ path: candidateBundle });
       const events = await page.evaluate(async (values) => {
@@ -455,6 +461,22 @@ describe('junify.privacy candidate persisted artifact', () => {
         syncInput.type = 'text';
         syncInput.value = values.passwordSyncInput;
         syncInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 40));
+
+        const addedPrivateTextarea = document.createElement('textarea');
+        addedPrivateTextarea.id = 'textarea-private-added';
+        addedPrivateTextarea.textContent = values.textareaAdded;
+        document.body.append(addedPrivateTextarea);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        const privateTextarea = document.querySelector(
+          '#textarea-private',
+        ) as HTMLTextAreaElement;
+        privateTextarea.setAttribute('value', values.textareaAttribute);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        privateTextarea.textContent = values.textareaChild;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        privateTextarea.value = values.textareaInput;
+        privateTextarea.dispatchEvent(new Event('input', { bubbles: true }));
         await new Promise((resolve) => setTimeout(resolve, 40));
         stop?.();
         return recorded;
