@@ -9,6 +9,7 @@ import type {
   listenerHandler,
   CanvasArg,
   DataURLOptions,
+  ImageBitmapDataURLWorkerResponse,
 } from '@rrweb/types';
 import { isBlocked } from '../../../utils';
 import { CanvasContext } from '@rrweb/types';
@@ -17,6 +18,30 @@ import initCanvasContextObserver from './canvas';
 import initCanvasWebGLMutationObserver from './webgl';
 import ImageBitmapDataURLWorker from '../../workers/image-bitmap-data-url-worker?worker&inline';
 import type { ImageBitmapDataURLRequestWorker } from '../../workers/image-bitmap-data-url-worker';
+import {
+  createInlineImageBitmapProcessor,
+  createWorkerImageBitmapProcessor,
+} from '../../workers/image-bitmap-data-url-processor';
+import type { ImageBitmapDataURLProcessor } from '../../../types';
+
+const warmUpWebGLContext = (
+  context: WebGLRenderingContext | WebGL2RenderingContext,
+): void => {
+  try {
+    context.readPixels(
+      0,
+      0,
+      1,
+      1,
+      context.RGBA,
+      context.UNSIGNED_BYTE,
+      new Uint8Array(4),
+    );
+    context.flush();
+  } catch {
+    // Snapshot conversion below safely handles an unavailable drawing buffer.
+  }
+};
 
 export type RafStamps = { latestId: number; invokeId: number | null };
 
@@ -34,10 +59,15 @@ export class CanvasManager {
   private resetObservers?: listenerHandler;
   private frozen = false;
   private locked = false;
+  private active = true;
+  private processImageBitmap?: ImageBitmapDataURLProcessor;
 
   public reset() {
+    if (!this.active) return;
+    this.active = false;
     this.pendingCanvasMutations.clear();
     this.resetObservers && this.resetObservers();
+    this.processImageBitmap?.dispose?.();
   }
 
   public freeze() {
@@ -65,6 +95,7 @@ export class CanvasManager {
     mirror: Mirror;
     sampling?: 'all' | number;
     dataURLOptions: DataURLOptions;
+    imageBitmapProcessor?: ImageBitmapDataURLProcessor;
   }) {
     const {
       sampling = 'all',
@@ -73,9 +104,23 @@ export class CanvasManager {
       blockSelector,
       recordCanvas,
       dataURLOptions,
+      imageBitmapProcessor,
     } = options;
     this.mutationCb = options.mutationCb;
     this.mirror = options.mirror;
+    if (recordCanvas && typeof sampling === 'number') {
+      if (imageBitmapProcessor) {
+        this.processImageBitmap = imageBitmapProcessor;
+      } else {
+        try {
+          const worker =
+            new ImageBitmapDataURLWorker() as ImageBitmapDataURLRequestWorker;
+          this.processImageBitmap = createWorkerImageBitmapProcessor(worker);
+        } catch {
+          this.processImageBitmap = createInlineImageBitmapProcessor();
+        }
+      }
+    }
 
     if (recordCanvas && sampling === 'all')
       this.initCanvasMutationObserver(win, blockClass, blockSelector);
@@ -111,6 +156,8 @@ export class CanvasManager {
       dataURLOptions: DataURLOptions;
     },
   ) {
+    const processImageBitmap = this.processImageBitmap;
+    if (!processImageBitmap) return;
     const canvasContextReset = initCanvasContextObserver(
       win,
       blockClass,
@@ -118,44 +165,6 @@ export class CanvasManager {
       true,
     );
     const snapshotInProgressMap: Map<number, boolean> = new Map();
-    const worker =
-      new ImageBitmapDataURLWorker() as ImageBitmapDataURLRequestWorker;
-    worker.onmessage = (e) => {
-      const { id } = e.data;
-      snapshotInProgressMap.set(id, false);
-
-      if (!('base64' in e.data)) return;
-
-      const { base64, type, width, height } = e.data;
-      this.mutationCb({
-        id,
-        type: CanvasContext['2D'],
-        commands: [
-          {
-            property: 'clearRect', // wipe canvas
-            args: [0, 0, width, height],
-          },
-          {
-            property: 'drawImage', // draws (semi-transparent) image
-            args: [
-              {
-                rr_type: 'ImageBitmap',
-                args: [
-                  {
-                    rr_type: 'Blob',
-                    data: [{ rr_type: 'ArrayBuffer', base64 }],
-                    type,
-                  },
-                ],
-              } as CanvasArg,
-              0,
-              0,
-            ],
-          },
-        ],
-      });
-    };
-
     const timeBetweenSnapshots = 1000 / fps;
     let lastSnapshotTime = 0;
     let rafId: number;
@@ -204,27 +213,54 @@ export class CanvasManager {
             if (
               context?.getContextAttributes()?.preserveDrawingBuffer === false
             ) {
-              // Hack to load canvas back into memory so `createImageBitmap` can grab it's contents.
-              // Context: https://twitter.com/Juice10/status/1499775271758704643
-              // Preferably we set `preserveDrawingBuffer` to true, but that's not always possible,
-              // especially when canvas is loaded before rrweb.
-              // This hack can wipe the background color of the canvas in the (unlikely) event that
-              // the canvas background was changed but clear was not called directly afterwards.
-              // Example of this hack having negative side effect: https://visgl.github.io/react-map-gl/examples/layers
-              context.clear(context.COLOR_BUFFER_BIT);
+              warmUpWebGLContext(context);
             }
           }
-          const bitmap = await createImageBitmap(canvas);
-          worker.postMessage(
-            {
+          try {
+            const bitmap = await win.createImageBitmap(canvas);
+            const response: ImageBitmapDataURLWorkerResponse =
+              await processImageBitmap({
+                id,
+                bitmap,
+                width: canvas.width,
+                height: canvas.height,
+                dataURLOptions: options.dataURLOptions,
+              });
+            if (!this.active || !('base64' in response)) return;
+
+            const { base64, type, width, height } = response;
+            this.mutationCb({
               id,
-              bitmap,
-              width: canvas.width,
-              height: canvas.height,
-              dataURLOptions: options.dataURLOptions,
-            },
-            [bitmap],
-          );
+              type: CanvasContext['2D'],
+              commands: [
+                {
+                  property: 'clearRect',
+                  args: [0, 0, width, height],
+                },
+                {
+                  property: 'drawImage',
+                  args: [
+                    {
+                      rr_type: 'ImageBitmap',
+                      args: [
+                        {
+                          rr_type: 'Blob',
+                          data: [{ rr_type: 'ArrayBuffer', base64 }],
+                          type,
+                        },
+                      ],
+                    } as CanvasArg,
+                    0,
+                    0,
+                  ],
+                },
+              ],
+            });
+          } catch (error) {
+            console.warn('[rrweb] Failed to process canvas snapshot', error);
+          } finally {
+            snapshotInProgressMap.set(id, false);
+          }
         });
       rafId = requestAnimationFrame(takeCanvasSnapshots);
     };

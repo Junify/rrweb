@@ -40,6 +40,16 @@ both directions. The 13.6 MB FullSnapshot keeps its exact CSSOM rule count and
 visible marker; an official/candidate timing differential is recorded without
 turning one workstation sample into a bundle-performance claim.
 
+Task 5 implements the local `CANVAS-001` patch without promoting either
+cross-repository Canvas row. Unit and real-Chrome gates cover processor
+injection, transfer/fallback/error/timeout/dispose, transparent and unchanged
+suppression, format/dimension changes, bitmap closure, post-stop silence,
+non-destructive WebGL screenshots, and a JSON-persisted candidate
+Canvas2D/WebGL record-to-replay pixel round trip. The extension's packaged MV3
+worker and long-session/restart cleanup are still observable effects of the two
+contract rows, so production MV3 Task 9 and bounded lifecycle Task 7 evidence
+remain required.
+
 ## Status Summary
 
 | Status                      | Count | Meaning here                                                                                                 |
@@ -70,7 +80,7 @@ Layer counts are non-exclusive.
 | P0 privacy       | `junify.privacy.persisted-sentinels`                                                                                    | failing-first initial/mutation sentinels plus absence from extension storage and V1/V2 request bodies                                      |
 | P0 compatibility | `junify.compatibility.wire-format`, `junify.compatibility.historical-replay`, `junify.compatibility.candidate-recorder` | provenance-locked real-browser fixtures replayed across both candidate surfaces                                                            |
 | P1 seek (closed) | `junify.replay.seek-visible-dom`                                                                                        | Task 4 authentic RED/GREEN, eight historical candidate seeks, public time/visible DOM, and 13.6 MB CSSOM/timing evidence                   |
-| P1 Canvas        | both `junify.canvas.*` IDs                                                                                              | packaged MV3 worker, fallback, transfer/close, application/replay pixel, and long-session cleanup evidence                                 |
+| P1 Canvas        | both `junify.canvas.*` IDs                                                                                              | Task 5 closes local API/fallback/transfer/pixel behavior; packaged MV3 worker and long-session cleanup evidence remain                     |
 | P1 lifecycle     | both `junify.lifecycle.*` IDs                                                                                           | repeated real-browser churn with retained-resource and no-post-stop/destroy assertions                                                     |
 | P1 transport     | `junify.extension.persistence` and all `junify.transport.*` IDs                                                         | real storage plus decoded V1/V2 parity including oversized UTF-8 fragmentation                                                             |
 | P1 Rails         | Monitors V1/V2 and legacy static IDs                                                                                    | production-shaped browser routes; mocks and README do not qualify                                                                          |
@@ -89,6 +99,7 @@ Layer counts are non-exclusive.
 | static-player README/build            | intended message protocol and packaging                                                                                                                                                                            | any accepted fixture rendered in a browser                                                                                              |
 | service real recordings               | service pipeline scale and varied rrweb markers                                                                                                                                                                    | producer version, privacy provenance, 13.6 MB CSS, Rails playback                                                                       |
 | Task 2 authenticated fixtures         | loaded UMD-to-registry-tarball integrity, temporary real-browser regeneration, target-ID mutation evidence, marker-terminated SPA/seek-ready/stylesheet sinks, full official 2.1.1 replay, hashes, and 13.6 MB CSS | future Junify candidate recording output, Rails main/static consumers, extension storage/transport/fragmentation, or privacy acceptance |
+| Task 5 local Canvas gates             | injectable factories, worker failure/timeout/dispose, strict fallback, application/replay pixels, temporary JSON persistence, and post-stop silence                                                                | browser_extension packaged-worker execution under real MV3, bridge/Blob URL cleanup, or full repeated-recorder observer lifecycle       |
 
 ## Task 2 Privacy Characterization
 

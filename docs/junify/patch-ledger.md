@@ -21,7 +21,7 @@ patch is already present or that coverage is green.
 | `BND-001`      | implemented; release-gated      | Publish only `@junify-app/rrweb@2.1.1-junify.0`; preserve official internal identities (`junify.package-boundary.rrweb`)                                     | approved integration design; old namespace rewrite `af62ec15` is negative reference only                                                           | `G-PKG-RRWEB`; packed artifact export/name inspection; Task 3 evidence below                          | Junify package boundary is not an upstream concern                                                       | Junify no longer publishes a forked rrweb boundary                                                                |
 | `BND-002`      | implemented; release-gated      | Publish `@junify-app/rrweb-player@2.1.1-junify.0` and force it to bundle the patched local replayer (`junify.package-boundary.player`)                       | approved integration design; old scoped player package is behavior reference only                                                                  | `G-PKG-PLAYER`; prove packed player does not resolve unpatched official replay; Task 3 evidence below | Junify package boundary is not an upstream concern                                                       | player can consume an upstream release that includes every required Junify replayer patch, or the fork is retired |
 | `SEEK-001`     | implemented; upstream-candidate | First synchronization after explicit forward/backward seek must use correct real DOM (`junify.replay.seek-visible-dom`)                                      | Junify `8d0afa80f6fdf94226c914964a7a647c7f44f9c5`; upstream PR 1806 evaluated as a narrower separate issue                                         | `G-SEEK`; focused RED/GREEN plus eight authenticated historical seeks and 13.6 MB timing              | absent from 2.1.1; suitable for a focused upstream correctness PR with the behavior fixture              | an upstream stable release passes the same forward/backward fixture without this patch                            |
-| `CANVAS-001`   | planned                         | Preserve consumer-used injected ImageBitmap processor, packaged MV3 worker, inline fallback, transfer/close, and non-destructive capture (`junify.canvas.*`) | Junify `45ea914e78f70f54d386bf341f7d55567f200b68`; Sentry PR 307 / `027138c9`; upstream Vite PR 1762 / `22bc4c33` does not replace packaged worker | `G-CANVAS-PROCESSOR`, `G-CANVAS-PIXELS`; RED/GREEN plus production MV3 evidence                       | injectable API absent from 2.1.1; upstream Vite 6 still uses an inline-worker import                     | upstream exposes an equivalent tested injectable/packaged-worker API and passes Junify MV3/pixel/cleanup gates    |
+| `CANVAS-001`   | implemented; consumer-gated     | Preserve consumer-used injected ImageBitmap processor, packaged MV3 worker, inline fallback, transfer/close, and non-destructive capture (`junify.canvas.*`) | Junify `45ea914e78f70f54d386bf341f7d55567f200b68`; Sentry PR 307 / `027138c9`; upstream Vite PR 1762 / `22bc4c33` does not replace packaged worker | `G-CANVAS-PROCESSOR`, `G-CANVAS-PIXELS`; Task 5 local RED/GREEN plus Task 9 production MV3 evidence   | injectable API absent from 2.1.1; upstream Vite 6 still uses an inline-worker import                     | upstream exposes an equivalent tested injectable/packaged-worker API and passes Junify MV3/pixel/cleanup gates    |
 | `PRIV-001`     | planned                         | Mask hidden input values in initial and mutated persisted payloads (`junify.privacy.persisted-sentinels`)                                                    | Mixpanel PR 4 / `c68ae046`; upstream open PR 1745                                                                                                  | `G-PRIVACY`; unique hidden-value sentinels absent from Full/Incremental/storage/V1/V2                 | absent from 2.1.1                                                                                        | upstream stable masks hidden inputs under the Junify policy and passes the same persisted sentinel gate           |
 | `PRIV-002`     | planned                         | Mask placeholders for masked inputs/textareas, including mutations (`junify.privacy.persisted-sentinels`)                                                    | Mixpanel PR 18 / `2a8326d0`                                                                                                                        | `G-PRIVACY`; unique initial/mutated placeholder sentinels                                             | absent from 2.1.1                                                                                        | upstream stable provides equivalent placeholder masking and passes the persisted sentinel gate                    |
 | `PRIV-003`     | planned                         | Always protect values for sensitive autocomplete tokens (`junify.privacy.persisted-sentinels`)                                                               | Sentry PR 166 / `432fe1f9`                                                                                                                         | `G-PRIVACY`; distinct autocomplete sentinels absent from all persisted sinks                          | absent from 2.1.1                                                                                        | upstream stable provides equivalent sensitive-autocomplete handling and passes the persisted sentinel gate        |
@@ -98,6 +98,44 @@ serialization, the wire format, fixture bytes, or package identities.
   changed.
 - Residual blocker: none inside `G-SEEK`; consumer rollout remains gated by the
   later cross-repository tasks.
+
+## Task 5 Canvas Evidence
+
+`CANVAS-001` keeps the official `@rrweb/types` request/response wire types and
+adds only an rrweb-local callable processor type with optional `dispose()`.
+The old monorepo namespace rewrite, WebGPU fallback, broad shadow traversal,
+and response `reason` field are not retained.
+
+- Implementation commit: the focused Task 5 commit containing this ledger
+  update, titled `feat(canvas): inject MV3-compatible bitmap processing`.
+- RED: unmodified 2.1.1 failed 8/9 focused processor tests because the three
+  public factories were absent. A separate real-Chrome stop case failed with
+  zero disposer calls when `recordDOM: false`.
+- GREEN: the processor suite passes 11/11 and the focused record/replay WebGL
+  suites pass 16/16 and 1/1 respectively under Node 20.9.0 and Chrome
+  151.0.7922.138. Coverage includes transfer/result, synchronous post failure,
+  worker `error`/`messageerror`, silent timeout, dispose/late response,
+  per-instance caches, transparent/identical suppression, dimension and
+  MIME/quality changes, missing OffscreenCanvas/context, conversion errors,
+  and exactly-once bitmap close for locally owned paths.
+- Real-browser behavior: injected numeric-FPS processing is used; strict CSP
+  worker failure continues through inline processing; stop suppresses a late
+  result and disposes with DOM recording disabled; unavailable WebGL
+  constructors remain guarded; a pre-existing
+  `preserveDrawingBuffer: false` WebGL canvas has byte-identical screenshots
+  before/after sampling.
+- Persisted compatibility: a local candidate real-browser recording is
+  serialized to a temporary JSON artifact, read back, and replayed. Canvas2D
+  `[255, 0, 0, 255]` and WebGL `[0, 128, 0, 255]` pixels survive, while
+  Canvas mutations retain the upstream clearRect/drawImage ImageBitmap wire
+  shape.
+- Upstream plan: propose the injectable processor/factory contract,
+  non-destructive WebGL warm-up, and focused tests without Junify package
+  names. Delete the patch after upstream stable passes the same gates.
+- Residual blocker: Task 9 must run the packaged extension worker and its
+  bridge/Blob strict-CSP fallbacks in real MV3, and Task 7 must close the
+  broader repeated-recorder lifecycle contract. Both Canvas inventory rows
+  therefore remain `red-known-risk` rather than being over-promoted.
 
 ## Deferred Or Rejected Candidates
 

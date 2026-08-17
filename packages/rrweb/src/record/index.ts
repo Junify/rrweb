@@ -85,6 +85,7 @@ function record<T = eventWithTime>(
     packFn,
     sampling = {},
     dataURLOptions = {},
+    imageBitmapProcessor,
     mousemoveWait,
     recordDOM = true,
     recordCanvas = false,
@@ -306,6 +307,7 @@ function record<T = eventWithTime>(
     mirror,
     sampling: sampling.canvas,
     dataURLOptions,
+    imageBitmapProcessor,
   });
 
   const shadowDomManager = new ShadowDomManager({
@@ -614,6 +616,7 @@ function record<T = eventWithTime>(
           }
         }
       });
+      canvasManager.reset();
       processedNodeManager.destroy();
       recording = false;
       unregisterErrorHandler();

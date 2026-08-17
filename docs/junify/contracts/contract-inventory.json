@@ -21,7 +21,7 @@
       "expected_current_behavior": "The Junify package accepts an injected ImageBitmap processor, transfers bitmaps through a packaged worker under MV3 strict CSP, and falls back inline without changing the event schema.",
       "risk_if_broken": "The production extension loses Canvas recording, violates MV3 CSP, or emits incompatible events.",
       "gate_id": "G-CANVAS-PROCESSOR",
-      "test_notes": "Unmodified 2.1.1 exposes only its inline-worker path; the Junify injectable API and focused tests do not exist yet."
+      "test_notes": "Task 5 adds the injectable API, real-browser inline/CSP fallback, worker transfer/error/messageerror/timeout/dispose tests, and unchanged-schema Canvas mutations. The production-packaged browser_extension worker under real MV3 strict CSP remains release-blocking Task 9 evidence, so this cross-repository contract is not promoted."
     },
     {
       "id": "junify.canvas.non-destructive-capture",
@@ -34,7 +34,7 @@
       "expected_current_behavior": "Recording leaves application Canvas 2D/WebGL pixels unchanged, reproduces pixels on replay, closes transferred bitmaps, and stops worker/RAF activity when recording stops.",
       "risk_if_broken": "Recording mutates customer pages or leaks GPU/bitmap resources during long sessions.",
       "gate_id": "G-CANVAS-PIXELS",
-      "test_notes": "The Junify Canvas change contains the non-destructive concept, but the required pixel and cleanup assertions are missing."
+      "test_notes": "Task 5 proves application WebGL screenshots remain unchanged, ImageBitmaps close on all locally owned paths, stop cancels late results and disposes the processor even with recordDOM disabled, and a JSON-persisted candidate artifact replays exact Canvas2D/WebGL pixels in Chrome 151. Production MV3 worker/URL lifetime and repeated long-session cleanup remain Task 9/Task 7 blockers, so this cross-repository contract is not promoted."
     },
     {
       "id": "junify.compatibility.candidate-recorder",

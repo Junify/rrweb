@@ -147,10 +147,14 @@ PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/image-bitmap
 yarn workspace @junify/rrweb-compatibility test -- record-fixtures
 ```
 
-Assert injected processor use, packaged worker transfer/result, transparent and
-unchanged-frame suppression, strict fallback, dimension/MIME/quality behavior,
-and absent OffscreenCanvas/WebGL constructors. Current blocker: injectable API
-and focused tests are added in Task 5.
+Task 5 passes 28/28 focused rrweb tests and 3/3 compatibility tests under
+Node 20.9.0 and Chrome 151.0.7922.138. They assert injected processor use,
+worker transfer/result, post failure, `error`/`messageerror`, silent timeout,
+dispose/late reply, transparent and unchanged suppression, strict-CSP inline
+fallback, dimension/MIME/quality behavior, and absent OffscreenCanvas/WebGL
+constructors. The compatibility test serializes a candidate artifact to JSON
+and visibly replays exact Canvas2D/WebGL pixels. Current blocker: Task 9 must
+exercise browser_extension's packaged worker under production MV3.
 
 ### `G-CANVAS-PIXELS`
 
@@ -161,10 +165,12 @@ cd ../browser-extension-rrweb-2.1.1 && yarn build-prod
 cd ../browser-extension-rrweb-2.1.1 && yarn test:integration integration-tests/sessionRecordingCompatibility.integration.test.ts
 ```
 
-Load the production-packed extension in Chrome and record Canvas 2D/WebGL.
-Assert application pixels are unchanged, replay pixels match, transferred
-bitmaps close, and worker/RAF activity stops. Current blocker: the integration
-fixture does not yet observe real worker/pixel/cleanup outcomes.
+Task 5's package-local portion proves byte-identical application WebGL
+screenshots before/after numeric sampling, exact replayed Canvas2D/WebGL pixels,
+locally owned bitmap closure, worker termination/listener removal, and no late
+Canvas event after stop. Load the production-packed extension in Chrome and
+record Canvas 2D/WebGL to close the remaining boundary: real packaged-worker
+execution, replay pixels, bridge/Blob URL cleanup, and worker/RAF shutdown.
 
 ## Privacy And Lifecycle Gates
 

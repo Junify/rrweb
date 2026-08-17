@@ -1,5 +1,7 @@
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
+import { chromium } from 'playwright';
 import { describe, expect, it } from 'vitest';
 import {
   expectedFixtures,
@@ -131,5 +133,199 @@ describe('junify.compatibility.wire-format historical producer fixtures', () => 
     expect(coverage.spaPushState.observed).toBe(false);
     expect(coverage.spaPopstate.observed).toBe(false);
     expect(coverage.seekReadyMutations.observed).toBe(false);
+  });
+});
+
+describe('junify.canvas candidate persisted artifact', () => {
+  it('records and replays Canvas2D and WebGL pixels through serialized JSON', async () => {
+    const chromeExecutable =
+      process.env.PUPPETEER_EXECUTABLE_PATH ||
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    const candidateBundle = path.join(
+      packageRoot,
+      '..',
+      'rrweb',
+      'dist',
+      'rrweb.umd.cjs',
+    );
+    const browser = await chromium.launch({
+      executablePath: chromeExecutable,
+      headless: true,
+    });
+    const temporaryDirectory = await mkdtemp(
+      path.join(os.tmpdir(), 'junify-canvas-artifact-'),
+    );
+    const artifactPath = path.join(temporaryDirectory, 'events.json');
+
+    try {
+      const recordPage = await browser.newPage();
+      await recordPage.setContent(`
+        <!doctype html>
+        <html>
+          <body>
+            <canvas id="junify-candidate-2d" width="2" height="2"></canvas>
+            <canvas id="junify-candidate-webgl" width="2" height="2"></canvas>
+          </body>
+        </html>
+      `);
+      await recordPage.addScriptTag({ path: candidateBundle });
+      const recorded = await recordPage.evaluate(async () => {
+        type EventShape = {
+          type?: number;
+          data?: {
+            source?: number;
+            type?: number;
+            commands?: Array<{ property?: string; args?: unknown[] }>;
+          };
+        };
+        const pageWindow = window as typeof window & {
+          rrweb: {
+            record: (
+              options: Record<string, unknown>,
+            ) => (() => void) | undefined;
+            createInlineImageBitmapProcessor: () => (
+              params: Record<string, unknown>,
+            ) => Promise<Record<string, unknown>>;
+          };
+        };
+        const events: EventShape[] = [];
+        const stop = pageWindow.rrweb.record({
+          emit: (event: EventShape) => events.push(event),
+          recordCanvas: true,
+          sampling: { canvas: 30 },
+          imageBitmapProcessor:
+            pageWindow.rrweb.createInlineImageBitmapProcessor(),
+        });
+
+        const canvas2d = document.querySelector(
+          '#junify-candidate-2d',
+        ) as HTMLCanvasElement;
+        const context2d = canvas2d.getContext('2d');
+        if (!context2d) throw new Error('candidate Canvas2D context missing');
+        context2d.fillStyle = '#ff0000';
+        context2d.fillRect(0, 0, 2, 2);
+
+        const canvasWebgl = document.querySelector(
+          '#junify-candidate-webgl',
+        ) as HTMLCanvasElement;
+        const webgl = canvasWebgl.getContext('webgl', {
+          preserveDrawingBuffer: true,
+        });
+        if (!webgl) throw new Error('candidate WebGL context missing');
+        webgl.clearColor(0, 0.5, 0, 1);
+        webgl.clear(webgl.COLOR_BUFFER_BIT);
+
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        stop?.();
+        const webglPixel = new Uint8Array(4);
+        webgl.readPixels(
+          0,
+          0,
+          1,
+          1,
+          webgl.RGBA,
+          webgl.UNSIGNED_BYTE,
+          webglPixel,
+        );
+        return {
+          events,
+          application2dPixel: Array.from(
+            context2d.getImageData(0, 0, 1, 1).data,
+          ),
+          applicationWebglPixel: Array.from(webglPixel),
+        };
+      });
+      await recordPage.close();
+
+      expect(recorded.application2dPixel).toEqual([255, 0, 0, 255]);
+      expect(recorded.applicationWebglPixel).toEqual([0, 128, 0, 255]);
+      const canvasEvents = recorded.events.filter(
+        (event) => event.type === 3 && event.data?.source === 9,
+      );
+      expect(canvasEvents.length).toBeGreaterThanOrEqual(2);
+      for (const event of canvasEvents) {
+        expect(event.data).toMatchObject({
+          source: 9,
+          type: 0,
+          commands: [{ property: 'clearRect' }, { property: 'drawImage' }],
+        });
+      }
+
+      await writeFile(artifactPath, JSON.stringify(recorded.events), 'utf8');
+      const persistedEvents = JSON.parse(
+        await readFile(artifactPath, 'utf8'),
+      ) as unknown[];
+      expect(persistedEvents).toHaveLength(recorded.events.length);
+
+      const replayPage = await browser.newPage();
+      await replayPage.setContent(
+        '<!doctype html><html><body><div id="replay-root"></div></body></html>',
+      );
+      await replayPage.addScriptTag({ path: candidateBundle });
+      const replayedPixels = await replayPage.evaluate(async (events) => {
+        type ReplayerShape = {
+          on: (event: string, callback: () => void) => void;
+          play: () => void;
+          destroy: () => void;
+          iframe?: HTMLIFrameElement;
+        };
+        const pageWindow = window as typeof window & {
+          rrweb: {
+            Replayer: new (
+              events: unknown[],
+              options: Record<string, unknown>,
+            ) => ReplayerShape;
+          };
+        };
+        const root = document.querySelector('#replay-root') as HTMLElement;
+        const replayer = new pageWindow.rrweb.Replayer(events, {
+          root,
+          UNSAFE_replayCanvas: true,
+          showWarning: false,
+          speed: 100,
+        });
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new Error('candidate Canvas replay did not finish')),
+            10_000,
+          );
+          replayer.on('finish', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+          replayer.play();
+        });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const replayDocument =
+          replayer.iframe?.contentDocument ||
+          root.querySelector<HTMLIFrameElement>('iframe')?.contentDocument;
+        if (!replayDocument) throw new Error('candidate replay iframe missing');
+
+        const read2dPixel = (selector: string) => {
+          const canvas = replayDocument.querySelector(selector);
+          if (canvas?.tagName !== 'CANVAS') {
+            throw new Error(`replayed canvas missing: ${selector}`);
+          }
+          const context = (canvas as HTMLCanvasElement).getContext('2d');
+          if (!context) {
+            throw new Error(`replayed 2D context missing: ${selector}`);
+          }
+          return Array.from(context.getImageData(0, 0, 1, 1).data);
+        };
+        const result = {
+          canvas2d: read2dPixel('#junify-candidate-2d'),
+          webglSnapshot: read2dPixel('#junify-candidate-webgl'),
+        };
+        replayer.destroy();
+        return result;
+      }, persistedEvents);
+      await replayPage.close();
+
+      expect(replayedPixels.canvas2d).toEqual([255, 0, 0, 255]);
+      expect(replayedPixels.webglSnapshot).toEqual([0, 128, 0, 255]);
+    } finally {
+      await browser.close();
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
   });
 });

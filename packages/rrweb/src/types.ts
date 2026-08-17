@@ -38,8 +38,16 @@ import type {
   viewportResizeCallback,
   PackFn,
   UnpackFn,
+  ImageBitmapDataURLWorkerParams,
+  ImageBitmapDataURLWorkerResponse,
 } from '@rrweb/types';
 import type ProcessedNodeManager from './record/processed-node-manager';
+
+export type ImageBitmapDataURLProcessor = ((
+  params: ImageBitmapDataURLWorkerParams,
+) => Promise<ImageBitmapDataURLWorkerResponse>) & {
+  dispose?: () => void;
+};
 
 export type recordOptions<T> = {
   emit?: (e: T, isCheckout?: boolean) => void;
@@ -82,6 +90,7 @@ export type recordOptions<T> = {
   mousemoveWait?: number;
   keepIframeSrcFn?: KeepIframeSrcFn;
   errorHandler?: ErrorHandler;
+  imageBitmapProcessor?: ImageBitmapDataURLProcessor;
 };
 
 export type observerParam = {
