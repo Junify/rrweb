@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src", "test"],
+  "exclude": [],
+  "compilerOptions": {
+    "rootDir": ".",
+    "strict": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "references": [
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../utils"
+    },
+    {
+      "path": "../rrdom"
+    },
+    {
+      "path": "../rrweb-snapshot"
+    },
+    {
+      "path": "../rrweb"
+    }
+  ]
+}
