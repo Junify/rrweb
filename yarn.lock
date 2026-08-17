@@ -6898,6 +6898,7 @@ jszip@^3.10.1, jszip@^3.2.2:
 "junify-rrweb-alpha19@https://registry.npmjs.org/@junify-app/rrweb/-/rrweb-2.0.0-alpha.19.tgz":
   version "2.0.0-alpha.19"
   resolved "https://registry.npmjs.org/@junify-app/rrweb/-/rrweb-2.0.0-alpha.19.tgz#159e2f198edfe9fb52c72bc0d95a4a0e0a0621f7"
+  integrity sha512-0kpxuWenvwwzp1+bhLPlWBKHGHQkXwwRAzCxoBQcD4y9ph4REknQHLF5CJNjtfNfzZUcI9KRT6ILD3jGXgbNsg==
   dependencies:
     "@junify-app/rrdom" "^2.0.0-alpha.19"
     "@junify-app/rrweb-snapshot" "^2.0.0-alpha.19"
@@ -6911,6 +6912,7 @@ jszip@^3.10.1, jszip@^3.2.2:
 "junify-rrweb-alpha20@https://registry.npmjs.org/@junify-app/rrweb/-/rrweb-2.0.0-alpha.20.tgz":
   version "2.0.0-alpha.20"
   resolved "https://registry.npmjs.org/@junify-app/rrweb/-/rrweb-2.0.0-alpha.20.tgz#ec152c3e70856ead556a285110ec08b0be7586dd"
+  integrity sha512-oLI31EWkGhcT+MMfxo2QvMFFeP3vpSYslYvF5YX2KV1qTfKGOQZ924ycr8HILkgx244l6LzX0LCUtKQqWCK0qQ==
   dependencies:
     "@junify-app/rrdom" "^2.0.0-alpha.20"
     "@junify-app/rrweb-snapshot" "^2.0.0-alpha.20"
@@ -8698,6 +8700,7 @@ rrdom@^0.1.7:
 "rrweb-alpha4@https://registry.npmjs.org/rrweb/-/rrweb-2.0.0-alpha.4.tgz":
   version "2.0.0-alpha.4"
   resolved "https://registry.npmjs.org/rrweb/-/rrweb-2.0.0-alpha.4.tgz#3c7cf2f1bcf44f7a88dd3fad00ee8d6dd711f258"
+  integrity sha512-wEHUILbxDPcNwkM3m4qgPgXAiBJyqCbbOHyVoNEVBJzHszWEFYyTbrZqUdeb1EfmTRC2PsumCIkVcomJ/xcOzA==
   dependencies:
     "@rrweb/types" "^2.0.0-alpha.4"
     "@types/css-font-loading-module" "0.0.7"
@@ -8711,6 +8714,7 @@ rrdom@^0.1.7:
 "rrweb-stable211@https://registry.npmjs.org/rrweb/-/rrweb-2.1.1.tgz":
   version "2.1.1"
   resolved "https://registry.npmjs.org/rrweb/-/rrweb-2.1.1.tgz#b609dbd4a73389144230f40cdada7d243c3c0787"
+  integrity sha512-ToxhJg3SsrAhw+/DPhI/2iiwZQIrGK5BGkZ0kHn4qUExcvQYRaolkciD1FWX2+r6vf1IxFyhsoRY18h3D+XoCg==
   dependencies:
     "@rrweb/types" "^2.1.1"
     "@rrweb/utils" "^2.1.1"

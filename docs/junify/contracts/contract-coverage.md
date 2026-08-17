@@ -9,14 +9,20 @@ run the expensive cross-repository gates. A contract is not `covered` because
 an adjacent unit test, a mocked Jest test, a README, or a build exists.
 
 Task 2 adds package-local real-browser evidence without prematurely promoting
-the cross-repository contracts. Authentic alpha.4, Junify alpha.19, Junify
-alpha.20, and official 2.1.1 recordings now carry producer/browser provenance,
-raw and gzip hashes, event counts, FullSnapshot indexes/payload digests, and
-source-derived scenario coverage. Official 2.1.1 replays all four comprehensive
-artifacts in Chrome with no skips; a separate official 2.1.1 artifact contains
-exactly 13,600,000 bytes of deterministic CSS. Rails candidate surfaces,
-extension fragmentation/reassembly, and the future Junify candidate producer
-remain outside this package-local proof, so the status counts do not change.
+the cross-repository contracts. Alpha.4, Junify alpha.19, Junify alpha.20, and
+official 2.1.1 recordings now carry producer/browser provenance, raw and gzip
+hashes, event counts, FullSnapshot indexes/payload digests, and source-derived
+scenario coverage. Fix round 1 authenticates the actually loaded UMD bytes
+against integrity-locked registry tarballs and recollects all four comprehensive
+artifacts into temporary storage for timestamp-normalized comparison. SPA and
+seek-ready coverage now requires target-ID type-3 mutations; marker-terminated
+replays assert SPA DOM, both seek-ready DOM states, and replaceSync/replace/empty
+computed-style sinks. Official 2.1.1 full-replays all four artifacts in Chrome
+with no skips; a separate official 2.1.1 artifact contains exactly 13,600,000
+bytes of deterministic CSS. Explicit forward/backward seek, Rails candidate
+surfaces, extension fragmentation/reassembly, and the future Junify candidate
+producer remain outside this package-local proof, so status counts do not
+change.
 
 The only currently `covered` inventory row is
 `junify.rails.password-rotation-artifact`: a recorded Playwright gate crosses
@@ -73,7 +79,7 @@ Layer counts are non-exclusive.
 | Rails parser/loader/player Jest tests | local compatibility parsing and component wiring | Monitors V1/V2 browser route through persisted reads |
 | static-player README/build | intended message protocol and packaging | any accepted fixture rendered in a browser |
 | service real recordings | service pipeline scale and varied rrweb markers | producer version, privacy provenance, 13.6 MB CSS, Rails playback |
-| Task 2 provenance-locked fixtures | exact named producer bundles, browser recording, package-local official 2.1.1 replay, DOM/SPA/Shadow/stylesheet/Canvas/seek-ready markers, hashes, and 13.6 MB CSS | future Junify candidate output, Rails main/static consumers, extension storage/transport/fragmentation, or privacy acceptance |
+| Task 2 authenticated fixtures | loaded UMD-to-registry-tarball integrity, temporary real-browser regeneration, target-ID mutation evidence, marker-terminated SPA/seek-ready/stylesheet sinks, full official 2.1.1 replay, hashes, and 13.6 MB CSS | explicit forward/backward seek, future Junify candidate output, Rails main/static consumers, extension storage/transport/fragmentation, or privacy acceptance |
 
 ## Task 2 Privacy Characterization
 

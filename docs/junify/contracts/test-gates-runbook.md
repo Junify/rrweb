@@ -69,8 +69,11 @@ cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recor
 Assert provenance-locked alpha.4, alpha.19, and alpha.20 fixtures visibly
 replay in both candidate surfaces. Task 2 passes the package-local first command
 for all three historical artifacts under official rrweb@2.1.1 in Google Chrome
-151.0.7922.138 with no skips. Current blockers: the candidate packages and both
-Monitors browser specs are created later.
+151.0.7922.138 with no skips. It authenticates loaded UMD bytes against the
+integrity-locked registry tarball, recollects normalized events in temporary
+storage, and asserts marker-terminated SPA and stylesheet replay sinks. Current
+blockers: explicit seek, the candidate packages, and both Monitors browser specs
+are created later.
 
 ### `G-COMPAT-CANDIDATE`
 
@@ -117,7 +120,8 @@ yarn workspace @junify/rrweb-compatibility test -- replay-matrix
 
 Assert visible iframe DOM and current time after both forward and backward
 explicit seeks. Current blocker: the focused failing-first test is added in
-Task 4.
+Task 4. Task 2 full-plays independently terminated before/after slices to prove
+the mutations are replayable; it does not perform or claim explicit seeking.
 
 ## Canvas Gates
 
@@ -182,10 +186,15 @@ PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @j
 ```
 
 `fixtures/manifest.json` is authoritative for producer package/version and
-registry integrity, Chrome version/user agent, creation command, event count,
-FullSnapshot indexes/payload digests, raw/gzip bytes and SHA-256, scenario
-evidence, privacy scan, and the exact large-CSS digest. Only gzip fixtures are
-tracked; generation never uses customer data.
+registry tarball URL/integrity/SHA-256, loaded bundle path/SHA-256, Chrome
+version/user agent, creation command, event count, FullSnapshot indexes/payload
+digests, raw/gzip bytes and SHA-256, scenario evidence, privacy scan, and the
+exact large-CSS digest. Generation fetches the locked tarball, validates its
+SHA-512, extracts its published UMD, and refuses to record unless that digest
+matches the installed bytes loaded into Chrome. The test suite also recollects
+the four comprehensive artifacts into temporary storage and compares the
+producer-created events after removing only top-level rrweb timestamps. Only
+gzip fixtures are tracked; generation never uses customer data.
 
 ### `G-RECORDER-LIFECYCLE`
 

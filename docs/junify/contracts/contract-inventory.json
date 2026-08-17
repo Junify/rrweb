@@ -60,7 +60,7 @@
       "expected_current_behavior": "The candidate replayers consume provenance-locked fixtures produced by rrweb@2.0.0-alpha.4, @junify-app/rrweb@2.0.0-alpha.19, and @junify-app/rrweb@2.0.0-alpha.20.",
       "risk_if_broken": "Existing stored customer sessions become unreadable after the player upgrade.",
       "gate_id": "G-COMPAT-HISTORICAL",
-      "test_notes": "Task 2 provenance-locks authentic alpha.4, Junify alpha.19, and Junify alpha.20 gzip artifacts and replays all three under official rrweb@2.1.1 in Chrome 151 with no skips. This closes the package-local sub-gate; both candidate Rails player surfaces remain required before promotion."
+      "test_notes": "Task 2 binds alpha.4, Junify alpha.19, and Junify alpha.20 loaded UMD bytes to registry-tarball integrity in yarn.lock, regenerates normalized real-browser artifacts into temporary storage, and replays marker-terminated slices plus full artifacts under official rrweb@2.1.1 in Chrome 151 with no skips. SPA/seek-ready evidence requires target-ID type-3 mutations; stylesheet stages assert computed styles. Explicit seek and both candidate Rails player surfaces remain required before promotion."
     },
     {
       "id": "junify.compatibility.large-snapshot",
@@ -86,7 +86,7 @@
       "expected_current_behavior": "For fixed scenarios, decoded events remain wire-compatible; only documented upstream correctness changes may alter payload values.",
       "risk_if_broken": "The service and existing replayers reject or misinterpret newly recorded sessions.",
       "gate_id": "G-WIRE-FORMAT",
-      "test_notes": "Task 2 locks producer/browser provenance, decoded event count, FullSnapshot indexes/payload digests, raw/gzip hashes, and source-derived scenario evidence for four producer versions. The future Junify candidate differential and both consumer surfaces remain required before promotion."
+      "test_notes": "Task 2 authenticates each loaded bundle against its integrity-locked registry tarball, regenerates four comprehensive producers into temporary storage for timestamp-normalized event comparison, and locks browser provenance, event count, FullSnapshot indexes/payload digests, raw/gzip hashes, target-ID mutations, and replayed stage sinks. The future Junify candidate differential and both consumer surfaces remain required before promotion."
     },
     {
       "id": "junify.extension.persistence",

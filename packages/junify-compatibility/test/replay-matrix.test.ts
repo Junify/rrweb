@@ -31,6 +31,16 @@ describe('junify.compatibility.historical-replay', () => {
           0.20000000298023224, 0.4000000059604645, 0.6000000238418579, 1,
         ],
         webglPixel: [51, 102, 153, 255],
+        truncatedReplaySinks: {
+          spaPushText: 'junify-spa-push-state-v1',
+          spaPopText: 'junify-spa-popstate-v1',
+          seekBeforeText: 'junify-seek-before-v1',
+          seekAfterText: 'junify-seek-after-v1',
+          replaceSyncColor: 'rgb(17, 34, 51)',
+          replaceAsyncBackground: 'rgb(51, 68, 85)',
+          emptyReplacementColor: 'rgb(0, 0, 0)',
+          emptyReplacementBackground: 'rgba(0, 0, 0, 0)',
+        },
       })),
     );
   });

@@ -62,15 +62,32 @@ function coverage(eventIndexes: number[]) {
   return { observed: eventIndexes.length > 0, eventIndexes };
 }
 
-function customMarkerIndexes(events: unknown[], name: string): number[] {
+function targetTextMutationIndexes(
+  events: unknown[],
+  elementId: string,
+  expectedText: string,
+): number[] {
+  const targetId = events
+    .filter((event) => isRecord(event) && event.type === 2)
+    .map((event) => findSerializedElementId(event, elementId))
+    .find((id) => id !== undefined);
+  if (targetId === undefined) return [];
   return indexesMatching(events, (event) => {
-    if (!isRecord(event) || event.type !== 5 || !isRecord(event.data)) {
+    if (
+      !isRecord(event) ||
+      event.type !== 3 ||
+      !isRecord(event.data) ||
+      event.data.source !== 0 ||
+      !Array.isArray(event.data.adds)
+    ) {
       return false;
     }
-    return (
-      event.data.tag === 'junify-scenario-v1' &&
-      isRecord(event.data.payload) &&
-      event.data.payload.name === name
+    return event.data.adds.some(
+      (mutation) =>
+        isRecord(mutation) &&
+        mutation.parentId === targetId &&
+        isRecord(mutation.node) &&
+        mutation.node.textContent === expectedText,
     );
   });
 }
@@ -127,27 +144,44 @@ export function inspectScenarioCoverage(
         mutation.attributes.type === 'password',
     );
   });
-  const seekBeforeIndexes = customMarkerIndexes(
+  const seekBeforeIndexes = targetTextMutationIndexes(
     events,
+    'junify-seek-v1',
     'junify-seek-before-v1',
   );
-  const seekAfterIndexes = customMarkerIndexes(events, 'junify-seek-after-v1');
+  const seekAfterIndexes = targetTextMutationIndexes(
+    events,
+    'junify-seek-v1',
+    'junify-seek-after-v1',
+  );
 
   return {
     domMutation: coverage(
-      indexesMatching(events, (_event, json) =>
-        json.includes('junify-dom-mutated-v1'),
+      targetTextMutationIndexes(
+        events,
+        'junify-dom-v1',
+        'junify-dom-mutated-v1',
       ),
     ),
     spaPushState: coverage(
-      customMarkerIndexes(events, 'junify-spa-push-state-v1'),
+      targetTextMutationIndexes(
+        events,
+        'junify-spa-v1',
+        'junify-spa-push-state-v1',
+      ),
     ),
     spaPopstate: coverage(
-      customMarkerIndexes(events, 'junify-spa-popstate-v1'),
+      targetTextMutationIndexes(
+        events,
+        'junify-spa-v1',
+        'junify-spa-popstate-v1',
+      ),
     ),
     shadowDom: coverage(
-      indexesMatching(events, (_event, json) =>
-        json.includes('junify-shadow-mutated-v1'),
+      targetTextMutationIndexes(
+        events,
+        'junify-shadow-marker-v1',
+        'junify-shadow-mutated-v1',
       ),
     ),
     password: coverage(
@@ -363,10 +397,12 @@ export async function runHistoricalScenarioInPage(
   }
   dom.textContent = 'junify-dom-mutated-v1';
   seek.textContent = 'junify-seek-before-v1';
+  await wait(20);
   mark('junify-seek-before-v1');
 
   history.pushState({ synthetic: true }, '', '/spa/next');
   if (spa instanceof HTMLElement) spa.textContent = 'junify-spa-push-state-v1';
+  await wait(20);
   mark('junify-spa-push-state-v1');
   await wait(30);
   const popstate = new Promise<void>((resolve) => {
@@ -375,6 +411,7 @@ export async function runHistoricalScenarioInPage(
   history.back();
   await popstate;
   if (spa instanceof HTMLElement) spa.textContent = 'junify-spa-popstate-v1';
+  await wait(20);
   mark('junify-spa-popstate-v1');
 
   shadowMarker.textContent = 'junify-shadow-mutated-v1';
@@ -437,6 +474,7 @@ export async function runHistoricalScenarioInPage(
 
   await wait(80);
   seek.textContent = 'junify-seek-after-v1';
+  await wait(20);
   mark('junify-seek-after-v1');
   await wait(120);
   stop();

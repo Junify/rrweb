@@ -62,6 +62,13 @@ export interface FixtureManifestEntry {
     alias: string;
     version: string;
     registryIntegrity: string;
+    registryTarball: {
+      url: string;
+      integrity: string;
+      bytes: number;
+      sha256: string;
+    };
+    bundle: { path: string; bytes: number; sha256: string };
   };
   scenario: string;
   browser: {
