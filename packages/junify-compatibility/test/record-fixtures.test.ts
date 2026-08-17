@@ -364,6 +364,10 @@ describe('junify.privacy candidate persisted artifact', () => {
       autocompleteAttribute: `autocomplete-attribute-${nonce}-999999999`,
       autocompleteInput: `autocomplete-input-${nonce}-aaaaaaaaaa`,
       autocompleteAdded: `autocomplete-added-${nonce}-bbbbbbbbbbb`,
+      passwordInitial: `password-initial-${nonce}-cccccccccccc`,
+      passwordValueBeforeType: `password-value-before-type-${nonce}-ddddddddddddd`,
+      passwordTypeBeforeValue: `password-type-before-value-${nonce}-eeeeeeeeeeeeee`,
+      passwordSyncInput: `password-sync-input-${nonce}-fffffffffffffff`,
     };
 
     try {
@@ -372,6 +376,10 @@ describe('junify.privacy candidate persisted artifact', () => {
         <input id="hidden-private" type="hidden" value="${sentinels.initial}">
         <input id="placeholder-private" type="password" placeholder="${sentinels.placeholderInitial}">
         <input id="autocomplete-private" type="text" autocomplete="section-checkout Current-Password" value="${sentinels.autocompleteInitial}">
+        <input id="password-initial" type="password" value="${sentinels.passwordInitial}">
+        <input id="password-value-before-type" type="password" value="">
+        <input id="password-type-before-value" type="password" value="">
+        <input id="password-sync-input" type="password" value="">
       </body></html>`);
       await page.addScriptTag({ path: candidateBundle });
       const events = await page.evaluate(async (values) => {
@@ -430,6 +438,23 @@ describe('junify.privacy candidate persisted artifact', () => {
         addedAutocomplete.autocomplete = 'section-payment CC-NUMBER';
         addedAutocomplete.value = values.autocompleteAdded;
         document.body.append(addedAutocomplete);
+
+        const valueBeforeType = document.querySelector(
+          '#password-value-before-type',
+        ) as HTMLInputElement;
+        valueBeforeType.setAttribute('value', values.passwordValueBeforeType);
+        valueBeforeType.setAttribute('type', 'text');
+        const typeBeforeValue = document.querySelector(
+          '#password-type-before-value',
+        ) as HTMLInputElement;
+        typeBeforeValue.setAttribute('type', 'text');
+        typeBeforeValue.setAttribute('value', values.passwordTypeBeforeValue);
+        const syncInput = document.querySelector(
+          '#password-sync-input',
+        ) as HTMLInputElement;
+        syncInput.type = 'text';
+        syncInput.value = values.passwordSyncInput;
+        syncInput.dispatchEvent(new Event('input', { bubbles: true }));
         await new Promise((resolve) => setTimeout(resolve, 40));
         stop?.();
         return recorded;

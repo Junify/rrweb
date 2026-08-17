@@ -391,6 +391,11 @@ function initInputObserver({
   sampling,
   userTriggeredOnInput,
 }: observerParam): listenerHandler {
+  const knownPasswordInputs = new WeakSet<HTMLElement>();
+  doc.querySelectorAll('input').forEach((input) => {
+    if (getInputType(input) === 'password') knownPasswordInputs.add(input);
+  });
+
   function eventHandler(event: Event) {
     let target = getEventTarget(event) as HTMLElement | null;
     const userTriggered = event.isTrusted;
@@ -420,7 +425,13 @@ function initInputObserver({
     }
     let text = (target as HTMLInputElement).value;
     let isChecked = false;
-    const type: Lowercase<string> = getInputType(target) || '';
+    const currentType: Lowercase<string> = getInputType(target) || '';
+    if (target.tagName === 'INPUT' && currentType === 'password') {
+      knownPasswordInputs.add(target);
+    }
+    const type: Lowercase<string> = knownPasswordInputs.has(target)
+      ? 'password'
+      : currentType;
 
     if (type === 'radio' || type === 'checkbox') {
       isChecked = (target as HTMLInputElement).checked;

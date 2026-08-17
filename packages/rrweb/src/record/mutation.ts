@@ -256,7 +256,23 @@ export default class MutationBuffer {
     this.canvasManager.reset();
   }
 
+  private preservePasswordInputType = (mutation: mutationRecord) => {
+    const target = mutation.target as HTMLElement;
+    if (
+      mutation.type === 'attributes' &&
+      mutation.attributeName === 'type' &&
+      target.tagName === 'INPUT' &&
+      (mutation.oldValue || '').toLowerCase() === 'password' &&
+      !target.hasAttribute('data-rr-is-password')
+    ) {
+      target.setAttribute('data-rr-is-password', 'true');
+    }
+  };
+
   public processMutations = (mutations: mutationRecord[]) => {
+    // Mark every input that was a password before any value record in the
+    // same observer batch reads the element's final type.
+    mutations.forEach(this.preservePasswordInputType);
     mutations.forEach(this.processMutation); // adds mutations to the buffer
     this.emit(); // clears buffer if not locked/frozen
   };
@@ -632,13 +648,7 @@ export default class MutationBuffer {
 
         // Keep this property on inputs that used to be password inputs
         // This is used to ensure we do not unmask value when using e.g. a "Show password" type button
-        if (
-          attributeName === 'type' &&
-          target.tagName === 'INPUT' &&
-          (m.oldValue || '').toLowerCase() === 'password'
-        ) {
-          target.setAttribute('data-rr-is-password', 'true');
-        }
+        this.preservePasswordInputType(m);
 
         if (!ignoreAttribute(target.tagName, attributeName, value)) {
           // overwrite attribute if the mutations was triggered in same time

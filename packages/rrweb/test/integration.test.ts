@@ -327,6 +327,124 @@ describe('record integration tests', function (this: ISuite) {
     }
   });
 
+  it('masks password value attributes in both same-batch type mutation orders', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const initialSecret = 'password-full-secret-001';
+    const valueBeforeTypeSecret = 'password-value-before-type-secret-0002';
+    const typeBeforeValueSecret = 'password-type-before-value-secret-00003';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="password-initial" type="password" value="${initialSecret}">
+      <input id="password-value-before-type" type="password" value="">
+      <input id="password-type-before-value" type="password" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { password: true },
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ valueBeforeTypeSecret, typeBeforeValueSecret }) => {
+        const valueBeforeType = document.querySelector(
+          '#password-value-before-type',
+        ) as HTMLInputElement;
+        valueBeforeType.setAttribute('value', valueBeforeTypeSecret);
+        valueBeforeType.setAttribute('type', 'text');
+
+        const typeBeforeValue = document.querySelector(
+          '#password-type-before-value',
+        ) as HTMLInputElement;
+        typeBeforeValue.setAttribute('type', 'text');
+        typeBeforeValue.setAttribute('value', typeBeforeValueSecret);
+      },
+      { valueBeforeTypeSecret, typeBeforeValueSecret },
+    );
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullPayload = JSON.stringify(
+      events.find((event) => event.type === EventType.FullSnapshot),
+    );
+    const mutationPayload = JSON.stringify(
+      events.filter(
+        (event) =>
+          event.type === EventType.IncrementalSnapshot &&
+          event.data.source === IncrementalSource.Mutation,
+      ),
+    );
+
+    expect(fullPayload).not.toContain(initialSecret);
+    expect(fullPayload).toContain('*'.repeat(initialSecret.length));
+    for (const secret of [valueBeforeTypeSecret, typeBeforeValueSecret]) {
+      expect(mutationPayload).not.toContain(secret);
+      expect(mutationPayload).toContain('*'.repeat(secret.length));
+    }
+  });
+
+  it('masks a synchronous Input event after password becomes text and before observer flush', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const synchronousInputSecret = 'password-sync-input-secret-001';
+    const visibleControl = 'ordinary-text-input-control-0002';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="password-sync-input" type="password" value="">
+      <input id="ordinary-text-input" type="text" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { password: true },
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ secret, visibleControl }) => {
+        const input = document.querySelector(
+          '#password-sync-input',
+        ) as HTMLInputElement;
+        input.type = 'text';
+        input.value = secret;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        const control = document.querySelector(
+          '#ordinary-text-input',
+        ) as HTMLInputElement;
+        control.value = visibleControl;
+        control.dispatchEvent(new Event('input', { bubbles: true }));
+      },
+      { secret: synchronousInputSecret, visibleControl },
+    );
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const inputPayload = JSON.stringify(
+      events.filter(
+        (event) =>
+          event.type === EventType.IncrementalSnapshot &&
+          event.data.source === IncrementalSource.Input,
+      ),
+    );
+
+    expect(inputPayload).not.toContain(synchronousInputSecret);
+    expect(inputPayload).toContain('*'.repeat(synchronousInputSecret.length));
+    expect(inputPayload).toContain(visibleControl);
+  });
+
   it('can record and replay textarea mutations correctly', async () => {
     const page: puppeteer.Page = await browser.newPage();
     await page.goto('about:blank');
