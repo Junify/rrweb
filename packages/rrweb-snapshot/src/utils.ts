@@ -259,6 +259,25 @@ export function createMirror(): Mirror {
   return new Mirror();
 }
 
+const SENSITIVE_AUTOCOMPLETE_TOKENS = new Set([
+  'current-password',
+  'new-password',
+  'cc-number',
+  'cc-exp',
+  'cc-exp-month',
+  'cc-exp-year',
+  'cc-csc',
+]);
+
+function hasSensitiveAutocompleteToken(element: HTMLElement): boolean {
+  if (toLowerCase(element.tagName) !== 'input') return false;
+  const autocomplete = element.getAttribute('autocomplete');
+  if (!autocomplete) return false;
+  return autocomplete
+    .split(/[\t\n\f\r ]+/)
+    .some((token) => SENSITIVE_AUTOCOMPLETE_TOKENS.has(toLowerCase(token)));
+}
+
 export function maskInputValue({
   element,
   maskInputOptions,
@@ -276,12 +295,14 @@ export function maskInputValue({
 }): string {
   let text = value || '';
   const actualType = type && toLowerCase(type);
+  const forceMask = hasSensitiveAutocompleteToken(element);
 
   if (
+    forceMask ||
     maskInputOptions[tagName.toLowerCase() as keyof MaskInputOptions] ||
     (actualType && maskInputOptions[actualType as keyof MaskInputOptions])
   ) {
-    if (maskInputFn) {
+    if (maskInputFn && !forceMask) {
       text = maskInputFn(text, element);
     } else {
       text = '*'.repeat(text.length);

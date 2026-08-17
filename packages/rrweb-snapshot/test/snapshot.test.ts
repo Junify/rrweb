@@ -269,6 +269,50 @@ describe('form', () => {
     expect(payload).toContain('*'.repeat(textareaSecret.length));
     expect(payload).toContain(visibleControl);
   });
+
+  it.each([
+    'current-password',
+    'NEW-PASSWORD',
+    'section-checkout shipping cc-number',
+    'section-billing CC-EXP',
+    'cc-exp-month',
+    'cc-exp-year',
+    'cc-csc',
+  ])(
+    'forces sensitive autocomplete token %s to stay masked with an identity maskInputFn',
+    (autocomplete) => {
+      const secret = `autocomplete-${autocomplete}-secret-001`;
+      const doc = new JSDOM(`<!doctype html><html><body>
+        <input id="autocomplete-private" type="text" autocomplete="${autocomplete}" value="${secret}">
+      </body></html>`).window.document;
+
+      const payload = JSON.stringify(
+        snapshot(doc, {
+          maskAllInputs: false,
+          maskInputFn: (value) => value,
+        }),
+      );
+
+      expect(payload).not.toContain(secret);
+      expect(payload).toContain('*'.repeat(secret.length));
+    },
+  );
+
+  it('does not force masking for a non-sensitive autocomplete token', () => {
+    const visibleControl = 'autocomplete-name-visible-control-001';
+    const doc = new JSDOM(`<!doctype html><html><body>
+      <input id="autocomplete-control" type="text" autocomplete="name" value="${visibleControl}">
+    </body></html>`).window.document;
+
+    const payload = JSON.stringify(
+      snapshot(doc, {
+        maskAllInputs: false,
+        maskInputFn: (value) => value,
+      }),
+    );
+
+    expect(payload).toContain(visibleControl);
+  });
 });
 
 describe('jsdom snapshot', () => {

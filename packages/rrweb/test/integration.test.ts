@@ -256,6 +256,77 @@ describe('record integration tests', function (this: ISuite) {
     ).toBe(true);
   });
 
+  it('forces sensitive autocomplete values out of FullSnapshot, mutation, add, and Input payloads', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const initialSecret = 'autocomplete-full-secret-001';
+    const attributeSecret = 'autocomplete-attribute-secret-0002';
+    const inputSecret = 'autocomplete-input-secret-00003';
+    const addedSecret = 'autocomplete-added-secret-000004';
+    const visibleControl = 'autocomplete-name-visible-control-000005';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="autocomplete-private" type="text" autocomplete="section-checkout SHIPPING Current-Password" value="${initialSecret}">
+      <input id="autocomplete-control" type="text" autocomplete="name" value="${visibleControl}">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputFn: (value) => value,
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ attributeSecret, addedSecret }) => {
+        document
+          .querySelector('#autocomplete-private')
+          ?.setAttribute('value', attributeSecret);
+        const added = document.createElement('input');
+        added.id = 'autocomplete-added';
+        added.autocomplete = 'section-payment CC-CSC';
+        added.value = addedSecret;
+        document.body.append(added);
+      },
+      { attributeSecret, addedSecret },
+    );
+    await waitForRAF(page);
+    await page.evaluate((inputSecret) => {
+      const input = document.querySelector(
+        '#autocomplete-private',
+      ) as HTMLInputElement;
+      input.value = inputSecret;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }, inputSecret);
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullPayload = JSON.stringify(
+      events.find((event) => event.type === EventType.FullSnapshot),
+    );
+    const incrementalPayload = JSON.stringify(
+      events.filter(
+        (event) =>
+          event.type === EventType.IncrementalSnapshot &&
+          (event.data.source === IncrementalSource.Mutation ||
+            event.data.source === IncrementalSource.Input),
+      ),
+    );
+
+    expect(fullPayload).not.toContain(initialSecret);
+    expect(fullPayload).toContain('*'.repeat(initialSecret.length));
+    expect(fullPayload).toContain(visibleControl);
+    for (const secret of [attributeSecret, inputSecret, addedSecret]) {
+      expect(incrementalPayload).not.toContain(secret);
+      expect(incrementalPayload).toContain('*'.repeat(secret.length));
+    }
+  });
+
   it('can record and replay textarea mutations correctly', async () => {
     const page: puppeteer.Page = await browser.newPage();
     await page.goto('about:blank');

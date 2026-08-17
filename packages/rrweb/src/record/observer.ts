@@ -1,5 +1,4 @@
 import {
-  type MaskInputOptions,
   maskInputValue,
   Mirror,
   getInputType,
@@ -425,10 +424,7 @@ function initInputObserver({
 
     if (type === 'radio' || type === 'checkbox') {
       isChecked = (target as HTMLInputElement).checked;
-    } else if (
-      maskInputOptions[tagName.toLowerCase() as keyof MaskInputOptions] ||
-      maskInputOptions[type as keyof MaskInputOptions]
-    ) {
+    } else {
       text = maskInputValue({
         element: target,
         maskInputOptions,

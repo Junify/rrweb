@@ -360,6 +360,10 @@ describe('junify.privacy candidate persisted artifact', () => {
       placeholderInitial: `placeholder-initial-${nonce}-55555`,
       placeholderMutation: `placeholder-mutation-${nonce}-666666`,
       placeholderAdded: `placeholder-added-${nonce}-7777777`,
+      autocompleteInitial: `autocomplete-initial-${nonce}-88888888`,
+      autocompleteAttribute: `autocomplete-attribute-${nonce}-999999999`,
+      autocompleteInput: `autocomplete-input-${nonce}-aaaaaaaaaa`,
+      autocompleteAdded: `autocomplete-added-${nonce}-bbbbbbbbbbb`,
     };
 
     try {
@@ -367,6 +371,7 @@ describe('junify.privacy candidate persisted artifact', () => {
       await page.setContent(`<!doctype html><html><body>
         <input id="hidden-private" type="hidden" value="${sentinels.initial}">
         <input id="placeholder-private" type="password" placeholder="${sentinels.placeholderInitial}">
+        <input id="autocomplete-private" type="text" autocomplete="section-checkout Current-Password" value="${sentinels.autocompleteInitial}">
       </body></html>`);
       await page.addScriptTag({ path: candidateBundle });
       const events = await page.evaluate(async (values) => {
@@ -385,6 +390,10 @@ describe('junify.privacy candidate persisted artifact', () => {
             password: true,
             textarea: true,
           },
+          maskInputFn: (value: string, element: HTMLElement) =>
+            element.id.startsWith('autocomplete')
+              ? value
+              : '*'.repeat(value.length),
         });
         await new Promise((resolve) => setTimeout(resolve, 40));
 
@@ -395,9 +404,17 @@ describe('junify.privacy candidate persisted artifact', () => {
         document
           .querySelector('#placeholder-private')
           ?.setAttribute('placeholder', values.placeholderMutation);
+        document
+          .querySelector('#autocomplete-private')
+          ?.setAttribute('value', values.autocompleteAttribute);
         await new Promise((resolve) => setTimeout(resolve, 20));
         hidden.value = values.input;
         hidden.dispatchEvent(new Event('input', { bubbles: true }));
+        const autocomplete = document.querySelector(
+          '#autocomplete-private',
+        ) as HTMLInputElement;
+        autocomplete.value = values.autocompleteInput;
+        autocomplete.dispatchEvent(new Event('input', { bubbles: true }));
 
         const added = document.createElement('input');
         added.id = 'hidden-added';
@@ -408,6 +425,11 @@ describe('junify.privacy candidate persisted artifact', () => {
         addedTextarea.id = 'placeholder-added';
         addedTextarea.placeholder = values.placeholderAdded;
         document.body.append(addedTextarea);
+        const addedAutocomplete = document.createElement('input');
+        addedAutocomplete.id = 'autocomplete-added';
+        addedAutocomplete.autocomplete = 'section-payment CC-NUMBER';
+        addedAutocomplete.value = values.autocompleteAdded;
+        document.body.append(addedAutocomplete);
         await new Promise((resolve) => setTimeout(resolve, 40));
         stop?.();
         return recorded;
