@@ -20,7 +20,7 @@
       "observable_effects": ["packaged MV3 worker execution", "inline fallback output", "serialized Canvas mutations"],
       "expected_current_behavior": "The Junify package accepts an injected ImageBitmap processor, transfers bitmaps through a packaged worker under MV3 strict CSP, and falls back inline without changing the event schema.",
       "risk_if_broken": "The production extension loses Canvas recording, violates MV3 CSP, or emits incompatible events.",
-      "exact_gate": ["yarn workspace rrweb build", "PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/image-bitmap-data-url-processor.test.ts test/record/webgl.test.ts test/replay/webgl.test.ts", "yarn workspace @junify/rrweb-compatibility test -- record-fixtures"],
+      "gate_id": "G-CANVAS-PROCESSOR",
       "test_notes": "Unmodified 2.1.1 exposes only its inline-worker path; the Junify injectable API and focused tests do not exist yet."
     },
     {
@@ -33,7 +33,7 @@
       "observable_effects": ["application Canvas pixels", "replayed Canvas pixels", "ImageBitmap lifetime", "worker lifetime"],
       "expected_current_behavior": "Recording leaves application Canvas 2D/WebGL pixels unchanged, reproduces pixels on replay, closes transferred bitmaps, and stops worker/RAF activity when recording stops.",
       "risk_if_broken": "Recording mutates customer pages or leaks GPU/bitmap resources during long sessions.",
-      "exact_gate": ["PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/image-bitmap-data-url-processor.test.ts test/record/webgl.test.ts test/replay/webgl.test.ts", "yarn workspace @junify/rrweb-compatibility test -- record-fixtures"],
+      "gate_id": "G-CANVAS-PIXELS",
       "test_notes": "The Junify Canvas change contains the non-destructive concept, but the required pixel and cleanup assertions are missing."
     },
     {
@@ -46,7 +46,7 @@
       "observable_effects": ["main-player replayed DOM and Canvas", "legacy-static-player replayed DOM and Canvas"],
       "expected_current_behavior": "Artifacts from @junify-app/rrweb@2.1.1-junify.0 replay in the upgraded Rails main player and the explicitly retained static-player surface.",
       "risk_if_broken": "Deploying the recorder after the replayers creates recordings that Junify cannot inspect.",
-      "exact_gate": ["yarn workspace @junify/rrweb-compatibility test -- replay-matrix", "cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recording.spec.ts scenarios/monitors/session-recording-static-player.spec.ts --workers=1"],
+      "gate_id": "G-COMPAT-CANDIDATE",
       "test_notes": "The candidate producer and cross-repository browser specs do not exist yet."
     },
     {
@@ -59,7 +59,7 @@
       "observable_effects": ["visible replay DOM", "Canvas pixels", "seek result", "player completion"],
       "expected_current_behavior": "The candidate replayers consume provenance-locked fixtures produced by rrweb@2.0.0-alpha.4, @junify-app/rrweb@2.0.0-alpha.19, and @junify-app/rrweb@2.0.0-alpha.20.",
       "risk_if_broken": "Existing stored customer sessions become unreadable after the player upgrade.",
-      "exact_gate": ["yarn workspace @junify/rrweb-compatibility test -- replay-matrix", "cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recording.spec.ts scenarios/monitors/session-recording-static-player.spec.ts --workers=1"],
+      "gate_id": "G-COMPAT-HISTORICAL",
       "test_notes": "Current service fixtures omit producer package/version/browser provenance and cannot be relabeled as historical producer fixtures."
     },
     {
@@ -72,7 +72,7 @@
       "observable_effects": ["event count", "FullSnapshot indexes", "fragment reassembly", "payload digest", "gzip round trip"],
       "expected_current_behavior": "A deterministic roughly 13.6 MB CSS FullSnapshot preserves decoded event count, indexes, bytes, fragment ordering, and gzip digest.",
       "risk_if_broken": "Large real pages produce truncated, reordered, or unreplayable sessions.",
-      "exact_gate": ["yarn workspace @junify/rrweb-compatibility test -- large-snapshot", "cd ../browser-extension-rrweb-2.1.1 && yarn test src/background/command/sessionRecording/v2SessionRecordingFlusher.test.ts"],
+      "gate_id": "G-LARGE-SNAPSHOT",
       "test_notes": "The largest existing service fixture eventString is 1,432,290 bytes; it is not the required 13.6 MB case."
     },
     {
@@ -85,7 +85,7 @@
       "observable_effects": ["decoded event sequence", "event count", "FullSnapshot payload", "event JSON schema"],
       "expected_current_behavior": "For fixed scenarios, decoded events remain wire-compatible; only documented upstream correctness changes may alter payload values.",
       "risk_if_broken": "The service and existing replayers reject or misinterpret newly recorded sessions.",
-      "exact_gate": ["yarn workspace @junify/rrweb-compatibility test -- record-fixtures replay-matrix large-snapshot"],
+      "gate_id": "G-WIRE-FORMAT",
       "test_notes": "No provenance-locked differential fixture suite exists on this branch."
     },
     {
@@ -98,7 +98,7 @@
       "observable_effects": ["per-recorder CustomEvent", "runtime port payload", "Chrome storage keys and values", "delete/retry behavior"],
       "expected_current_behavior": "Monotonic indexed events cross the isolated-world bridge, runtime port, and real Chrome storage without loss, duplication, or reordering before V1/V2 flushing.",
       "risk_if_broken": "Unit-green recording silently loses or reorders persisted production events.",
-      "exact_gate": ["cd ../browser-extension-rrweb-2.1.1 && yarn test src/foreground/service/sso/sessionRecorder.test.ts src/background/repository/SessionRecordingEventRepository.test.ts", "cd ../browser-extension-rrweb-2.1.1 && yarn test:integration integration-tests/sessionRecordingBridgeIntegration.integration.test.ts integration-tests/sessionRecordingCompatibility.integration.test.ts"],
+      "gate_id": "G-EXT-PERSISTENCE",
       "test_notes": "Existing integration coverage reaches injection/overlay/mutations but does not observe worker execution, real Chrome storage, or ingest payload."
     },
     {
@@ -111,7 +111,7 @@
       "observable_effects": ["no events after stop", "listener/observer counts", "Canvas RAF and worker shutdown", "released iframe/stylesheet/shadow-root references"],
       "expected_current_behavior": "Stop is idempotent, emits nothing afterward, and repeated start/stop churn does not retain observers, mirrors, RAF callbacks, workers, or detached documents.",
       "risk_if_broken": "Long sessions leak memory/CPU and stopped sessions continue collecting customer activity.",
-      "exact_gate": ["yarn workspace rrweb build", "PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/lifecycle.test.ts test/record.test.ts"],
+      "gate_id": "G-RECORDER-LIFECYCLE",
       "test_notes": "The existing cross-origin-stop smoke test only proves no throw; it does not prove post-stop silence or retention cleanup."
     },
     {
@@ -124,7 +124,7 @@
       "observable_effects": ["timer/subscription state", "pending image/stylesheet callbacks", "iframe maps", "removed wrapper", "no callbacks after destroy"],
       "expected_current_behavior": "Repeated create/play/seek/destroy cycles clear all owned asynchronous work and references, not only the visible wrapper.",
       "risk_if_broken": "Rails player navigation accumulates retained recordings, iframes, and callbacks.",
-      "exact_gate": ["yarn workspace rrweb build", "PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/replay/lifecycle.test.ts test/replayer.test.ts", "yarn workspace @junify/rrweb-compatibility test -- replay-matrix"],
+      "gate_id": "G-REPLAYER-LIFECYCLE",
       "test_notes": "The existing destroy test asserts wrapper removal only and does not cover pending resources."
     },
     {
@@ -137,7 +137,7 @@
       "observable_effects": ["packed package metadata", "ESM/CJS/UMD exports", "CSS export", "player getReplayer implementation"],
       "expected_current_behavior": "@junify-app/rrweb-player@2.1.1-junify.0 resolves the patched local Junify replayer and never silently bundles official unpatched @rrweb/replay.",
       "risk_if_broken": "The UI package bypasses the seek fix while appearing to use the Junify player.",
-      "exact_gate": ["yarn workspace @junify-app/rrweb-player build", "yarn workspace @junify-app/rrweb-player test"],
+      "gate_id": "G-PKG-PLAYER",
       "test_notes": "The narrow player boundary package is created in Task 3."
     },
     {
@@ -150,7 +150,7 @@
       "observable_effects": ["packed package metadata", "ESM/CJS/UMD exports", "types", "package tarball contents"],
       "expected_current_behavior": "@junify-app/rrweb@2.1.1-junify.0 exposes record and Replayer while unmodified internals retain official @rrweb/*, rrweb-snapshot, rrdom, and rrweb package identities.",
       "risk_if_broken": "A global namespace rewrite recreates the 315-file divergence and makes future syncs unsafe.",
-      "exact_gate": ["yarn workspace @junify-app/rrweb build", "yarn workspace @junify-app/rrweb test"],
+      "gate_id": "G-PKG-RRWEB",
       "test_notes": "The narrow package boundary is created in Task 3; current upstream packages retain official names."
     },
     {
@@ -163,7 +163,7 @@
       "observable_effects": ["FullSnapshot JSON", "IncrementalSnapshot JSON", "Chrome storage value", "V1/V2 ingest body"],
       "expected_current_behavior": "Distinct synthetic secrets from password, textarea, placeholder, dynamic type=password, hidden, and sensitive autocomplete cases are absent from initial and mutated persisted payloads.",
       "risk_if_broken": "Credentials or sensitive form values are stored and transmitted despite rendered masking.",
-      "exact_gate": ["yarn workspace rrweb-snapshot test", "yarn workspace rrweb build", "PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/integration.test.ts", "yarn workspace @junify/rrweb-compatibility test -- record-fixtures", "cd ../browser-extension-rrweb-2.1.1 && yarn test:integration integration-tests/sessionRecordingCompatibility.integration.test.ts"],
+      "gate_id": "G-PRIVACY",
       "test_notes": "The extension currently configures only maskInputOptions.password=true; no Junify-config persisted-payload sentinel gate exists."
     },
     {
@@ -176,7 +176,7 @@
       "observable_effects": ["EVENTS postMessage", "visible replay DOM/Canvas", "META and TIME/SKIP postMessages"],
       "expected_current_behavior": "The alpha.4 static bridge accepts the retained message protocol and replays accepted fixtures with UNSAFE_replayCanvas enabled.",
       "risk_if_broken": "An explicitly retained compatibility surface becomes unusable or diverges silently.",
-      "exact_gate": ["cd ../junify-rails-rrweb-2.1.1/frontend_rrweb_replayer && yarn build", "cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recording-static-player.spec.ts --workers=1"],
+      "gate_id": "G-RAILS-STATIC",
       "test_notes": "README claims are not coverage; no current browser spec exists and no source reference proves the S3 deployment path is active."
     },
     {
@@ -189,7 +189,7 @@
       "observable_effects": ["production-shaped V1 request", "deflate/base64 decode", "visible DOM/Canvas", "seek/play controls"],
       "expected_current_behavior": "The /monitors/session_recordings/:id route fetches V1 pages, decodes every stored event, and renders the expected DOM and Canvas with the candidate player.",
       "risk_if_broken": "Legacy stored sessions fail only in the real Monitors route despite unit tests passing.",
-      "exact_gate": ["cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recording.spec.ts --workers=1 --grep 'V1'"],
+      "gate_id": "G-RAILS-MONITORS-V1",
       "test_notes": "Current parser/loader and player Jest tests mock network or player; no route-level browser gate exists."
     },
     {
@@ -202,7 +202,7 @@
       "observable_effects": ["replay-plan segment order", "hot-event pagination", "NDJSON chunk decode", "visible DOM/Canvas", "incremental addEvents"],
       "expected_current_behavior": "The Monitors route streams ordered chunk and hot segments, parses raw or compatibility-wrapped rrweb events, and renders the persisted session without gaps or duplicate events.",
       "risk_if_broken": "V2 recordings appear truncated, reordered, stuck, or blank in the production route.",
-      "exact_gate": ["cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recording.spec.ts --workers=1 --grep 'V2'"],
+      "gate_id": "G-RAILS-MONITORS-V2",
       "test_notes": "Current Jest coverage is local/mocked and does not cross the Rails browser route and persisted read boundary."
     },
     {
@@ -215,7 +215,7 @@
       "observable_effects": ["artifact metadata fetch", "Base64+gzip file fetch", "visible recorded DOM", "interactive player controls"],
       "expected_current_behavior": "A production-shaped capability-run session_recording artifact is fetched, Base64/gzip-decoded, and visibly replayed with usable controls.",
       "risk_if_broken": "Password-rotation evidence cannot be reviewed even though the artifact exists.",
-      "exact_gate": ["cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/application/member-password-rotation-requests.spec.ts --workers=1"],
+      "gate_id": "G-RAILS-PASSWORD-ARTIFACT",
       "test_notes": "Executable browser coverage exists and the repository records this exact gate; Task 1 did not rerun it. The synthetic fixture has no producer package/version provenance and does not cover the Monitors surfaces."
     },
     {
@@ -228,7 +228,7 @@
       "observable_effects": ["post-seek iframe DOM", "current replay time"],
       "expected_current_behavior": "An explicit play at a different forward or backward offset does not use a stale virtual DOM for the first synchronization after the seek.",
       "risk_if_broken": "Reviewers see DOM state from the wrong moment immediately after seeking.",
-      "exact_gate": ["yarn workspace rrweb build", "PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/replay/seek-virtual-dom.test.ts test/replayer.test.ts", "yarn workspace @junify/rrweb-compatibility test -- replay-matrix"],
+      "gate_id": "G-SEEK",
       "test_notes": "Broad upstream seek tests exist, but no Junify trace asserts visible DOM at the post-seek boundary."
     },
     {
@@ -241,7 +241,7 @@
       "observable_effects": ["event wire format", "codec architecture"],
       "expected_current_behavior": "This upgrade does not introduce Datadog compact serialization, semantic streams, or a generalized codec framework.",
       "risk_if_broken": "A recorder upgrade becomes an unplanned system-wide storage and replayer migration.",
-      "exact_gate": ["Document review: vendor-adoption decision remains reject and no compact-codec dependency is added."],
+      "gate_id": "G-NO-COMPACT-SERIALIZER",
       "test_notes": "Separate architecture story; no implementation in this patch stack."
     },
     {
@@ -254,7 +254,7 @@
       "observable_effects": ["recordCrossOriginIframes recorder option"],
       "expected_current_behavior": "The extension continues to set recordCrossOriginIframes=false; this upgrade does not widen capture scope.",
       "risk_if_broken": "The upgrade expands privacy/security exposure beyond the approved scope.",
-      "exact_gate": ["cd ../browser-extension-rrweb-2.1.1 && yarn test src/injected/sessionRecordingClient/index.test.ts"],
+      "gate_id": "G-NO-CROSS-ORIGIN",
       "test_notes": "The focused option test is added with the extension update; feature expansion remains excluded."
     },
     {
@@ -267,20 +267,20 @@
       "observable_effects": ["npm registry", "Git remotes", "deployment environments", "staging"],
       "expected_current_behavior": "No package publish, release, push, pull request, deploy, or staging action occurs in this work.",
       "risk_if_broken": "Unverified package content reaches consumers or production.",
-      "exact_gate": ["Human release gate after all local tarball hashes and compatibility evidence are reviewed."],
+      "gate_id": "G-NO-EXTERNAL-RELEASE",
       "test_notes": "Release operations require separate explicit authorization."
     },
     {
       "id": "junify.service.unused-rrweb-dependency",
       "title": "session_recording_service rrweb@^0.9.14 declaration is not a runtime consumer",
-      "source": ["observed-code", "observed-runtime"],
+      "source": ["observed-code", "observed-build-artifact"],
       "status": "out-of-scope",
       "recommended_layers": ["static-analysis"],
       "entrypoints": ["/Users/takashihamada/dev/session_recording_service/package.json", "/Users/takashihamada/dev/session_recording_service/.serverless/build/package.json", "/Users/takashihamada/dev/session_recording_service/.serverless/session-recording.zip"],
       "observable_effects": ["source import graph", "Serverless bundle", "packaged service dependencies"],
       "expected_current_behavior": "The stale rrweb@^0.9.14 declaration has no source import/require/dynamic import and is absent from the built package manifest and deployment zip.",
       "risk_if_broken": "An unrecognized runtime consumer is omitted from the compatibility rollout.",
-      "exact_gate": ["cd /Users/takashihamada/dev/session_recording_service && rg -n -i \"from ['\\\"]rrweb|require\\(['\\\"]rrweb|import\\(['\\\"]rrweb\" . --glob '!node_modules/**' --glob '!.git/**'", "cd /Users/takashihamada/dev/session_recording_service && rg -n \"rrweb\" .serverless/build/package.json", "cd /Users/takashihamada/dev/session_recording_service && unzip -l .serverless/session-recording.zip | rg -i \"rrweb\""],
+      "gate_id": "G-SRS-UNUSED",
       "test_notes": "All three censuses currently return no runtime occurrence. Removing the declaration is unrelated cleanup and intentionally excluded."
     },
     {
@@ -293,7 +293,7 @@
       "observable_effects": ["eventString deflate/base64 round trip", "timestamp/index", "firstEvent", "V1 bulk request"],
       "expected_current_behavior": "Each V1 event is JSON-stringified, fflate-compressed, base64-encoded, and sent with its original timestamp/index and first-event metadata.",
       "risk_if_broken": "Legacy ingest or Rails V1 playback receives corrupt or misindexed events.",
-      "exact_gate": ["cd ../browser-extension-rrweb-2.1.1 && yarn test src/background/command/sessionRecording/flushSesssionRecordingEventsToServer.test.ts", "cd ../browser-extension-rrweb-2.1.1 && yarn test:integration integration-tests/sessionRecordingCompatibility.integration.test.ts"],
+      "gate_id": "G-TRANSPORT-V1",
       "test_notes": "Unit coverage exists, but the required production-shaped persisted round trip remains open."
     },
     {
@@ -306,7 +306,7 @@
       "observable_effects": ["decoded event order/count", "FullSnapshot classification", "chunk/fragment reassembly", "gzip digest"],
       "expected_current_behavior": "After decoding/reassembly, V1 and V2 represent the same fixed-scenario rrweb events apart from V2 transport metadata and its synthetic recording_end event.",
       "risk_if_broken": "Feature-flag selection changes what users can replay instead of only how events are transported.",
-      "exact_gate": ["cd ../browser-extension-rrweb-2.1.1 && yarn test:integration integration-tests/sessionRecordingCompatibility.integration.test.ts", "yarn workspace @junify/rrweb-compatibility test -- large-snapshot replay-matrix"],
+      "gate_id": "G-TRANSPORT-PARITY",
       "test_notes": "There is no current real artifact parity gate across both pipelines."
     },
     {
@@ -319,7 +319,7 @@
       "observable_effects": ["monotonic assigned indexes", "full_snapshot/incremental classification", "plain eventString", "UTF-8-safe fragment hashes and reassembly", "recording_end"],
       "expected_current_behavior": "V2 sorts source events, assigns monotonic 1-based indexes, stores raw JSON eventString, classifies snapshots, fragments oversized UTF-8 bodies without splitting surrogate pairs, and finalizes with recording_end.",
       "risk_if_broken": "V2 replay plans contain gaps, duplicate indexes, bad hashes, or unreconstructable snapshots.",
-      "exact_gate": ["cd ../browser-extension-rrweb-2.1.1 && yarn test src/background/command/sessionRecording/v2SessionRecordingFlusher.test.ts", "cd ../browser-extension-rrweb-2.1.1 && yarn test:integration integration-tests/sessionRecordingCompatibility.integration.test.ts"],
+      "gate_id": "G-TRANSPORT-V2",
       "test_notes": "Unit tests do not by themselves close the browser-to-persisted-artifact contract."
     }
   ]

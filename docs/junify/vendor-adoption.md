@@ -35,6 +35,7 @@ source reference when the coordinator census did not provide a commit object.
 
 | Severity | Candidate and exact source | In 2.1.1 | Decision | Junify contract | Tests/gate | Deletion/upstream plan |
 | --- | --- | --- | --- | --- | --- | --- |
+| P1 | backward virtual-DOM skip correction: rrweb closed, unmerged PR 1806; page-listed fix commit `5a99ce0` | no | `defer` pending differential evidence; do not stack with Junify seek behavior | `junify.replay.seek-visible-dom` | `G-SEEK` must reproduce forward and backward visible DOM on unmodified 2.1.1, PR 1806, and the minimal Junify candidate | retain no PR-1806 patch unless it fixes a distinct failing fixture; delete any adaptation when upstream stable passes the same gate |
 | P0 | hidden input masking: Mixpanel PR 4, `c68ae046`; rrweb open PR 1745 | no | `adapt` | hidden input values never enter Full/Incremental/storage/V1/V2 payloads; extension explicitly enables the policy | `G-PRIVACY`; ledger `PRIV-001` | delete when upstream stable exposes equivalent behavior and passes the same persisted sentinel |
 | P1 | placeholder masking: Mixpanel PR 18, `2a8326d0` | no | `adapt` | placeholders for masked input/textarea nodes and mutations contain no sentinel | `G-PRIVACY`; ledger `PRIV-002` | delete when upstream stable passes the initial/mutated placeholder sentinel |
 | P1 | general attribute masking callback: rrweb open PR 1257, `74819490`; Sentry PR 107 | no | `defer` | only add an API if narrow placeholder/sensitive policies leave an evidenced attribute leak | first run `G-PRIVACY`; if it exposes a remaining attribute, add a narrow API review/test | no patch exists; if later adapted, remove once upstream API semantics and Junify sentinel agree |
@@ -46,7 +47,18 @@ source reference when the coordinator census did not provide a commit object.
 | P1 | malformed media-node guard: Mixpanel PR 10, `dfeeb602`; rrweb open PR 1673 | no | `adapt` | malformed accepted legacy artifacts do not abort replay | malformed-media fixture through `G-REPLAYER-LIFECYCLE` and replay matrix; ledger `DEF-001` | delete when upstream stable includes the guard and fixture passes unmodified |
 | P1 | missing style `rules` guard: Sentry PR 162, `0b0e26db` | no | `adapt` | absent/null style rules in accepted legacy artifacts do not abort replay | missing-rules fixture through `G-REPLAYER-LIFECYCLE` and replay matrix; ledger `DEF-002` | delete when upstream stable includes the guard and fixture passes unmodified |
 | P1 | non-destructive WebGL capture: Sentry PR 307, `027138c9` | concept in old Junify Canvas patch, not a complete 2.1.1 contract | `adapt` | recording leaves application WebGL pixels unchanged and closes bitmap resources | `G-CANVAS-PIXELS`; ledger `CANVAS-001` | retain as regression-backed behavior, not a duplicate patch; delete when upstream stable passes Junify pixel/cleanup gate |
-| architecture | Datadog browser-sdk compact serializer and semantic stream | no; separate wire format | `reject` | event wire format remains unchanged in this upgrade | `G-NO-COMPACT-SERIALIZER` | separate architecture story only; never delete/revisit as part of this patch stack without a new approved design |
+| P0 scope | Datadog browser-sdk experimental compact DOM-mutation encoding: [DataDog/browser-sdk PR 4060](https://github.com/DataDog/browser-sdk/pull/4060) | no; separate wire format and implementation lineage | `reject` | `junify.scope.no-compact-serializer`; rrweb event wire format remains unchanged | `G-NO-COMPACT-SERIALIZER` | separate architecture story only; never revisit as part of this patch stack without a new approved design |
+
+## Documented Non-Candidate Boundaries
+
+- WebGPU fallback has no approved source patch and no failing Junify fixture.
+  It is not a vendor candidate or ledger patch in this upgrade. Reconsider only
+  after `G-CANVAS-PIXELS` gains a required WebGPU scenario that fails without
+  it; any resulting candidate must receive its own exact source and decision.
+- Broad shadow-canvas traversal likewise has no approved source patch or
+  failing Junify fixture. Shadow DOM remains a compatibility-fixture concern,
+  but expanding Canvas traversal is not a candidate until a named fixture
+  demonstrates the need and bounded privacy/performance behavior.
 
 ## Candidate Review Rules
 

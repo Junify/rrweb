@@ -63,14 +63,18 @@ decision:
 From the repository root, run:
 
 ```sh
-node -e "const f=require('fs');const j=JSON.parse(f.readFileSync('docs/junify/contracts/contract-inventory.json','utf8'));const valid=new Set(['covered','must-cover','accepted-current-behavior','red-known-risk','not-testable-yet','out-of-scope']);if(j.contracts.some(c=>!valid.has(c.status)))throw Error('invalid status');const ids=j.contracts.map(c=>c.id);if(new Set(ids).size!==ids.length)throw Error('duplicate id');if(ids.join('\\n')!==[...ids].sort().join('\\n'))throw Error('contracts not sorted');console.log(JSON.stringify({contracts:ids.length,statuses:Object.fromEntries([...valid].map(s=>[s,j.contracts.filter(c=>c.status===s).length]))}))"
+node docs/junify/contracts/reconcile-contract-inventory.mjs
 node -e "JSON.parse(require('fs').readFileSync('docs/junify/contracts/contract-inventory.json','utf8'))"
 git diff --check
 ```
 
-Then compare the printed counts with the Markdown status table and confirm
-every JSON ID appears exactly once in the Markdown contract matrix. The layer
-summary is non-exclusive: one contract may count in more than one layer.
+The reconciliation command compares every contract ID, status, recommended
+layer set, and stable gate ID between JSON and the Markdown matrix, verifies
+that each gate has exactly one runbook heading, and compares status counts.
+Prove sensitivity with
+`node docs/junify/contracts/reconcile-contract-inventory.mjs --simulate-gate-divergence`;
+that command must fail with a gate mismatch. The layer summary is
+non-exclusive: one contract may count in more than one layer.
 
 ## Evidence And Verdict Log
 
@@ -79,7 +83,8 @@ one of: `blocking`, `non-blocking`, or `clear`.
 
 | Date | Scope | Reviewer | Evidence checked | Verdict and follow-up |
 | --- | --- | --- | --- | --- |
-| 2026-08-17 | Task 1 initial census | implementing agent | approved design; rrweb baseline and cached fork history; dedicated extension and Rails worktrees; read-only service source/build/zip census; fixture metadata | Pending independent fresh-context review and deterministic reconciliation before commit. |
+| 2026-08-17 | Task 1 initial census | implementing agent | approved design; rrweb baseline and cached fork history; dedicated extension and Rails worktrees; read-only service source/build/zip census; fixture metadata | Initial documentation committed at `ff1f9236`; independent reconciliation checkpoint required before the next implementation task or merge. |
+| 2026-08-17 | Task 1 fix round 1 | independent reviewer plus implementing agent | human/JSON gate fields; candidate ledger; service artifact labels; audit checkpoint | Important findings fixed: stable gate IDs now reconcile through a sensitivity-checked script; PR 1806 and non-candidate boundaries are explicit; artifact evidence is accurately labeled. |
 
 ## Promotion And Escalation Rules
 
