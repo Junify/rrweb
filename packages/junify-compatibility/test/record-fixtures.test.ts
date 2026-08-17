@@ -441,7 +441,10 @@ describe('junify.privacy candidate persisted artifact', () => {
         document.body.append(addedTextarea);
         const addedAutocomplete = document.createElement('input');
         addedAutocomplete.id = 'autocomplete-added';
-        addedAutocomplete.autocomplete = 'section-payment CC-NUMBER';
+        addedAutocomplete.setAttribute(
+          'autocomplete',
+          'section-payment CC-NUMBER',
+        );
         addedAutocomplete.value = values.autocompleteAdded;
         document.body.append(addedAutocomplete);
 
