@@ -234,6 +234,19 @@ describe('form', () => {
     });
     expect(sel?.childNodes).toEqual([]); // shouldn't be stored in childNodes while in transit
   });
+
+  it('masks hidden values in serialized FullSnapshots with the mask-all shorthand', () => {
+    const initialSecret = 'hidden-full-snapshot-secret-001';
+    const doc = new JSDOM(`<!doctype html><html><body>
+      <input id="hidden-private" type="hidden" value="${initialSecret}">
+    </body></html>`).window.document;
+
+    const serialized = snapshot(doc, { maskAllInputs: true });
+    const payload = JSON.stringify(serialized);
+
+    expect(payload).not.toContain(initialSecret);
+    expect(payload).toContain('*'.repeat(initialSecret.length));
+  });
 });
 
 describe('jsdom snapshot', () => {

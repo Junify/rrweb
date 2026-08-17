@@ -14,7 +14,12 @@ import {
   ISuite,
 } from './utils';
 import type { recordOptions } from '../src/types';
-import { eventWithTime, NodeType, EventType } from '@rrweb/types';
+import {
+  eventWithTime,
+  NodeType,
+  EventType,
+  IncrementalSource,
+} from '@rrweb/types';
 import { visitSnapshot } from 'rrweb-snapshot';
 
 describe('record integration tests', function (this: ISuite) {
@@ -99,6 +104,78 @@ describe('record integration tests', function (this: ISuite) {
       'window.snapshots',
     )) as eventWithTime[];
     await assertSnapshot(snapshots);
+  });
+
+  it('keeps hidden values out of serialized FullSnapshot and IncrementalSnapshot payloads', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const initialSecret = 'hidden-full-secret-001';
+    const attributeSecret = 'hidden-attribute-secret-0002';
+    const inputSecret = 'hidden-input-secret-00003';
+    const addedSecret = 'hidden-added-secret-000004';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="hidden-private" type="hidden" value="${initialSecret}">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskAllInputs: true,
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ attributeSecret, addedSecret }) => {
+        const hidden = document.querySelector(
+          '#hidden-private',
+        ) as HTMLInputElement;
+        hidden.setAttribute('value', attributeSecret);
+
+        const added = document.createElement('input');
+        added.id = 'hidden-added';
+        added.type = 'hidden';
+        added.value = addedSecret;
+        document.body.append(added);
+      },
+      { attributeSecret, addedSecret },
+    );
+    await waitForRAF(page);
+    await page.evaluate((inputSecret) => {
+      const hidden = document.querySelector(
+        '#hidden-private',
+      ) as HTMLInputElement;
+      hidden.value = inputSecret;
+      hidden.dispatchEvent(new Event('input', { bubbles: true }));
+    }, inputSecret);
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullSnapshot = events.find(
+      (event) => event.type === EventType.FullSnapshot,
+    );
+    const incrementalSnapshots = events.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        (event.data.source === IncrementalSource.Mutation ||
+          event.data.source === IncrementalSource.Input),
+    );
+    const fullPayload = JSON.stringify(fullSnapshot);
+    const incrementalPayload = JSON.stringify(incrementalSnapshots);
+
+    expect(fullSnapshot).toBeDefined();
+    expect(incrementalSnapshots.length).toBeGreaterThanOrEqual(2);
+    expect(fullPayload).not.toContain(initialSecret);
+    expect(fullPayload).toContain('*'.repeat(initialSecret.length));
+    for (const secret of [attributeSecret, inputSecret, addedSecret]) {
+      expect(incrementalPayload).not.toContain(secret);
+      expect(incrementalPayload).toContain('*'.repeat(secret.length));
+    }
   });
 
   it('can record and replay textarea mutations correctly', async () => {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -323,6 +324,100 @@ describe('junify.canvas candidate persisted artifact', () => {
 
       expect(replayedPixels.canvas2d).toEqual([255, 0, 0, 255]);
       expect(replayedPixels.webglSnapshot).toEqual([0, 128, 0, 255]);
+    } finally {
+      await browser.close();
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('junify.privacy candidate persisted artifact', () => {
+  it('keeps configured hidden sentinels out of a temporary real-browser artifact', async () => {
+    const chromeExecutable =
+      process.env.PUPPETEER_EXECUTABLE_PATH ||
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    const candidateBundle = path.join(
+      packageRoot,
+      '..',
+      'rrweb',
+      'dist',
+      'rrweb.umd.cjs',
+    );
+    const browser = await chromium.launch({
+      executablePath: chromeExecutable,
+      headless: true,
+    });
+    const temporaryDirectory = await mkdtemp(
+      path.join(os.tmpdir(), 'junify-privacy-artifact-'),
+    );
+    const artifactPath = path.join(temporaryDirectory, 'events.json');
+    const nonce = randomUUID();
+    const sentinels = {
+      initial: `hidden-initial-${nonce}-1`,
+      attribute: `hidden-attribute-${nonce}-22`,
+      input: `hidden-input-${nonce}-333`,
+      added: `hidden-added-${nonce}-4444`,
+    };
+
+    try {
+      const page = await browser.newPage();
+      await page.setContent(`<!doctype html><html><body>
+        <input id="hidden-private" type="hidden" value="${sentinels.initial}">
+      </body></html>`);
+      await page.addScriptTag({ path: candidateBundle });
+      const events = await page.evaluate(async (values) => {
+        const pageWindow = window as typeof window & {
+          rrweb: {
+            record: (
+              options: Record<string, unknown>,
+            ) => (() => void) | undefined;
+          };
+        };
+        const recorded: unknown[] = [];
+        const stop = pageWindow.rrweb.record({
+          emit: (event: unknown) => recorded.push(event),
+          maskInputOptions: { hidden: true },
+        });
+        await new Promise((resolve) => setTimeout(resolve, 40));
+
+        const hidden = document.querySelector(
+          '#hidden-private',
+        ) as HTMLInputElement;
+        hidden.setAttribute('value', values.attribute);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        hidden.value = values.input;
+        hidden.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const added = document.createElement('input');
+        added.id = 'hidden-added';
+        added.type = 'hidden';
+        added.value = values.added;
+        document.body.append(added);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        stop?.();
+        return recorded;
+      }, sentinels);
+      await page.close();
+
+      await writeFile(artifactPath, JSON.stringify(events), 'utf8');
+      const persistedPayload = await readFile(artifactPath, 'utf8');
+      expect(
+        events.some((event) => (event as { type?: number }).type === 2),
+      ).toBe(true);
+      expect(
+        events.some(
+          (event) =>
+            (event as { type?: number; data?: { source?: number } }).type ===
+              3 &&
+            [0, 5].includes(
+              (event as { data?: { source?: number } }).data?.source ?? -1,
+            ),
+        ),
+      ).toBe(true);
+      for (const secret of Object.values(sentinels)) {
+        expect(persistedPayload).not.toContain(secret);
+        expect(persistedPayload).toContain('*'.repeat(secret.length));
+      }
     } finally {
       await browser.close();
       await rm(temporaryDirectory, { recursive: true, force: true });
