@@ -179,6 +179,10 @@ export class Replayer {
   // Similar to the reason for constructedStyleMutations.
   private adoptedStyleSheets: adoptedStyleSheetData[] = [];
 
+  // Fall back to real DOM mutations for the next synchronous catch-up so an
+  // explicit seek cannot leave the live mirror pointing at stale nodes.
+  private disableVirtualDomForNextSync = false;
+
   constructor(
     events: Array<eventWithTime | string>,
     config?: Partial<playerConfig>,
@@ -304,6 +308,8 @@ export class Replayer {
         });
         this.adoptedStyleSheets = [];
       }
+
+      this.disableVirtualDomForNextSync = false;
 
       if (this.mousePos) {
         this.moveAndHover(
@@ -518,6 +524,9 @@ export class Replayer {
    * @param timeOffset - number
    */
   public play(timeOffset = 0) {
+    if (this.config.useVirtualDom && timeOffset !== this.getCurrentTime()) {
+      this.disableVirtualDomForNextSync = true;
+    }
     if (this.service.state.matches('paused')) {
       this.service.send({ type: 'PLAY', payload: { timeOffset } });
     } else {
@@ -1404,7 +1413,12 @@ export class Replayer {
    */
   private applyMutation(d: mutationData, isSync: boolean) {
     // Only apply virtual dom optimization if the fast-forward process has node mutation. Because the cost of creating a virtual dom tree and executing the diff algorithm is usually higher than directly applying other kind of events.
-    if (this.config.useVirtualDom && !this.usingVirtualDom && isSync) {
+    if (
+      this.config.useVirtualDom &&
+      !this.disableVirtualDomForNextSync &&
+      !this.usingVirtualDom &&
+      isSync
+    ) {
       this.usingVirtualDom = true;
       buildFromDom(this.iframe.contentDocument!, this.mirror, this.virtualDom);
       // If these legacy missing nodes haven't been resolved, they should be converted to virtual nodes.

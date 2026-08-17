@@ -60,7 +60,7 @@
       "expected_current_behavior": "The candidate replayers consume provenance-locked fixtures produced by rrweb@2.0.0-alpha.4, @junify-app/rrweb@2.0.0-alpha.19, and @junify-app/rrweb@2.0.0-alpha.20.",
       "risk_if_broken": "Existing stored customer sessions become unreadable after the player upgrade.",
       "gate_id": "G-COMPAT-HISTORICAL",
-      "test_notes": "Task 2 binds alpha.4, Junify alpha.19, and Junify alpha.20 loaded UMD bytes to registry-tarball integrity in yarn.lock, regenerates normalized real-browser artifacts into temporary storage, and replays marker-terminated slices plus full artifacts under official rrweb@2.1.1 in Chrome 151 with no skips. SPA/seek-ready evidence requires target-ID type-3 mutations; stylesheet stages assert computed styles. Explicit seek and both candidate Rails player surfaces remain required before promotion."
+      "test_notes": "Task 2 binds alpha.4, Junify alpha.19, and Junify alpha.20 loaded UMD bytes to registry-tarball integrity in yarn.lock, regenerates normalized real-browser artifacts into temporary storage, and replays marker-terminated slices plus full artifacts under official rrweb@2.1.1 in Chrome 151 with no skips. SPA/seek-ready evidence requires target-ID type-3 mutations; stylesheet stages assert computed styles. Task 4 seeks all four accepted artifacts forward and backward with the candidate bundle. Both candidate Rails player surfaces remain required before promotion."
     },
     {
       "id": "junify.compatibility.large-snapshot",
@@ -222,14 +222,14 @@
       "id": "junify.replay.seek-visible-dom",
       "title": "Explicit forward/backward seek uses the correct real DOM",
       "source": ["observed-code", "explicit-doc"],
-      "status": "red-known-risk",
+      "status": "covered",
       "recommended_layers": ["integration", "golden/replay"],
       "entrypoints": ["packages/rrweb/src/replay/index.ts:Replayer.play", "packages/rrweb/src/replay/index.ts:Replayer.pause"],
       "observable_effects": ["post-seek iframe DOM", "current replay time"],
       "expected_current_behavior": "An explicit play at a different forward or backward offset does not use a stale virtual DOM for the first synchronization after the seek.",
       "risk_if_broken": "Reviewers see DOM state from the wrong moment immediately after seeking.",
       "gate_id": "G-SEEK",
-      "test_notes": "Broad upstream seek tests exist, but no Junify trace asserts visible DOM at the post-seek boundary."
+      "test_notes": "Task 4 G-SEEK proves an authentic unmodified-2.1.1 RED and candidate GREEN for forward and backward seeks in real Chrome. The focused legacy-sibling fixture observes public current time plus visible iframe DOM; the authenticated alpha.4, Junify alpha.19, Junify alpha.20, and official 2.1.1 artifacts each pass both candidate seek directions. A 13.6 MB FullSnapshot rebuild also preserves CSSOM rule count and visible DOM while recording an official/candidate timing differential."
     },
     {
       "id": "junify.scope.no-compact-serializer",

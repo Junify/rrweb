@@ -31,13 +31,22 @@ count/path drift and an official replay CSS resolution. The previously covered
 `junify.rails.password-rotation-artifact` remains narrow: its synthetic fixture
 still cannot prove alpha producer compatibility or either Monitors pipeline.
 
+Task 4 closes `junify.replay.seek-visible-dom`. An unmodified 2.1.1 candidate
+fails both forward and backward cases after casting the target event: public
+time advances past the mutation while the visible iframe stays at
+`before-seek`. The minimal patch makes both directions render `after-seek`,
+then the candidate bundle seeks all four authenticated historical producers in
+both directions. The 13.6 MB FullSnapshot keeps its exact CSSOM rule count and
+visible marker; an official/candidate timing differential is recorded without
+turning one workstation sample into a bundle-performance claim.
+
 ## Status Summary
 
 | Status                      | Count | Meaning here                                                                                                 |
 | --------------------------- | ----: | ------------------------------------------------------------------------------------------------------------ |
-| `covered`                   |     3 | executable boundary evidence exists and its exact gate is recorded                                           |
+| `covered`                   |     4 | executable boundary evidence exists and its exact gate is recorded                                           |
 | `must-cover`                |    11 | important, feasible contract lacks adequate boundary evidence                                                |
-| `red-known-risk`            |     6 | P0/P1 behavior is known to require a fix or stronger proof and is not accepted                               |
+| `red-known-risk`            |     5 | P0/P1 behavior is known to require a fix or stronger proof and is not accepted                               |
 | `out-of-scope`              |     4 | explicit boundary with reason; not silently omitted                                                          |
 | `accepted-current-behavior` |     0 | no surprising behavior was accepted as a permanent contract                                                  |
 | `not-testable-yet`          |     0 | missing future harnesses are feasible work, so they remain `must-cover`/`red-known-risk` with exact blockers |
@@ -49,10 +58,10 @@ Layer counts are non-exclusive.
 | Recommended layer | Total contracts | `covered` | `must-cover` | `red-known-risk` | `out-of-scope` |
 | ----------------- | --------------: | --------: | -----------: | ---------------: | -------------: |
 | static analysis   |               3 |         2 |            0 |                0 |              1 |
-| integration       |              14 |         2 |            6 |                6 |              0 |
+| integration       |              14 |         3 |            6 |                5 |              0 |
 | E2E               |              12 |         1 |            6 |                5 |              0 |
 | workflow-contract |               4 |         1 |            3 |                0 |              0 |
-| golden/replay     |               6 |         0 |            5 |                1 |              0 |
+| golden/replay     |               6 |         1 |            5 |                0 |              0 |
 
 ## Risk-First Closure Order
 
@@ -60,7 +69,7 @@ Layer counts are non-exclusive.
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | P0 privacy       | `junify.privacy.persisted-sentinels`                                                                                    | failing-first initial/mutation sentinels plus absence from extension storage and V1/V2 request bodies                                      |
 | P0 compatibility | `junify.compatibility.wire-format`, `junify.compatibility.historical-replay`, `junify.compatibility.candidate-recorder` | provenance-locked real-browser fixtures replayed across both candidate surfaces                                                            |
-| P1 seek          | `junify.replay.seek-visible-dom`                                                                                        | forward/backward visible DOM assertions at the first post-seek sync                                                                        |
+| P1 seek (closed) | `junify.replay.seek-visible-dom`                                                                                        | Task 4 authentic RED/GREEN, eight historical candidate seeks, public time/visible DOM, and 13.6 MB CSSOM/timing evidence                   |
 | P1 Canvas        | both `junify.canvas.*` IDs                                                                                              | packaged MV3 worker, fallback, transfer/close, application/replay pixel, and long-session cleanup evidence                                 |
 | P1 lifecycle     | both `junify.lifecycle.*` IDs                                                                                           | repeated real-browser churn with retained-resource and no-post-stop/destroy assertions                                                     |
 | P1 transport     | `junify.extension.persistence` and all `junify.transport.*` IDs                                                         | real storage plus decoded V1/V2 parity including oversized UTF-8 fragmentation                                                             |
@@ -69,17 +78,17 @@ Layer counts are non-exclusive.
 
 ## Existing Evidence That Is Useful But Insufficient
 
-| Evidence                              | Protects                                                                                                                                                                                                           | Does not protect                                                                                                                                              |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| upstream rrweb snapshot/input tests   | local masking and serialization branches                                                                                                                                                                           | Junify recorder configuration or final persisted payloads                                                                                                     |
-| upstream replay/seek tests            | broad synthetic seek behavior                                                                                                                                                                                      | Junify trace visible DOM immediately after an explicit offset change                                                                                          |
-| upstream destroy test                 | visible wrapper removal                                                                                                                                                                                            | pending timers, image/stylesheet callbacks, iframe maps, retained roots                                                                                       |
-| upstream cross-origin stop test       | stop does not throw in one iframe transition                                                                                                                                                                       | no post-stop events, repeated churn, Canvas worker/RAF cleanup                                                                                                |
-| browser-extension Jest tests          | local queue/flusher branches                                                                                                                                                                                       | real MV3 worker, Chrome storage, and ingest artifact                                                                                                          |
-| Rails parser/loader/player Jest tests | local compatibility parsing and component wiring                                                                                                                                                                   | Monitors V1/V2 browser route through persisted reads                                                                                                          |
-| static-player README/build            | intended message protocol and packaging                                                                                                                                                                            | any accepted fixture rendered in a browser                                                                                                                    |
-| service real recordings               | service pipeline scale and varied rrweb markers                                                                                                                                                                    | producer version, privacy provenance, 13.6 MB CSS, Rails playback                                                                                             |
-| Task 2 authenticated fixtures         | loaded UMD-to-registry-tarball integrity, temporary real-browser regeneration, target-ID mutation evidence, marker-terminated SPA/seek-ready/stylesheet sinks, full official 2.1.1 replay, hashes, and 13.6 MB CSS | explicit forward/backward seek, future Junify candidate output, Rails main/static consumers, extension storage/transport/fragmentation, or privacy acceptance |
+| Evidence                              | Protects                                                                                                                                                                                                           | Does not protect                                                                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| upstream rrweb snapshot/input tests   | local masking and serialization branches                                                                                                                                                                           | Junify recorder configuration or final persisted payloads                                                                               |
+| upstream replay/seek tests            | broad synthetic seek behavior                                                                                                                                                                                      | Junify legacy-sibling trace by itself; Task 4 adds that focused public-time/visible-DOM gate                                            |
+| upstream destroy test                 | visible wrapper removal                                                                                                                                                                                            | pending timers, image/stylesheet callbacks, iframe maps, retained roots                                                                 |
+| upstream cross-origin stop test       | stop does not throw in one iframe transition                                                                                                                                                                       | no post-stop events, repeated churn, Canvas worker/RAF cleanup                                                                          |
+| browser-extension Jest tests          | local queue/flusher branches                                                                                                                                                                                       | real MV3 worker, Chrome storage, and ingest artifact                                                                                    |
+| Rails parser/loader/player Jest tests | local compatibility parsing and component wiring                                                                                                                                                                   | Monitors V1/V2 browser route through persisted reads                                                                                    |
+| static-player README/build            | intended message protocol and packaging                                                                                                                                                                            | any accepted fixture rendered in a browser                                                                                              |
+| service real recordings               | service pipeline scale and varied rrweb markers                                                                                                                                                                    | producer version, privacy provenance, 13.6 MB CSS, Rails playback                                                                       |
+| Task 2 authenticated fixtures         | loaded UMD-to-registry-tarball integrity, temporary real-browser regeneration, target-ID mutation evidence, marker-terminated SPA/seek-ready/stylesheet sinks, full official 2.1.1 replay, hashes, and 13.6 MB CSS | future Junify candidate recording output, Rails main/static consumers, extension storage/transport/fragmentation, or privacy acceptance |
 
 ## Task 2 Privacy Characterization
 

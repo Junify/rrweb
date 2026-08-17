@@ -81,10 +81,10 @@ replay in both candidate surfaces. Task 2 passes the package-local first command
 for all three historical artifacts under official rrweb@2.1.1 in Google Chrome
 151.0.7922.138 with no skips. It authenticates loaded UMD bytes against the
 integrity-locked registry tarball, recollects normalized events in temporary
-storage, and asserts marker-terminated SPA and stylesheet replay sinks. Current
-blockers: explicit seek and both Monitors browser specs are created later. Task
-3 builds and packs the candidate package boundaries but does not replace these
-cross-repository replay gates.
+storage, and asserts marker-terminated SPA and stylesheet replay sinks. Task 3
+builds and packs the candidate package boundaries. Task 4 closes explicit
+candidate seek for all four accepted artifacts. Both Monitors browser specs
+remain the cross-repository blockers.
 
 ### `G-COMPAT-CANDIDATE`
 
@@ -125,15 +125,17 @@ extension UTF-8 fragmentation and reassembly remain untested.
 ### `G-SEEK`
 
 ```sh
-yarn workspace rrweb build
-PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/replay/seek-virtual-dom.test.ts test/replayer.test.ts
-yarn workspace @junify/rrweb-compatibility test -- replay-matrix
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace rrweb build
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/replay/seek-virtual-dom.test.ts test/replayer.test.ts
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace @junify/rrweb-compatibility test -- replay-matrix large-snapshot
 ```
 
 Assert visible iframe DOM and current time after both forward and backward
-explicit seeks. Current blocker: the focused failing-first test is added in
-Task 4. Task 2 full-plays independently terminated before/after slices to prove
-the mutations are replayable; it does not perform or claim explicit seeking.
+explicit seeks. Task 4 passes a focused two-direction real-Chrome gate and eight
+candidate seeks across authenticated alpha.4, Junify alpha.19, Junify alpha.20,
+and official 2.1.1 recordings. The large-snapshot gate preserves the exact
+13.6 MB fixture's CSSOM rule count and visible marker while recording official
+2.1.1 versus candidate seek timing. No case is skipped.
 
 ## Canvas Gates
 
