@@ -40,7 +40,7 @@ const arrayFields = [
 const generatedStart = '<!-- BEGIN GENERATED CONTRACT MATRIX -->';
 const generatedEnd = '<!-- END GENERATED CONTRACT MATRIX -->';
 
-const escapeCell = (value) => String(value).replaceAll('|', '\\|');
+const escapeCell = (value) => String(value).replace(/\|/g, '\\|');
 const arrayCell = (values) =>
   values.length === 0 ? 'none' : values.map(escapeCell).join('; ');
 const codeCell = (value) => `\`${escapeCell(value)}\``;
