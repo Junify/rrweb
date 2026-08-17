@@ -332,7 +332,7 @@ describe('junify.canvas candidate persisted artifact', () => {
 });
 
 describe('junify.privacy candidate persisted artifact', () => {
-  it('keeps configured hidden sentinels out of a temporary real-browser artifact', async () => {
+  it('keeps configured privacy sentinels out of a temporary real-browser artifact', async () => {
     const chromeExecutable =
       process.env.PUPPETEER_EXECUTABLE_PATH ||
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -357,12 +357,16 @@ describe('junify.privacy candidate persisted artifact', () => {
       attribute: `hidden-attribute-${nonce}-22`,
       input: `hidden-input-${nonce}-333`,
       added: `hidden-added-${nonce}-4444`,
+      placeholderInitial: `placeholder-initial-${nonce}-55555`,
+      placeholderMutation: `placeholder-mutation-${nonce}-666666`,
+      placeholderAdded: `placeholder-added-${nonce}-7777777`,
     };
 
     try {
       const page = await browser.newPage();
       await page.setContent(`<!doctype html><html><body>
         <input id="hidden-private" type="hidden" value="${sentinels.initial}">
+        <input id="placeholder-private" type="password" placeholder="${sentinels.placeholderInitial}">
       </body></html>`);
       await page.addScriptTag({ path: candidateBundle });
       const events = await page.evaluate(async (values) => {
@@ -376,7 +380,11 @@ describe('junify.privacy candidate persisted artifact', () => {
         const recorded: unknown[] = [];
         const stop = pageWindow.rrweb.record({
           emit: (event: unknown) => recorded.push(event),
-          maskInputOptions: { hidden: true },
+          maskInputOptions: {
+            hidden: true,
+            password: true,
+            textarea: true,
+          },
         });
         await new Promise((resolve) => setTimeout(resolve, 40));
 
@@ -384,6 +392,9 @@ describe('junify.privacy candidate persisted artifact', () => {
           '#hidden-private',
         ) as HTMLInputElement;
         hidden.setAttribute('value', values.attribute);
+        document
+          .querySelector('#placeholder-private')
+          ?.setAttribute('placeholder', values.placeholderMutation);
         await new Promise((resolve) => setTimeout(resolve, 20));
         hidden.value = values.input;
         hidden.dispatchEvent(new Event('input', { bubbles: true }));
@@ -393,6 +404,10 @@ describe('junify.privacy candidate persisted artifact', () => {
         added.type = 'hidden';
         added.value = values.added;
         document.body.append(added);
+        const addedTextarea = document.createElement('textarea');
+        addedTextarea.id = 'placeholder-added';
+        addedTextarea.placeholder = values.placeholderAdded;
+        document.body.append(addedTextarea);
         await new Promise((resolve) => setTimeout(resolve, 40));
         stop?.();
         return recorded;

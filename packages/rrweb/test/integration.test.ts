@@ -178,6 +178,84 @@ describe('record integration tests', function (this: ISuite) {
     }
   });
 
+  it('masks configured placeholder snapshots and mutations while preserving removal and controls', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const initialSecret = 'placeholder-full-secret-001';
+    const attributeSecret = 'placeholder-attribute-secret-0002';
+    const addedSecret = 'placeholder-added-secret-00003';
+    const visibleControl = 'placeholder-visible-control-000004';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="placeholder-private" type="password" placeholder="${initialSecret}">
+      <input id="placeholder-control" type="text" placeholder="control-initial">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { password: true, textarea: true },
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ attributeSecret, addedSecret, visibleControl }) => {
+        document
+          .querySelector('#placeholder-private')
+          ?.setAttribute('placeholder', attributeSecret);
+        document
+          .querySelector('#placeholder-control')
+          ?.setAttribute('placeholder', visibleControl);
+        const added = document.createElement('textarea');
+        added.id = 'placeholder-added';
+        added.placeholder = addedSecret;
+        document.body.append(added);
+      },
+      { attributeSecret, addedSecret, visibleControl },
+    );
+    await waitForRAF(page);
+    await page.evaluate(() => {
+      document
+        .querySelector('#placeholder-private')
+        ?.removeAttribute('placeholder');
+    });
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullPayload = JSON.stringify(
+      events.find((event) => event.type === EventType.FullSnapshot),
+    );
+    const mutationEvents = events.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        event.data.source === IncrementalSource.Mutation,
+    );
+    const incrementalPayload = JSON.stringify(mutationEvents);
+
+    expect(fullPayload).not.toContain(initialSecret);
+    expect(fullPayload).toContain('*'.repeat(initialSecret.length));
+    for (const secret of [attributeSecret, addedSecret]) {
+      expect(incrementalPayload).not.toContain(secret);
+      expect(incrementalPayload).toContain('*'.repeat(secret.length));
+    }
+    expect(incrementalPayload).toContain(visibleControl);
+    expect(
+      mutationEvents.some(
+        (event) =>
+          event.type === EventType.IncrementalSnapshot &&
+          event.data.source === IncrementalSource.Mutation &&
+          event.data.attributes.some(
+            ({ attributes }) => attributes.placeholder === null,
+          ),
+      ),
+    ).toBe(true);
+  });
+
   it('can record and replay textarea mutations correctly', async () => {
     const page: puppeteer.Page = await browser.newPage();
     await page.goto('about:blank');

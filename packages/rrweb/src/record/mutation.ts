@@ -581,7 +581,12 @@ export default class MutationBuffer {
         let attributeName = m.attributeName as string;
         let value = (m.target as HTMLElement).getAttribute(attributeName);
 
-        if (attributeName === 'value') {
+        if (
+          attributeName === 'value' ||
+          (attributeName === 'placeholder' &&
+            value !== null &&
+            (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'))
+        ) {
           const type = getInputType(target);
 
           value = maskInputValue({

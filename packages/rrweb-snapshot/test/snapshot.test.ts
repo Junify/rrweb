@@ -247,6 +247,28 @@ describe('form', () => {
     expect(payload).not.toContain(initialSecret);
     expect(payload).toContain('*'.repeat(initialSecret.length));
   });
+
+  it('masks placeholders only for configured input and textarea fields', () => {
+    const inputSecret = 'placeholder-password-secret-001';
+    const textareaSecret = 'placeholder-textarea-secret-0002';
+    const visibleControl = 'placeholder-visible-control-00003';
+    const doc = new JSDOM(`<!doctype html><html><body>
+      <input id="placeholder-password" type="password" placeholder="${inputSecret}">
+      <textarea id="placeholder-textarea" placeholder="${textareaSecret}"></textarea>
+      <input id="placeholder-control" type="text" placeholder="${visibleControl}">
+    </body></html>`).window.document;
+
+    const serialized = snapshot(doc, {
+      maskAllInputs: { password: true, textarea: true },
+    });
+    const payload = JSON.stringify(serialized);
+
+    expect(payload).not.toContain(inputSecret);
+    expect(payload).not.toContain(textareaSecret);
+    expect(payload).toContain('*'.repeat(inputSecret.length));
+    expect(payload).toContain('*'.repeat(textareaSecret.length));
+    expect(payload).toContain(visibleControl);
+  });
 });
 
 describe('jsdom snapshot', () => {
