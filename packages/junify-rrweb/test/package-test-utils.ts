@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   mkdtempSync,
   mkdirSync,
@@ -126,6 +127,7 @@ export function writeJson(filename: string, value: unknown): void {
 
 export function runTypeScriptConsumerWithUpstreamDiagnosticGate(
   consumerDirectory: string,
+  rrwebPackageName: '@junify-app/rrweb' | 'rrweb' = '@junify-app/rrweb',
 ): string[] {
   const configPath = path.join(consumerDirectory, 'tsconfig.json');
   const config = readJson<{
@@ -145,46 +147,12 @@ export function runTypeScriptConsumerWithUpstreamDiagnosticGate(
     repositoryRoot,
     'node_modules/typescript/bin/tsc',
   );
-  const strictResult = spawnSync(process.execPath, [typescriptPath], {
-    cwd: consumerDirectory,
-    encoding: 'utf8',
-  });
-  const diagnostics = `${strictResult.stdout}${strictResult.stderr}`;
-  if (strictResult.status !== 2) {
-    throw new Error(
-      `Expected the pinned upstream 2.1.1 declaration diagnostics, received status ${String(
-        strictResult.status,
-      )}:\n${diagnostics}`,
-    );
-  }
-
-  const diagnosticCodes = [
-    ...new Set(
-      [...diagnostics.matchAll(/\berror (TS\d+):/g)].map((match) => match[1]),
-    ),
-  ].sort();
-  const expectedCodes = ['TS1254', 'TS2395', 'TS2663', 'TS2717'];
-  if (JSON.stringify(diagnosticCodes) !== JSON.stringify(expectedCodes)) {
-    throw new Error(
-      `Unexpected strict declaration diagnostics ${JSON.stringify(
-        diagnosticCodes,
-      )}:\n${diagnostics}`,
-    );
-  }
-
-  const diagnosticFiles = diagnostics
-    .split('\n')
-    .filter((line) => /\(\d+,\d+\): error TS\d+:/.test(line));
-  const upstreamDeclaration =
-    /^node_modules\/(?:@junify-app\/rrweb\/dist\/rrweb\.d\.(?:c)?ts|rrweb\/dist\/rrweb\.d\.(?:c)?ts|rrdom\/dist\/index\.d\.(?:c)?ts|@types\/css-font-loading-module\/index\.d\.ts)\(/;
-  const unexpectedDiagnostic = diagnosticFiles.find(
-    (line) => !upstreamDeclaration.test(line),
+  const diagnostics = collectStrictTypeScriptDiagnostics(
+    consumerDirectory,
+    typescriptPath,
   );
-  if (unexpectedDiagnostic) {
-    throw new Error(
-      `Strict consumer source or boundary resolution failed: ${unexpectedDiagnostic}`,
-    );
-  }
+  assertExactUpstreamDeclarationDiagnostics(diagnostics, rrwebPackageName);
+  assertPinnedUpstreamDeclarationDigests(consumerDirectory, rrwebPackageName);
 
   writeJson(configPath, {
     ...config,
@@ -197,7 +165,135 @@ export function runTypeScriptConsumerWithUpstreamDiagnosticGate(
     cwd: consumerDirectory,
     stdio: 'pipe',
   });
-  return diagnosticCodes;
+  return ['TS1254', 'TS2395', 'TS2663', 'TS2717'];
+}
+
+export function collectStrictTypeScriptDiagnostics(
+  consumerDirectory: string,
+  typescriptPath = path.join(repositoryRoot, 'node_modules/typescript/bin/tsc'),
+): string {
+  const strictResult = spawnSync(process.execPath, [typescriptPath], {
+    cwd: consumerDirectory,
+    encoding: 'utf8',
+  });
+  const diagnostics = `${strictResult.stdout}${strictResult.stderr}`;
+  if (strictResult.status !== 2) {
+    throw new Error(
+      `Expected the pinned upstream 2.1.1 declaration diagnostics, received status ${String(
+        strictResult.status,
+      )}:\n${diagnostics}`,
+    );
+  }
+  return diagnostics;
+}
+
+export function assertExactUpstreamDeclarationDiagnostics(
+  diagnostics: string,
+  rrwebPackageName: '@junify-app/rrweb' | 'rrweb',
+): void {
+  const diagnosticLines = diagnostics.trim().split('\n').sort();
+  const diagnosticPattern =
+    /^(node_modules\/.+)\((\d+),(\d+)\): error (TS\d+): (.+)$/;
+  const unparsedLine = diagnosticLines.find(
+    (line) => !diagnosticPattern.test(line),
+  );
+  if (unparsedLine) {
+    throw new Error(
+      `Unparsed strict TypeScript diagnostic line: ${unparsedLine}`,
+    );
+  }
+
+  const rrwebDeclarationRoot = `node_modules/${rrwebPackageName}/dist/rrweb`;
+  const mergedRecordMessage =
+    "Individual declarations in merged declaration 'record' must be all exported or all local.";
+  const missingNodeTypeMessage =
+    "Cannot find name 'RRNodeType'. Did you mean the instance member 'this.RRNodeType'?";
+  const ambientInitializerMessage =
+    "A 'const' initializer in an ambient context must be a string or numeric literal or literal enum reference.";
+  const expectedDiagnostics = [
+    ...['d.cts', 'd.ts'].flatMap((extension) =>
+      [
+        [211, 25],
+        [213, 26],
+        [464, 19],
+      ].map(
+        ([line, column]) =>
+          `${rrwebDeclarationRoot}.${extension}(${line},${column}): error TS2395: ${mergedRecordMessage}`,
+      ),
+    ),
+    "node_modules/@types/css-font-loading-module/index.d.ts(22,9): error TS2717: Subsequent property declarations must have the same type.  Property 'display' must be of type 'FontDisplay | undefined', but here has type 'string | undefined'.",
+    "node_modules/@types/css-font-loading-module/index.d.ts(42,9): error TS2717: Subsequent property declarations must have the same type.  Property 'display' must be of type 'FontDisplay', but here has type 'string'.",
+    ...['d.cts', 'd.ts'].flatMap((extension) =>
+      [15, 26, 48, 74, 86, 152].flatMap((line) => [
+        `node_modules/rrdom/dist/index.${extension}(${line},27): error TS2663: ${missingNodeTypeMessage}`,
+        `node_modules/rrdom/dist/index.${extension}(${line},27): error TS1254: ${ambientInitializerMessage}`,
+      ]),
+    ),
+  ].sort();
+  if (JSON.stringify(diagnosticLines) !== JSON.stringify(expectedDiagnostics)) {
+    throw new Error(
+      `Unexpected exact upstream declaration diagnostics:\n${diagnostics}`,
+    );
+  }
+}
+
+function assertPinnedUpstreamDeclarationDigests(
+  consumerDirectory: string,
+  rrwebPackageName: '@junify-app/rrweb' | 'rrweb',
+): void {
+  const expectedDeclarationDigests = new Map([
+    [
+      `node_modules/${rrwebPackageName}/dist/rrweb.d.cts`,
+      'c59c5624be860f9b0ff3c6b29c4488e34941e0c2858f7a7e777b48d840513c74',
+    ],
+    [
+      `node_modules/${rrwebPackageName}/dist/rrweb.d.ts`,
+      'c59c5624be860f9b0ff3c6b29c4488e34941e0c2858f7a7e777b48d840513c74',
+    ],
+    [
+      'node_modules/rrdom/dist/index.d.cts',
+      '3aa897e61acfcbfe2c48421667186457457aafbd12de13ad6f2a6b569d2ed439',
+    ],
+    [
+      'node_modules/rrdom/dist/index.d.ts',
+      '3aa897e61acfcbfe2c48421667186457457aafbd12de13ad6f2a6b569d2ed439',
+    ],
+    [
+      'node_modules/@types/css-font-loading-module/index.d.ts',
+      '7e98cfd52d447cbb862839a6b93daab18147e6ea0be1751458b9529ee738516b',
+    ],
+  ]);
+  for (const [relativePath, expectedDigest] of expectedDeclarationDigests) {
+    const actualDigest = createHash('sha256')
+      .update(readFileSync(path.join(consumerDirectory, relativePath)))
+      .digest('hex');
+    if (actualDigest !== expectedDigest) {
+      throw new Error(
+        `Pinned upstream declaration digest mismatch for ${relativePath}: ${actualDigest}`,
+      );
+    }
+  }
+
+  const freshLocalDeclarationDigests = new Map([
+    [
+      'packages/rrweb/dist/rrweb.d.ts',
+      'c59c5624be860f9b0ff3c6b29c4488e34941e0c2858f7a7e777b48d840513c74',
+    ],
+    [
+      'packages/rrdom/dist/index.d.ts',
+      '3aa897e61acfcbfe2c48421667186457457aafbd12de13ad6f2a6b569d2ed439',
+    ],
+  ]);
+  for (const [relativePath, expectedDigest] of freshLocalDeclarationDigests) {
+    const actualDigest = createHash('sha256')
+      .update(readFileSync(path.join(repositoryRoot, relativePath)))
+      .digest('hex');
+    if (actualDigest !== expectedDigest) {
+      throw new Error(
+        `Freshly built upstream declaration digest mismatch for ${relativePath}: ${actualDigest}`,
+      );
+    }
+  }
 }
 
 export function removeTemporaryDirectory(directory: string | undefined): void {

@@ -1,4 +1,5 @@
-import { writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
@@ -10,6 +11,7 @@ import {
   packBoundary,
   readJson,
   removeTemporaryDirectory,
+  repositoryRoot,
   runNode,
   runTypeScriptConsumerWithUpstreamDiagnosticGate,
   writeJson,
@@ -178,7 +180,10 @@ void namedConstructor;
       include: ['player-types-smoke.ts', 'player-types-smoke.cts'],
     });
     expect(
-      runTypeScriptConsumerWithUpstreamDiagnosticGate(consumerDirectory),
+      runTypeScriptConsumerWithUpstreamDiagnosticGate(
+        consumerDirectory,
+        'rrweb',
+      ),
     ).toEqual(['TS1254', 'TS2395', 'TS2663', 'TS2717']);
   });
 
@@ -189,7 +194,9 @@ void namedConstructor;
         'dist/rrweb-player.js.map',
       ),
     );
-    const localSourceMap = readJson<Record<string, string>>(
+    const localSourceMap = readJson<
+      Record<string, { path: string; sha256: string }>
+    >(
       path.join(
         playerBoundary.extractedPackageDirectory,
         'dist/local-source-map.json',
@@ -204,8 +211,16 @@ void namedConstructor;
       '@rrweb/replay',
     ]);
     expect(localSourceMap).toEqual({
-      '@rrweb/replay/dist/style.css': '../rrweb/src/replay/styles/style.css',
-      '@rrweb/replay': '../rrweb/src/entries/replay.ts',
+      '@rrweb/replay/dist/style.css': {
+        path: '../rrweb/src/replay/styles/style.css',
+        sha256:
+          '64d720c3a8966a3764822abf7b14f78135c90ce09dcfae4286e50f06d9e01545',
+      },
+      '@rrweb/replay': {
+        path: '../rrweb/src/entries/replay.ts',
+        sha256:
+          'bf3839b86088d3375069731425539a516603f116ff0deb7b7747fa9cb583a7e1',
+      },
     });
     expect(
       javascriptMap.sources.some((source) =>
@@ -213,6 +228,52 @@ void namedConstructor;
       ),
     ).toBe(false);
   });
+
+  test('fails the build when replay CSS resolves to the official artifact', () => {
+    const boundaryDirectory = path.join(
+      repositoryRoot,
+      'packages/junify-rrweb-player',
+    );
+    const configPath = path.join(boundaryDirectory, 'vite.config.ts');
+    const probeConfigPath = path.join(
+      boundaryDirectory,
+      `.vite-config-css-provenance-probe-${process.pid}.ts`,
+    );
+    const originalConfig = readFileSync(configPath, 'utf8');
+    const localTarget =
+      "path.resolve(__dirname, '../rrweb/src/replay/styles/style.css'),";
+    const mutationIndex = originalConfig.lastIndexOf(localTarget);
+    if (mutationIndex < 0) throw new Error('Cannot locate replay CSS alias');
+    const mutatedConfig = `${originalConfig.slice(
+      0,
+      mutationIndex,
+    )}path.resolve(__dirname, '../replay/dist/style.css'),${originalConfig.slice(
+      mutationIndex + localTarget.length,
+    )}`.replace('      copyCommonJsDeclaration(),\n', '');
+    const vitePath = path.join(repositoryRoot, 'node_modules/vite/bin/vite.js');
+
+    let mutationResult: ReturnType<typeof spawnSync>;
+    try {
+      writeFileSync(probeConfigPath, mutatedConfig);
+      mutationResult = spawnSync(
+        process.execPath,
+        [vitePath, 'build', '--config', probeConfigPath],
+        { cwd: boundaryDirectory, encoding: 'utf8' },
+      );
+    } finally {
+      rmSync(probeConfigPath, { force: true });
+      spawnSync(process.execPath, [vitePath, 'build', '--config', configPath], {
+        cwd: boundaryDirectory,
+        encoding: 'utf8',
+      });
+    }
+
+    const output = `${String(mutationResult.stdout)}${String(
+      mutationResult.stderr,
+    )}`;
+    expect(mutationResult.status).not.toBe(0);
+    expect(output).toMatch(/required local replay source.*style\.css/i);
+  }, 30_000);
 
   test('exposes the player constructor and bundled replay in a real browser', async () => {
     const browser = await chromium.launch({ headless: true });

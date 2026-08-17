@@ -4,7 +4,9 @@ import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import {
   allDeclarationText,
+  assertExactUpstreamDeclarationDiagnostics,
   assertOnlyArtifactFiles,
+  collectStrictTypeScriptDiagnostics,
   installPackedBoundaries,
   type PackedBoundary,
   packBoundary,
@@ -21,6 +23,41 @@ const forbiddenRenamedInternals =
 interface RuntimeExports {
   record: string;
   Replayer: string;
+}
+
+function writeStrictCoreTypeConsumer(consumerDirectory: string): void {
+  writeFileSync(
+    path.join(consumerDirectory, 'types-smoke.ts'),
+    `import { record, Replayer, type eventWithTime, type recordOptions } from '@junify-app/rrweb';
+const recordFunction: (options?: recordOptions<eventWithTime>) => (() => void) | undefined = record;
+const ReplayerConstructor: typeof Replayer = Replayer;
+void recordFunction;
+void ReplayerConstructor;
+`,
+  );
+  writeFileSync(
+    path.join(consumerDirectory, 'types-smoke.cts'),
+    `import rrweb = require('@junify-app/rrweb');
+const { record, Replayer } = rrweb;
+type recordOptions = rrweb.recordOptions<rrweb.eventWithTime>;
+const recordFunction: (options?: recordOptions) => (() => void) | undefined = record;
+const ReplayerConstructor: typeof Replayer = Replayer;
+void recordFunction;
+void ReplayerConstructor;
+`,
+  );
+  writeJson(path.join(consumerDirectory, 'tsconfig.json'), {
+    compilerOptions: {
+      lib: ['DOM', 'ES2022'],
+      module: 'NodeNext',
+      moduleResolution: 'NodeNext',
+      noEmit: true,
+      pretty: false,
+      strict: true,
+      target: 'ES2022',
+    },
+    include: ['types-smoke.ts', 'types-smoke.cts'],
+  });
 }
 
 describe('@junify-app/rrweb packed boundary', () => {
@@ -124,40 +161,48 @@ console.log(JSON.stringify({ css, text: readFileSync(css, 'utf8') }));`,
   });
 
   test('resolves strict ESM and CJS types while gating upstream diagnostics', () => {
-    writeFileSync(
-      path.join(consumerDirectory, 'types-smoke.ts'),
-      `import { record, Replayer, type eventWithTime, type recordOptions } from '@junify-app/rrweb';
-const recordFunction: (options?: recordOptions<eventWithTime>) => (() => void) | undefined = record;
-const ReplayerConstructor: typeof Replayer = Replayer;
-void recordFunction;
-void ReplayerConstructor;
-`,
-    );
-    writeFileSync(
-      path.join(consumerDirectory, 'types-smoke.cts'),
-      `import rrweb = require('@junify-app/rrweb');
-const { record, Replayer } = rrweb;
-type recordOptions = rrweb.recordOptions<rrweb.eventWithTime>;
-const recordFunction: (options?: recordOptions) => (() => void) | undefined = record;
-const ReplayerConstructor: typeof Replayer = Replayer;
-void recordFunction;
-void ReplayerConstructor;
-`,
-    );
-    writeJson(path.join(consumerDirectory, 'tsconfig.json'), {
-      compilerOptions: {
-        lib: ['DOM', 'ES2022'],
-        module: 'NodeNext',
-        moduleResolution: 'NodeNext',
-        noEmit: true,
-        strict: true,
-        target: 'ES2022',
-      },
-      include: ['types-smoke.ts', 'types-smoke.cts'],
-    });
+    writeStrictCoreTypeConsumer(consumerDirectory);
     expect(
       runTypeScriptConsumerWithUpstreamDiagnosticGate(consumerDirectory),
     ).toEqual(['TS1254', 'TS2395', 'TS2663', 'TS2717']);
+  });
+
+  test('rejects an extra allowed-code diagnostic in the boundary DTS', () => {
+    writeStrictCoreTypeConsumer(consumerDirectory);
+    const diagnostics = collectStrictTypeScriptDiagnostics(consumerDirectory);
+    const boundaryDiagnostic = diagnostics
+      .trim()
+      .split('\n')
+      .find((line) =>
+        line.startsWith(
+          'node_modules/@junify-app/rrweb/dist/rrweb.d.ts(211,25): error TS2395:',
+        ),
+      );
+    if (!boundaryDiagnostic) {
+      throw new Error('Cannot locate collected boundary TS2395 diagnostic');
+    }
+    expect(() =>
+      assertExactUpstreamDeclarationDiagnostics(
+        `${diagnostics.trim()}\n${boundaryDiagnostic}\n`,
+        '@junify-app/rrweb',
+      ),
+    ).toThrow(/exact upstream declaration diagnostics/);
+  });
+
+  test('rejects allowed-code diagnostic count and path drift', () => {
+    writeStrictCoreTypeConsumer(consumerDirectory);
+    const diagnostics = collectStrictTypeScriptDiagnostics(consumerDirectory);
+    const driftedDiagnostics = diagnostics.replace(
+      'node_modules/@types/css-font-loading-module/index.d.ts(22,9): error TS2717:',
+      'node_modules/@junify-app/rrweb/dist/rrweb.d.ts(22,9): error TS2717:',
+    );
+    expect(driftedDiagnostics).not.toBe(diagnostics);
+    expect(() =>
+      assertExactUpstreamDeclarationDiagnostics(
+        driftedDiagnostics,
+        '@junify-app/rrweb',
+      ),
+    ).toThrow(/exact upstream declaration diagnostics/);
   });
 
   test('maps the bundle to the patched local rrweb source entry', () => {
@@ -168,13 +213,41 @@ void ReplayerConstructor;
     expect(
       sourceMap.sources.some((source) => source.includes('node_modules/rrweb')),
     ).toBe(false);
-    const localSourceMap = readJson<Record<string, string>>(
+    const localSourceMap = readJson<
+      Record<string, { path: string; sha256: string }>
+    >(
       path.join(
         boundary.extractedPackageDirectory,
         'dist/local-source-map.json',
       ),
     );
-    expect(localSourceMap.rrweb).toBe('../rrweb/src/index.ts');
+    expect(localSourceMap).toEqual({
+      rrweb: {
+        path: '../rrweb/src/index.ts',
+        sha256:
+          'd658f1936dea37ff918907de44f4826a3b9f85e7c745fcc5720883b2234d99fc',
+      },
+      '@rrweb/types': {
+        path: '../types/src/index.ts',
+        sha256:
+          '972e423a2f6919841fe5cc60191a6bf97af333a00f135b32eed92e7d90559ee1',
+      },
+      '@rrweb/utils': {
+        path: '../utils/src/index.ts',
+        sha256:
+          '2522fa4d574527384256f977aad627906d7a1a3a7935455fb7fb50550dc30666',
+      },
+      rrdom: {
+        path: '../rrdom/src/index.ts',
+        sha256:
+          '6f2d64f53d8fbdcd5643e988db5b5abd4b327c6214aa36d4c7448260644b60f3',
+      },
+      'rrweb-snapshot': {
+        path: '../rrweb-snapshot/src/index.ts',
+        sha256:
+          '0deca63e15a175e93b0822cf828fef00baaebb8b85bcf693fc281a6776f8749e',
+      },
+    });
   });
 
   test('exposes the rrweb UMD global in a real browser', async () => {

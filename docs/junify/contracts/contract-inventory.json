@@ -131,27 +131,27 @@
       "id": "junify.package-boundary.player",
       "title": "Scoped Junify player bundles the patched local replayer",
       "source": ["explicit-doc", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["static-analysis", "integration"],
-      "entrypoints": ["packages/junify-rrweb-player/package.json", "packages/junify-rrweb-player/src/index.ts"],
-      "observable_effects": ["packed package metadata", "ESM/CJS/UMD exports", "CSS export", "player getReplayer implementation"],
+      "entrypoints": ["packages/junify-rrweb-player/package.json", "packages/junify-rrweb-player/vite.config.ts", "packages/rrweb-player/src/main.ts"],
+      "observable_effects": ["packed package metadata", "ESM/CJS/UMD exports", "CSS export", "player getReplayer implementation", "observed replay module and CSS paths and digests"],
       "expected_current_behavior": "@junify-app/rrweb-player@2.1.1-junify.0 resolves the patched local Junify replayer and never silently bundles official unpatched @rrweb/replay.",
       "risk_if_broken": "The UI package bypasses the seek fix while appearing to use the Junify player.",
       "gate_id": "G-PKG-PLAYER",
-      "test_notes": "The narrow player boundary package is created in Task 3."
+      "test_notes": "Task 3 G-PKG-PLAYER installs exact freshly packed core and player tarballs in an isolated consumer and verifies metadata/files, exact prerelease dependencies, ESM/CJS constructors, real-browser UMD, CSS export/rules, strict declaration resolution, namespace hygiene, and observed local replay module/CSS paths plus SHA-256 digests. A collected mutation proves resolving replay CSS to the official built artifact fails the build. The boundary deliberately builds upstream packages/rrweb-player/src/main.ts because a wrapper breaks Svelte declaration rollup and would be dead code. No artifact was published."
     },
     {
       "id": "junify.package-boundary.rrweb",
       "title": "Only the public Junify rrweb boundary is scoped",
       "source": ["explicit-doc", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["static-analysis", "integration"],
       "entrypoints": ["packages/junify-rrweb/package.json", "packages/junify-rrweb/src/index.ts"],
       "observable_effects": ["packed package metadata", "ESM/CJS/UMD exports", "types", "package tarball contents"],
       "expected_current_behavior": "@junify-app/rrweb@2.1.1-junify.0 exposes record and Replayer while unmodified internals retain official @rrweb/*, rrweb-snapshot, rrdom, and rrweb package identities.",
       "risk_if_broken": "A global namespace rewrite recreates the 315-file divergence and makes future syncs unsafe.",
       "gate_id": "G-PKG-RRWEB",
-      "test_notes": "The narrow package boundary is created in Task 3; current upstream packages retain official names."
+      "test_notes": "Task 3 G-PKG-RRWEB installs the exact freshly packed tarball in an isolated consumer and verifies metadata/files, ESM/CJS record and Replayer, real-browser UMD global, CSS, strict ESM/CJS declaration resolution, tarball/dependency/DTS namespace hygiene, and observed local source paths plus SHA-256 digests. Exact upstream declaration diagnostic tuples and fresh declaration digests are pinned; collected same-code occurrence and path-drift probes must fail before the skipLibCheck consumer stage. No artifact was published."
     },
     {
       "id": "junify.privacy.persisted-sentinels",

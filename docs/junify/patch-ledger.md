@@ -42,12 +42,14 @@ the upstream fixed changeset group. Publication remains release-gated.
   the direct packed-artifact tests failed because both manifests/artifacts were
   absent.
 - GREEN: Node 20.9.0 builds and isolated packed-artifact tests pass for core
-  (7/7) and player (8/8), covering ESM, CJS, browser UMD globals, CSS, strict
+  (9/9) and player (9/9), covering ESM, CJS, browser UMD globals, CSS, strict
   consumer source, declaration resolution, `record`/`Replayer`, the player
   constructor, export/file metadata, local source maps, and namespace hygiene.
-- Source boundary: the core bundle records its exact local `rrweb` source map.
-  The player uses ordered exact aliases for replay CSS first and replay module
-  second, with both mapped to the patched local `packages/rrweb` source.
+- Source boundary: both bundles record only source IDs actually seen by their
+  load/transform hooks, including SHA-256 digests. The player uses ordered exact
+  aliases for replay CSS first and replay module second; resolver evidence and
+  loaded IDs must both match the patched local `packages/rrweb` source. An
+  official-CSS alias mutation fails the build.
 - Player design deviation: the boundary build entry is upstream
   `packages/rrweb-player/src/main.ts`. A nominal wrapper is intentionally
   omitted because it breaks the Svelte declaration rollup and would be dead
@@ -56,15 +58,15 @@ the upstream fixed changeset group. Publication remains release-gated.
   Turbo prepublish path, whose root reference update modified unrelated plugin
   tsconfigs. Fresh boundary builds leave those files and generated Svelte
   ambient declarations clean.
-- Artifact census: core has 19 files, 1,319,574 packed bytes, SHA-256
-  `29952b4d906d1d72cba88060851c4c05ddefd6c3de1851f0a8dcf6c77b0e9e2a`;
-  player has 18 files, 1,431,080 packed bytes, SHA-256
-  `6407d54f0db172e3592102f7e25fc38187e65d46b2c769ef5d60a33d89f77792`.
+- Artifact census: core has 19 files, 1,319,872 packed bytes, SHA-256
+  `a0f8f5115ad12077bc88daa292c89813ca5443878bc76ed8bb41d21d98f32fbd`;
+  player has 18 files, 1,431,304 packed bytes, SHA-256
+  `fc65cecb98202d6cfffeec8ee79ec04a0376d3694b2a7ed7b0efca51bbf74085`.
 - Residual upstream declaration blocker: a no-`skipLibCheck` diagnostic pass
-  is required to contain only pinned upstream 2.1.1 errors `TS1254`, `TS2395`,
-  `TS2663`, and `TS2717` in rrweb, rrdom, and css-font-loading declarations.
-  The test then verifies strict ESM/CJS consumer code and boundary declaration
-  resolution with those upstream library diagnostics isolated.
+  must exactly match pinned upstream 2.1.1 path/code/line/column/message tuples,
+  occurrence counts, and fresh declaration digests. Collected same-code and
+  path/count drift probes must fail before the test verifies strict ESM/CJS
+  consumer code with those upstream library diagnostics isolated.
 
 ## Deferred Or Rejected Candidates
 

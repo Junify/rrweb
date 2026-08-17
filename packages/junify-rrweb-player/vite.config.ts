@@ -1,4 +1,5 @@
-import { copyFileSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { copyFileSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import glob from 'fast-glob';
@@ -6,6 +7,7 @@ import {
   defaultClientConditions,
   defineConfig,
   mergeConfig,
+  type Alias,
   type Plugin,
 } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
@@ -69,16 +71,19 @@ function copyCommonJsDeclaration(): Plugin {
   return {
     name: 'copy-commonjs-declaration',
     apply: 'build',
-    closeBundle() {
-      copyFileSync(
-        path.resolve(__dirname, 'dist/rrweb-player.d.ts'),
-        path.resolve(__dirname, 'dist/rrweb-player.d.cts'),
-      );
+    closeBundle: {
+      order: 'post',
+      handler() {
+        copyFileSync(
+          path.resolve(__dirname, 'dist/rrweb-player.d.ts'),
+          path.resolve(__dirname, 'dist/rrweb-player.d.cts'),
+        );
+      },
     },
   };
 }
 
-const localReplayEntries = new Map([
+const requiredLocalReplayEntries = new Map([
   [
     '@rrweb/replay/dist/style.css',
     path.resolve(__dirname, '../rrweb/src/replay/styles/style.css'),
@@ -86,37 +91,102 @@ const localReplayEntries = new Map([
   ['@rrweb/replay', path.resolve(__dirname, '../rrweb/src/entries/replay.ts')],
 ]);
 
+const localReplayAliases = new Map([
+  [
+    '@rrweb/replay/dist/style.css',
+    path.resolve(__dirname, '../rrweb/src/replay/styles/style.css'),
+  ],
+  ['@rrweb/replay', path.resolve(__dirname, '../rrweb/src/entries/replay.ts')],
+]);
+
+interface ObservedSource {
+  path: string;
+  sha256: string;
+}
+
+const resolvedAliasTargets = new Map<string, string>();
+const replayAliases: Alias[] = [...localReplayAliases].map(
+  ([specifier, replacement]) => ({
+    find: new RegExp(`^${specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
+    replacement,
+    customResolver(source) {
+      const filename = source.split('?')[0];
+      resolvedAliasTargets.set(specifier, filename);
+      return filename;
+    },
+  }),
+);
+
+function sourceDigest(filename: string): string {
+  return createHash('sha256').update(readFileSync(filename)).digest('hex');
+}
+
 function resolveLocalReplaySource(): Plugin {
-  const resolvedLocalSpecifiers = new Set<string>();
+  const observedSources = new Map<string, ObservedSource>();
+  function observe(id: string): void {
+    const filename = id.split('?')[0];
+    for (const [specifier, requiredSource] of requiredLocalReplayEntries) {
+      if (filename === requiredSource) {
+        observedSources.set(specifier, {
+          path: filename,
+          sha256: sourceDigest(filename),
+        });
+      }
+    }
+  }
   return {
     name: 'resolve-local-replay-source',
     enforce: 'pre',
-    resolveId(source) {
-      const localSource = localReplayEntries.get(source);
-      if (localSource) resolvedLocalSpecifiers.add(source);
-      return localSource || null;
+    load(id) {
+      observe(id);
+      return null;
     },
     transform(_code, id) {
-      const filename = id.split('?')[0];
-      for (const [specifier, localSource] of localReplayEntries) {
-        if (filename === localSource) resolvedLocalSpecifiers.add(specifier);
-      }
+      observe(id);
     },
     generateBundle() {
-      if (resolvedLocalSpecifiers.size !== localReplayEntries.size) {
-        throw new Error(
-          'The player build did not resolve every local replay alias',
-        );
+      for (const [specifier, requiredSource] of requiredLocalReplayEntries) {
+        const resolvedTarget = resolvedAliasTargets.get(specifier);
+        if (resolvedTarget !== requiredSource) {
+          throw new Error(
+            `Required local replay source ${specifier} expected ${requiredSource}, resolved ${
+              resolvedTarget || 'nothing'
+            }`,
+          );
+        }
+        const observed = observedSources.get(specifier);
+        if (!observed || observed.path !== requiredSource) {
+          throw new Error(
+            `Required local replay source ${specifier} expected ${requiredSource}, transformed ${
+              observed?.path || 'nothing'
+            }`,
+          );
+        }
+        const requiredDigest = sourceDigest(requiredSource);
+        if (observed.sha256 !== requiredDigest) {
+          throw new Error(
+            `Required local replay source ${specifier} digest mismatch: ${observed.sha256}`,
+          );
+        }
       }
       this.emitFile({
         type: 'asset',
         fileName: 'local-source-map.json',
         source: `${JSON.stringify(
           Object.fromEntries(
-            [...localReplayEntries].map(([specifier, filename]) => [
-              specifier,
-              path.relative(__dirname, filename).split(path.sep).join('/'),
-            ]),
+            [...requiredLocalReplayEntries].map(([specifier]) => {
+              const observed = observedSources.get(specifier)!;
+              return [
+                specifier,
+                {
+                  path: path
+                    .relative(__dirname, observed.path)
+                    .split(path.sep)
+                    .join('/'),
+                  sha256: observed.sha256,
+                },
+              ];
+            }),
           ),
           null,
           2,
@@ -156,6 +226,7 @@ export default defineConfig((environment) =>
         outDir: path.resolve(__dirname, 'dist'),
       },
       resolve: {
+        alias: replayAliases,
         conditions: [...defaultClientConditions],
       },
     },

@@ -38,24 +38,34 @@ syntax only; it does not upgrade any behavioral contract to `covered`.
 ### `G-PKG-RRWEB`
 
 ```sh
-yarn workspace @junify-app/rrweb build
-yarn workspace @junify-app/rrweb test
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify-app/rrweb build
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify-app/rrweb test
 ```
 
 Assert packed ESM, CJS/UMD, types, CSS/global exports, `record`, and `Replayer`;
 inspect the tarball to prove there are no Junify-renamed internal packages.
-Current blocker: `packages/junify-rrweb` is created in Task 3.
+Task 3 passes 9/9 tests from an exact freshly packed tarball installed in an
+isolated consumer. The gate pins complete upstream declaration diagnostic
+tuples and fresh declaration digests, rejects same-code occurrence/path drift,
+then runs the strict consumer stage. The emitted provenance map contains only
+actually loaded local source paths and SHA-256 digests. Publication remains a
+separate release-gated action.
 
 ### `G-PKG-PLAYER`
 
 ```sh
-yarn workspace @junify-app/rrweb-player build
-yarn workspace @junify-app/rrweb-player test
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify-app/rrweb-player build
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify-app/rrweb-player test
 ```
 
 Assert player construction, CSS/types/exports, and that the packed player
-resolves the patched local replayer. Current blocker:
-`packages/junify-rrweb-player` is created in Task 3.
+resolves the patched local replayer. Task 3 passes 9/9 tests after installing
+both exact freshly packed artifacts in an isolated consumer. Ordered exact
+aliases resolve replay CSS before the replay module; resolver evidence plus
+actual load/transform paths and SHA-256 digests prove both came from the local
+patched rrweb source. A collected official-CSS mutation fails the build. The
+entrypoint is upstream `packages/rrweb-player/src/main.ts`; no dead wrapper or
+copied player implementation exists. Publication remains release-gated.
 
 ## Compatibility And Replay Gates
 
@@ -72,8 +82,9 @@ for all three historical artifacts under official rrweb@2.1.1 in Google Chrome
 151.0.7922.138 with no skips. It authenticates loaded UMD bytes against the
 integrity-locked registry tarball, recollects normalized events in temporary
 storage, and asserts marker-terminated SPA and stylesheet replay sinks. Current
-blockers: explicit seek, the candidate packages, and both Monitors browser specs
-are created later.
+blockers: explicit seek and both Monitors browser specs are created later. Task
+3 builds and packs the candidate package boundaries but does not replace these
+cross-repository replay gates.
 
 ### `G-COMPAT-CANDIDATE`
 
@@ -83,8 +94,9 @@ cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recor
 ```
 
 Assert candidate recorder output in both candidate replayers. Task 2's official
-2.1.1 baseline is not a substitute. Current blocker: candidate packages and
-cross-repository fixtures do not exist before Task 3.
+2.1.1 baseline is not a substitute. Task 3 creates and package-tests the
+candidate boundaries; candidate-produced fixtures and both cross-repository
+browser surfaces remain the blocker.
 
 ### `G-WIRE-FORMAT`
 
