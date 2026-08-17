@@ -2044,6 +2044,30 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
+"@junify-app/rrdom@^2.0.0-alpha.19", "@junify-app/rrdom@^2.0.0-alpha.20":
+  version "2.0.0-alpha.20"
+  resolved "https://registry.yarnpkg.com/@junify-app/rrdom/-/rrdom-2.0.0-alpha.20.tgz#b45e69ca9b4ad7392254b74803e21f48a7c5aa5c"
+  integrity sha512-s0AsP4laxZN7F4cPM6YTAxzlKnDnXYtzNjVaJwMxY7ykuAXaVQzDOG/TyuPBYmSXeftEpbpZYanewQjAHb+3vQ==
+  dependencies:
+    "@junify-app/rrweb-snapshot" "^2.0.0-alpha.20"
+
+"@junify-app/rrweb-snapshot@^2.0.0-alpha.19", "@junify-app/rrweb-snapshot@^2.0.0-alpha.20":
+  version "2.0.0-alpha.20"
+  resolved "https://registry.yarnpkg.com/@junify-app/rrweb-snapshot/-/rrweb-snapshot-2.0.0-alpha.20.tgz#cf4a40ff39436f0384576a274b28f20b8b4d6f52"
+  integrity sha512-miLf4cH//UeE84Gm0mSreGaEj2FeHrk9DyWdlOlvEDc7vUsTwRLt3z7Z8q4JjCyxNe0FBMV1XVlhnNScKC3OWg==
+  dependencies:
+    postcss "^8.4.38"
+
+"@junify-app/types@^2.0.0-alpha.19", "@junify-app/types@^2.0.0-alpha.20":
+  version "2.0.0-alpha.20"
+  resolved "https://registry.yarnpkg.com/@junify-app/types/-/types-2.0.0-alpha.20.tgz#cf47f99bc15ccf36658400f05680ca9705c5d604"
+  integrity sha512-m4DY4Pc0InT2/hXNvAlK+WajD6uW4IvlNnZgRjz0Yo7/SiHHS4s+gxpIMBcpGYk1+GX0ufyYtKSo8gdxiTesjQ==
+
+"@junify-app/utils@^2.0.0-alpha.19", "@junify-app/utils@^2.0.0-alpha.20":
+  version "2.0.0-alpha.20"
+  resolved "https://registry.yarnpkg.com/@junify-app/utils/-/utils-2.0.0-alpha.20.tgz#2e48a8c30631b77e7f37c6643a605e86e5cb5790"
+  integrity sha512-5kAvFWjXz7swg6fIhXNEdaxiDuygfysm64BKJOdHjucZvjyNQz+CzIlCQcchk/UQT+h0muLkSurocIZgZPr7+g==
+
 "@ljharb/through@^2.3.13":
   version "2.3.13"
   resolved "https://registry.yarnpkg.com/@ljharb/through/-/through-2.3.13.tgz#b7e4766e0b65aa82e529be945ab078de79874edc"
@@ -2907,6 +2931,13 @@
   version "5.2.6"
   resolved "https://registry.yarnpkg.com/@types/pixelmatch/-/pixelmatch-5.2.6.tgz#fba6de304ac958495f27d85989f5c6bb7499a686"
   integrity sha512-wC83uexE5KGuUODn6zkm9gMzTwdY5L0chiK+VrKcDfEjzxh1uadlWTvOmAbCpnM9zx/Ww3f8uKlYQVnO/TrqVg==
+  dependencies:
+    "@types/node" "*"
+
+"@types/pngjs@^6.0.5":
+  version "6.0.5"
+  resolved "https://registry.yarnpkg.com/@types/pngjs/-/pngjs-6.0.5.tgz#6dec2f7eb8284543ca4e423f3c09b119fa939ea3"
+  integrity sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==
   dependencies:
     "@types/node" "*"
 
@@ -6864,6 +6895,32 @@ jszip@^3.10.1, jszip@^3.2.2:
     readable-stream "~2.3.6"
     setimmediate "^1.0.5"
 
+"junify-rrweb-alpha19@https://registry.npmjs.org/@junify-app/rrweb/-/rrweb-2.0.0-alpha.19.tgz":
+  version "2.0.0-alpha.19"
+  resolved "https://registry.npmjs.org/@junify-app/rrweb/-/rrweb-2.0.0-alpha.19.tgz#159e2f198edfe9fb52c72bc0d95a4a0e0a0621f7"
+  dependencies:
+    "@junify-app/rrdom" "^2.0.0-alpha.19"
+    "@junify-app/rrweb-snapshot" "^2.0.0-alpha.19"
+    "@junify-app/types" "^2.0.0-alpha.19"
+    "@junify-app/utils" "^2.0.0-alpha.19"
+    "@types/css-font-loading-module" "0.0.7"
+    "@xstate/fsm" "^1.4.0"
+    base64-arraybuffer "^1.0.1"
+    mitt "^3.0.0"
+
+"junify-rrweb-alpha20@https://registry.npmjs.org/@junify-app/rrweb/-/rrweb-2.0.0-alpha.20.tgz":
+  version "2.0.0-alpha.20"
+  resolved "https://registry.npmjs.org/@junify-app/rrweb/-/rrweb-2.0.0-alpha.20.tgz#ec152c3e70856ead556a285110ec08b0be7586dd"
+  dependencies:
+    "@junify-app/rrdom" "^2.0.0-alpha.20"
+    "@junify-app/rrweb-snapshot" "^2.0.0-alpha.20"
+    "@junify-app/types" "^2.0.0-alpha.20"
+    "@junify-app/utils" "^2.0.0-alpha.20"
+    "@types/css-font-loading-module" "0.0.7"
+    "@xstate/fsm" "^1.4.0"
+    base64-arraybuffer "^1.0.1"
+    mitt "^3.0.0"
+
 keyv@^4.5.3:
   version "4.5.4"
   resolved "https://registry.yarnpkg.com/keyv/-/keyv-4.5.4.tgz#a879a99e29452f942439f2a405e3af8b31d4de93"
@@ -8630,6 +8687,39 @@ rollup@^4.23.0:
     "@rollup/rollup-win32-ia32-msvc" "4.32.0"
     "@rollup/rollup-win32-x64-msvc" "4.32.0"
     fsevents "~2.3.2"
+
+rrdom@^0.1.7:
+  version "0.1.7"
+  resolved "https://registry.yarnpkg.com/rrdom/-/rrdom-0.1.7.tgz#f2f49bfd01b59291bb7b0d981371a5e02a18e2aa"
+  integrity sha512-ZLd8f14z9pUy2Hk9y636cNv5Y2BMnNEY99wxzW9tD2BLDfe1xFxtLjB4q/xCBYo6HRe0wofzKzjm4JojmpBfFw==
+  dependencies:
+    rrweb-snapshot "^2.0.0-alpha.4"
+
+"rrweb-alpha4@https://registry.npmjs.org/rrweb/-/rrweb-2.0.0-alpha.4.tgz":
+  version "2.0.0-alpha.4"
+  resolved "https://registry.npmjs.org/rrweb/-/rrweb-2.0.0-alpha.4.tgz#3c7cf2f1bcf44f7a88dd3fad00ee8d6dd711f258"
+  dependencies:
+    "@rrweb/types" "^2.0.0-alpha.4"
+    "@types/css-font-loading-module" "0.0.7"
+    "@xstate/fsm" "^1.4.0"
+    base64-arraybuffer "^1.0.1"
+    fflate "^0.4.4"
+    mitt "^3.0.0"
+    rrdom "^0.1.7"
+    rrweb-snapshot "^2.0.0-alpha.4"
+
+"rrweb-stable211@https://registry.npmjs.org/rrweb/-/rrweb-2.1.1.tgz":
+  version "2.1.1"
+  resolved "https://registry.npmjs.org/rrweb/-/rrweb-2.1.1.tgz#b609dbd4a73389144230f40cdada7d243c3c0787"
+  dependencies:
+    "@rrweb/types" "^2.1.1"
+    "@rrweb/utils" "^2.1.1"
+    "@types/css-font-loading-module" "0.0.7"
+    "@xstate/fsm" "^1.4.0"
+    base64-arraybuffer "^1.0.1"
+    mitt "^3.0.0"
+    rrdom "^2.1.1"
+    rrweb-snapshot "^2.1.1"
 
 run-async@^3.0.0:
   version "3.0.0"

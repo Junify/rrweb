@@ -1,0 +1,315 @@
+{
+  "schemaVersion": 1,
+  "scenarioVersion": "historical-comprehensive-v1",
+  "fixtures": [
+    {
+      "id": "rrweb-alpha4-historical",
+      "file": "rrweb-alpha4-historical.events.json.gz",
+      "producer": {
+        "package": "rrweb",
+        "alias": "rrweb-alpha4",
+        "version": "2.0.0-alpha.4",
+        "registryIntegrity": "sha512-wEHUILbxDPcNwkM3m4qgPgXAiBJyqCbbOHyVoNEVBJzHszWEFYyTbrZqUdeb1EfmTRC2PsumCIkVcomJ/xcOzA=="
+      },
+      "scenario": "historical-comprehensive-v1",
+      "browser": {
+        "name": "Google Chrome",
+        "version": "151.0.7922.138",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36"
+      },
+      "createdAt": "2026-08-17T20:20:09.667Z",
+      "creationCommand": "PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify/rrweb-compatibility fixtures:generate --producer rrweb-alpha4-historical",
+      "raw": {
+        "bytes": 7761,
+        "sha256": "bdcb362087c6f762bd35581be01f9ac780676696c5074c54b09078dd3a7fcf2c"
+      },
+      "gzip": {
+        "bytes": 1511,
+        "sha256": "d580b6f1325ac4c633f7976b07f55baf927f60b1be1feac6dcf0372beb0d6601"
+      },
+      "eventCount": 24,
+      "fullSnapshotIndexes": [1],
+      "fullSnapshotPayloadSha256": [
+        "579d3163e5851fb41655fbdc76f33522a8bb8d226e5ce9d823cc484d94a52ea6"
+      ],
+      "privacyScan": {
+        "passed": false,
+        "sentinelOccurrences": {
+          "password": 0,
+          "textarea": 1,
+          "placeholder": 2,
+          "dynamicPassword": 0,
+          "hidden": 1,
+          "autocomplete": 1
+        },
+        "leakedSentinels": [
+          "textarea",
+          "placeholder",
+          "hidden",
+          "autocomplete"
+        ],
+        "scanSha256": "e5e4e50fe5713e395f79e983f1fb821907404a9f4c22c4c0fd71a245c4b14187"
+      },
+      "scenarioCoverage": {
+        "domMutation": { "observed": true, "eventIndexes": [4] },
+        "spaPushState": { "observed": true, "eventIndexes": [3] },
+        "spaPopstate": { "observed": true, "eventIndexes": [5] },
+        "shadowDom": { "observed": true, "eventIndexes": [12] },
+        "password": { "observed": true, "eventIndexes": [1] },
+        "textarea": { "observed": true, "eventIndexes": [1] },
+        "placeholder": { "observed": true, "eventIndexes": [1] },
+        "dynamicPasswordType": { "observed": true, "eventIndexes": [13] },
+        "stylesheetReplace": { "observed": true, "eventIndexes": [14] },
+        "stylesheetReplaceSync": { "observed": true, "eventIndexes": [10] },
+        "stylesheetEmptyReplacement": {
+          "observed": true,
+          "eventIndexes": [16]
+        },
+        "canvas2d": { "observed": true, "eventIndexes": [21] },
+        "webgl": { "observed": true, "eventIndexes": [20] },
+        "seekReadyMutations": { "observed": true, "eventIndexes": [2, 22] }
+      }
+    },
+    {
+      "id": "junify-alpha19-historical",
+      "file": "junify-alpha19-historical.events.json.gz",
+      "producer": {
+        "package": "@junify-app/rrweb",
+        "alias": "junify-rrweb-alpha19",
+        "version": "2.0.0-alpha.19",
+        "registryIntegrity": "sha512-0kpxuWenvwwzp1+bhLPlWBKHGHQkXwwRAzCxoBQcD4y9ph4REknQHLF5CJNjtfNfzZUcI9KRT6ILD3jGXgbNsg=="
+      },
+      "scenario": "historical-comprehensive-v1",
+      "browser": {
+        "name": "Google Chrome",
+        "version": "151.0.7922.138",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36"
+      },
+      "createdAt": "2026-08-17T20:20:14.227Z",
+      "creationCommand": "PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify/rrweb-compatibility fixtures:generate --producer junify-alpha19-historical",
+      "raw": {
+        "bytes": 7689,
+        "sha256": "8d3f00b6171ae841bc80a5e29fe20270c306dde4cc70c451019df6dd27194e8b"
+      },
+      "gzip": {
+        "bytes": 1492,
+        "sha256": "e3c779f27e00fb5b31d205efa189987f60122380306a8f9bc3f575c31d866322"
+      },
+      "eventCount": 24,
+      "fullSnapshotIndexes": [1],
+      "fullSnapshotPayloadSha256": [
+        "fe867dd67cafdd524ae455f0171fad931912686ba1b16e207e6b74ad6cb3e0ed"
+      ],
+      "privacyScan": {
+        "passed": false,
+        "sentinelOccurrences": {
+          "password": 0,
+          "textarea": 0,
+          "placeholder": 2,
+          "dynamicPassword": 0,
+          "hidden": 1,
+          "autocomplete": 1
+        },
+        "leakedSentinels": ["placeholder", "hidden", "autocomplete"],
+        "scanSha256": "5f9ba558b5f84928a311a8303f81b4353d4b8cc3177f9a939fa6fef810601dee"
+      },
+      "scenarioCoverage": {
+        "domMutation": { "observed": true, "eventIndexes": [4] },
+        "spaPushState": { "observed": true, "eventIndexes": [3] },
+        "spaPopstate": { "observed": true, "eventIndexes": [5] },
+        "shadowDom": { "observed": true, "eventIndexes": [12] },
+        "password": { "observed": true, "eventIndexes": [1] },
+        "textarea": { "observed": true, "eventIndexes": [1] },
+        "placeholder": { "observed": true, "eventIndexes": [1] },
+        "dynamicPasswordType": { "observed": true, "eventIndexes": [13] },
+        "stylesheetReplace": { "observed": true, "eventIndexes": [14] },
+        "stylesheetReplaceSync": { "observed": true, "eventIndexes": [10] },
+        "stylesheetEmptyReplacement": {
+          "observed": true,
+          "eventIndexes": [16]
+        },
+        "canvas2d": { "observed": true, "eventIndexes": [21] },
+        "webgl": { "observed": true, "eventIndexes": [20] },
+        "seekReadyMutations": { "observed": true, "eventIndexes": [2, 22] }
+      }
+    },
+    {
+      "id": "junify-alpha20-historical",
+      "file": "junify-alpha20-historical.events.json.gz",
+      "producer": {
+        "package": "@junify-app/rrweb",
+        "alias": "junify-rrweb-alpha20",
+        "version": "2.0.0-alpha.20",
+        "registryIntegrity": "sha512-oLI31EWkGhcT+MMfxo2QvMFFeP3vpSYslYvF5YX2KV1qTfKGOQZ924ycr8HILkgx244l6LzX0LCUtKQqWCK0qQ=="
+      },
+      "scenario": "historical-comprehensive-v1",
+      "browser": {
+        "name": "Google Chrome",
+        "version": "151.0.7922.138",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36"
+      },
+      "createdAt": "2026-08-17T20:20:18.746Z",
+      "creationCommand": "PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify/rrweb-compatibility fixtures:generate --producer junify-alpha20-historical",
+      "raw": {
+        "bytes": 7689,
+        "sha256": "531d5450606e10c78c1ad85cf3d44dd051d081f0e0fbf126920dabb182a979fb"
+      },
+      "gzip": {
+        "bytes": 1496,
+        "sha256": "3e1c56f06f76c461a446c260c854c6a004d804a0df02339e78543a23e8c7ae8c"
+      },
+      "eventCount": 24,
+      "fullSnapshotIndexes": [1],
+      "fullSnapshotPayloadSha256": [
+        "fe867dd67cafdd524ae455f0171fad931912686ba1b16e207e6b74ad6cb3e0ed"
+      ],
+      "privacyScan": {
+        "passed": false,
+        "sentinelOccurrences": {
+          "password": 0,
+          "textarea": 0,
+          "placeholder": 2,
+          "dynamicPassword": 0,
+          "hidden": 1,
+          "autocomplete": 1
+        },
+        "leakedSentinels": ["placeholder", "hidden", "autocomplete"],
+        "scanSha256": "5f9ba558b5f84928a311a8303f81b4353d4b8cc3177f9a939fa6fef810601dee"
+      },
+      "scenarioCoverage": {
+        "domMutation": { "observed": true, "eventIndexes": [4] },
+        "spaPushState": { "observed": true, "eventIndexes": [3] },
+        "spaPopstate": { "observed": true, "eventIndexes": [5] },
+        "shadowDom": { "observed": true, "eventIndexes": [12] },
+        "password": { "observed": true, "eventIndexes": [1] },
+        "textarea": { "observed": true, "eventIndexes": [1] },
+        "placeholder": { "observed": true, "eventIndexes": [1] },
+        "dynamicPasswordType": { "observed": true, "eventIndexes": [13] },
+        "stylesheetReplace": { "observed": true, "eventIndexes": [14] },
+        "stylesheetReplaceSync": { "observed": true, "eventIndexes": [10] },
+        "stylesheetEmptyReplacement": {
+          "observed": true,
+          "eventIndexes": [16]
+        },
+        "canvas2d": { "observed": true, "eventIndexes": [21] },
+        "webgl": { "observed": true, "eventIndexes": [20] },
+        "seekReadyMutations": { "observed": true, "eventIndexes": [2, 22] }
+      }
+    },
+    {
+      "id": "rrweb-2.1.1-baseline",
+      "file": "rrweb-2.1.1-baseline.events.json.gz",
+      "producer": {
+        "package": "rrweb",
+        "alias": "rrweb-stable211",
+        "version": "2.1.1",
+        "registryIntegrity": "sha512-ToxhJg3SsrAhw+/DPhI/2iiwZQIrGK5BGkZ0kHn4qUExcvQYRaolkciD1FWX2+r6vf1IxFyhsoRY18h3D+XoCg=="
+      },
+      "scenario": "historical-comprehensive-v1",
+      "browser": {
+        "name": "Google Chrome",
+        "version": "151.0.7922.138",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36"
+      },
+      "createdAt": "2026-08-17T20:21:55.921Z",
+      "creationCommand": "PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify/rrweb-compatibility fixtures:generate --producer rrweb-2.1.1-baseline",
+      "raw": {
+        "bytes": 7689,
+        "sha256": "e2ebcffebe816e80eb702c6de1877ab62648a07a291ea2dd60ec779541962302"
+      },
+      "gzip": {
+        "bytes": 1494,
+        "sha256": "54647f8666033d92f7ea23caf4d7fcd2a5279d686968fd351ce34e0e8b64f322"
+      },
+      "eventCount": 24,
+      "fullSnapshotIndexes": [1],
+      "fullSnapshotPayloadSha256": [
+        "fe867dd67cafdd524ae455f0171fad931912686ba1b16e207e6b74ad6cb3e0ed"
+      ],
+      "privacyScan": {
+        "passed": false,
+        "sentinelOccurrences": {
+          "password": 0,
+          "textarea": 0,
+          "placeholder": 2,
+          "dynamicPassword": 0,
+          "hidden": 1,
+          "autocomplete": 1
+        },
+        "leakedSentinels": ["placeholder", "hidden", "autocomplete"],
+        "scanSha256": "5f9ba558b5f84928a311a8303f81b4353d4b8cc3177f9a939fa6fef810601dee"
+      },
+      "scenarioCoverage": {
+        "domMutation": { "observed": true, "eventIndexes": [4] },
+        "spaPushState": { "observed": true, "eventIndexes": [3] },
+        "spaPopstate": { "observed": true, "eventIndexes": [5] },
+        "shadowDom": { "observed": true, "eventIndexes": [12] },
+        "password": { "observed": true, "eventIndexes": [1] },
+        "textarea": { "observed": true, "eventIndexes": [1] },
+        "placeholder": { "observed": true, "eventIndexes": [1] },
+        "dynamicPasswordType": { "observed": true, "eventIndexes": [13] },
+        "stylesheetReplace": { "observed": true, "eventIndexes": [14] },
+        "stylesheetReplaceSync": { "observed": true, "eventIndexes": [10] },
+        "stylesheetEmptyReplacement": {
+          "observed": true,
+          "eventIndexes": [16]
+        },
+        "canvas2d": { "observed": true, "eventIndexes": [21] },
+        "webgl": { "observed": true, "eventIndexes": [20] },
+        "seekReadyMutations": { "observed": true, "eventIndexes": [2, 22] }
+      }
+    },
+    {
+      "id": "rrweb-2.1.1-large-snapshot",
+      "file": "rrweb-2.1.1-large-snapshot.events.json.gz",
+      "producer": {
+        "package": "rrweb",
+        "alias": "rrweb-stable211",
+        "version": "2.1.1",
+        "registryIntegrity": "sha512-ToxhJg3SsrAhw+/DPhI/2iiwZQIrGK5BGkZ0kHn4qUExcvQYRaolkciD1FWX2+r6vf1IxFyhsoRY18h3D+XoCg=="
+      },
+      "scenario": "large-css-full-snapshot-v1",
+      "browser": {
+        "name": "Google Chrome",
+        "version": "151.0.7922.138",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36"
+      },
+      "createdAt": "2026-08-17T20:20:28.260Z",
+      "creationCommand": "PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify/rrweb-compatibility fixtures:generate --producer rrweb-2.1.1-large-snapshot",
+      "raw": {
+        "bytes": 13601009,
+        "sha256": "e42aed54e4e3edd74d505d7e5fdcfdbbe02bf0423feed2649643c38975dcd14a"
+      },
+      "gzip": {
+        "bytes": 74821,
+        "sha256": "a0a8a723e5cdaaa5c61bccfe3ccc0b896a0c19f680ef52c4b805828127ce5f11"
+      },
+      "eventCount": 2,
+      "fullSnapshotIndexes": [1],
+      "fullSnapshotPayloadSha256": [
+        "72f7d35875dfcf18a9d480936939432630d613726ee9b87caafb735ffd7d568d"
+      ],
+      "privacyScan": {
+        "passed": true,
+        "sentinelOccurrences": {
+          "password": 0,
+          "textarea": 0,
+          "placeholder": 0,
+          "dynamicPassword": 0,
+          "hidden": 0,
+          "autocomplete": 0
+        },
+        "leakedSentinels": [],
+        "scanSha256": "e3e255f3ff8643750ccf3a5cb1be5ff8f04a4fa70a3ceed822e4c2fbae37b04b"
+      },
+      "scenarioCoverage": {
+        "largeCssFullSnapshot": { "observed": true, "eventIndexes": [1] }
+      },
+      "largeSnapshot": {
+        "rawCssBytes": 13600000,
+        "cssSha256": "765f1a93ac88bac11b0e4c9ea520b2ddab21b11d5bd68b6c97ce083cf2d61f02",
+        "fullSnapshotCssSha256": "765f1a93ac88bac11b0e4c9ea520b2ddab21b11d5bd68b6c97ce083cf2d61f02"
+      }
+    }
+  ]
+}

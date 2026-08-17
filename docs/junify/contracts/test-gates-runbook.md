@@ -62,46 +62,50 @@ resolves the patched local replayer. Current blocker:
 ### `G-COMPAT-HISTORICAL`
 
 ```sh
-yarn workspace @junify/rrweb-compatibility test -- replay-matrix
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace @junify/rrweb-compatibility test -- replay-matrix
 cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recording.spec.ts scenarios/monitors/session-recording-static-player.spec.ts --workers=1
 ```
 
 Assert provenance-locked alpha.4, alpha.19, and alpha.20 fixtures visibly
-replay in both candidate surfaces. Current blockers: compatibility workspace
-and both Monitors browser specs are created later; the current recordings lack
-producer provenance.
+replay in both candidate surfaces. Task 2 passes the package-local first command
+for all three historical artifacts under official rrweb@2.1.1 in Google Chrome
+151.0.7922.138 with no skips. Current blockers: the candidate packages and both
+Monitors browser specs are created later.
 
 ### `G-COMPAT-CANDIDATE`
 
 ```sh
-yarn workspace @junify/rrweb-compatibility test -- record-fixtures replay-matrix
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace @junify/rrweb-compatibility test -- record-fixtures replay-matrix
 cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recording.spec.ts scenarios/monitors/session-recording-static-player.spec.ts --workers=1 --grep '2.1.1-junify.0'
 ```
 
-Assert candidate recorder output in both candidate replayers. Current blocker:
-candidate packages and fixtures do not exist before Tasks 2–3.
+Assert candidate recorder output in both candidate replayers. Task 2's official
+2.1.1 baseline is not a substitute. Current blocker: candidate packages and
+cross-repository fixtures do not exist before Task 3.
 
 ### `G-WIRE-FORMAT`
 
 ```sh
-yarn workspace @junify/rrweb-compatibility test -- record-fixtures replay-matrix large-snapshot
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace @junify/rrweb-compatibility test -- record-fixtures replay-matrix large-snapshot
 ```
 
 Compare decoded order, count, FullSnapshot indexes/payloads, and deterministic
 digests. Permit only an explicitly documented upstream correctness delta.
-Current blocker: compatibility workspace/fixtures are created in Task 2.
+Task 2 passes the package-local fixture integrity and official 2.1.1 replay
+checks. Current blocker: the future Junify candidate differential and both
+consumer surfaces remain untested.
 
 ### `G-LARGE-SNAPSHOT`
 
 ```sh
-yarn workspace @junify/rrweb-compatibility test -- large-snapshot
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace @junify/rrweb-compatibility test -- large-snapshot
 cd ../browser-extension-rrweb-2.1.1 && yarn test src/background/command/sessionRecording/v2SessionRecordingFlusher.test.ts
 ```
 
 Assert roughly 13.6 MB deterministic CSS, event count/index/payload digest,
-UTF-8 fragmentation and reassembly, and gzip round trip. Current blocker: the
-large fixture is created in Task 2. Existing service fixtures top out at a
-1,432,290-byte eventString.
+UTF-8 fragmentation and reassembly, and gzip round trip. Task 2 passes the
+13,600,000-byte CSS event/index/payload/raw/gzip checks. Current blocker:
+extension UTF-8 fragmentation and reassembly remain untested.
 
 ### `G-SEEK`
 
@@ -158,8 +162,30 @@ cd ../browser-extension-rrweb-2.1.1 && yarn test:integration integration-tests/s
 
 Scan emitted FullSnapshot and IncrementalSnapshot JSON, Chrome storage, and V1/
 V2 requests for distinct password, textarea, placeholder, dynamic password,
-hidden, and sensitive-autocomplete sentinels. Current blocker: Junify
-persisted-payload sentinels and the approved narrow fixes are added in Task 6.
+hidden, and sensitive-autocomplete sentinels. Task 2 characterizes emitted
+artifacts: placeholder, hidden, and sensitive-autocomplete leak in all four;
+alpha.4 also leaks textarea. Current blocker: Chrome storage and V1/V2 request
+scans plus the approved narrow fixes are added in Task 6.
+
+### Task 2 Fixture Regeneration
+
+Install from the locked registry tarballs without running unrelated workspace
+install scripts, then regenerate one named artifact at a time:
+
+```sh
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn install --ignore-scripts --frozen-lockfile
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify/rrweb-compatibility fixtures:generate --producer rrweb-alpha4-historical
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify/rrweb-compatibility fixtures:generate --producer junify-alpha19-historical
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify/rrweb-compatibility fixtures:generate --producer junify-alpha20-historical
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify/rrweb-compatibility fixtures:generate --producer rrweb-2.1.1-baseline
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace @junify/rrweb-compatibility fixtures:generate --producer rrweb-2.1.1-large-snapshot
+```
+
+`fixtures/manifest.json` is authoritative for producer package/version and
+registry integrity, Chrome version/user agent, creation command, event count,
+FullSnapshot indexes/payload digests, raw/gzip bytes and SHA-256, scenario
+evidence, privacy scan, and the exact large-CSS digest. Only gzip fixtures are
+tracked; generation never uses customer data.
 
 ### `G-RECORDER-LIFECYCLE`
 

@@ -8,6 +8,16 @@ Task 1 establishes obligations; it does not create compatibility fixtures or
 run the expensive cross-repository gates. A contract is not `covered` because
 an adjacent unit test, a mocked Jest test, a README, or a build exists.
 
+Task 2 adds package-local real-browser evidence without prematurely promoting
+the cross-repository contracts. Authentic alpha.4, Junify alpha.19, Junify
+alpha.20, and official 2.1.1 recordings now carry producer/browser provenance,
+raw and gzip hashes, event counts, FullSnapshot indexes/payload digests, and
+source-derived scenario coverage. Official 2.1.1 replays all four comprehensive
+artifacts in Chrome with no skips; a separate official 2.1.1 artifact contains
+exactly 13,600,000 bytes of deterministic CSS. Rails candidate surfaces,
+extension fragmentation/reassembly, and the future Junify candidate producer
+remain outside this package-local proof, so the status counts do not change.
+
 The only currently `covered` inventory row is
 `junify.rails.password-rotation-artifact`: a recorded Playwright gate crosses
 artifact metadata, a production-shaped file URL, Base64+gzip decoding, a real
@@ -63,6 +73,17 @@ Layer counts are non-exclusive.
 | Rails parser/loader/player Jest tests | local compatibility parsing and component wiring | Monitors V1/V2 browser route through persisted reads |
 | static-player README/build | intended message protocol and packaging | any accepted fixture rendered in a browser |
 | service real recordings | service pipeline scale and varied rrweb markers | producer version, privacy provenance, 13.6 MB CSS, Rails playback |
+| Task 2 provenance-locked fixtures | exact named producer bundles, browser recording, package-local official 2.1.1 replay, DOM/SPA/Shadow/stylesheet/Canvas/seek-ready markers, hashes, and 13.6 MB CSS | future Junify candidate output, Rails main/static consumers, extension storage/transport/fragmentation, or privacy acceptance |
+
+## Task 2 Privacy Characterization
+
+The fixtures contain only distinct synthetic values. Scans are assertions of
+observed historical behavior, not privacy acceptance: password and dynamic
+password sentinels are absent; placeholder, hidden, and sensitive-autocomplete
+sentinels occur in all four comprehensive artifacts; alpha.4 additionally
+contains the textarea sentinel. `junify.privacy.persisted-sentinels` therefore
+remains `red-known-risk`, and Task 6 must prove absence through Chrome storage
+and both ingest request bodies.
 
 ## Status Transition Rules
 
