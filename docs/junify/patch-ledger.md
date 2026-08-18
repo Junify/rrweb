@@ -154,7 +154,9 @@ general attribute-masking callback remains deferred.
 
 - `PRIV-001`: `8d0d5ffe` adapts Mixpanel's hidden-input policy. Unmodified
   2.1.1 failed 1/1 focused snapshot case and 1/1 real-Chrome case. The candidate
-  passes both focused gates and the temporary persisted-JSON scan.
+  passes both focused gates and the temporary persisted-JSON scan. Follow-up
+  `2d392acc` also retains old hidden sensitivity when either the value or type
+  attribute changes first in one observer batch.
 - `PRIV-002`: `e9472203` adapts placeholder masking. Unmodified 2.1.1 failed
   1/1 focused snapshot case and 1/1 real-Chrome case. The candidate masks
   initial and mutated placeholders while preserving attribute removal as
@@ -164,12 +166,16 @@ general attribute-masking callback remains deferred.
   focused snapshot cases and 1/1 real-Chrome case. The first implementation
   exposed a second Input-event leak; the final candidate protects all approved
   tokens, mixed-case and compound forms, even with an identity mask function,
-  while a non-sensitive `name` control remains visible.
+  while a non-sensitive `name` control remains visible. Follow-up `2d392acc`
+  retains old sensitivity when autocomplete removal and value mutation occur
+  in either order and keeps the removal payload `null`.
 - `PRIV-004`: `ce6ee88e` is a Task 6 differential. Unmodified 2.1.1 failed the
   leaking value-before-type same-batch order in 1/1 real-Chrome case and leaked
   synchronous Input before MutationObserver flush in a separate 1/1 case. The
-  candidate premarks password nodes for the entire batch, keeps a local input
-  observer marker, and passes both mutation orders plus synchronous Input.
+  candidate premarks password nodes for the entire batch and keeps a local
+  input-observer marker. Follow-up `78ecd7ee` covers post-start password nodes
+  and temporary text-password-text state, limits the marker to the associated
+  observer interval, and proves that normal text is visible after the batch.
 - Textarea: `313fd37b` adds characterization only. Upstream 2.1.1 already
   protects initial, dynamically added, value-attribute, child-text, and Input
   payloads under the explicit masking policy, so no duplicate production patch
@@ -179,6 +185,23 @@ general attribute-masking callback remains deferred.
   file, scans it, and removes the temporary directory. No privacy secret or
   generated privacy artifact is tracked, and no authenticated fixture hash is
   changed.
+- Fix round 1: `78ecd7ee` retains password classification for post-start nodes
+  and temporary text-password-text state only through the corresponding
+  observer batch; synchronous Input is masked while the same node returns to
+  visible normal-text behavior after the batch. `2d392acc` retains the batch's
+  old hidden/autocomplete sensitivity for both mutation orders and preserves
+  autocomplete removal as `null`. `44b2ad41` gives every private source a
+  unique mask length and asserts exact FullSnapshot/add/attribute/Input node,
+  source, and value sinks. Three missing-event probes reject false substitution
+  by another masked value. The fixture failed against the pre-fix `9d9f2763`
+  bundle and passes against the candidate. `9abed2d8` removes an event-loop race
+  from the existing dynamic-input snapshot gate by waiting until both deferred
+  property-hook records exist with their exact node/source/value before starting
+  the following attribute batch; it does not alter the snapshot. `e6ea1474`
+  invokes the saved native type accessors through typed receiver-preserving
+  wrappers, keeping runtime behavior unchanged and the package lint gate at
+  zero errors. The final candidate passes rrweb real-Chrome integration 57/57,
+  persisted compatibility 4/4, and the focused snapshot suite 32/32.
 - Upstream plan: submit `PRIV-001`, `PRIV-002`, and `PRIV-003` as focused
   behavior/test proposals based on their cited sources; submit `PRIV-004` as a
   focused correctness proposal. Delete each patch when upstream stable passes

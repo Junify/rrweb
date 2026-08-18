@@ -194,11 +194,17 @@ hidden, and sensitive-autocomplete sentinels. Task 2 characterizes emitted
 artifacts: placeholder, hidden, and sensitive-autocomplete leak in all four;
 alpha.4 also leaks textarea. Task 6 passes the package-local snapshot,
 real-Chrome recorder, and temporary persisted-JSON portions under Node 20.9.0
-and Chrome 151. It covers FullSnapshot, Mutation, Input, and added-node payloads;
-both same-batch password type orders; synchronous Input before observer flush;
-all approved sensitive autocomplete tokens with compound/mixed-case forms and
-an identity mask function; placeholder removal as `null`; and visible negative
-controls. Current blocker: Task 9 must scan real extension Chrome storage and
+and Chrome 151. The final rrweb integration gate passes 57/57 and the persisted
+compatibility gate passes 4/4. They cover FullSnapshot, Mutation, Input, and added-node payloads;
+both same-batch password type orders; post-start and temporary password state;
+synchronous Input before observer flush; hidden-to-text and autocomplete
+removal/value mutations in both orders; all approved sensitive autocomplete
+tokens with compound/mixed-case forms and an identity mask function;
+placeholder/autocomplete removal as `null`; and post-batch visible negative
+controls. The persisted fixture assigns a unique mask length to every private
+source and asserts the exact FullSnapshot/add/attribute/Input source and node;
+missing-event probes prevent an unrelated field's stars from satisfying a
+case. Current blocker: Task 9 must scan real extension Chrome storage and
 decoded V1/V2 request bodies with the same policy and sentinels.
 
 ### Task 2 Fixture Regeneration

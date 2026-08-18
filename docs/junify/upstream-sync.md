@@ -85,7 +85,7 @@ Use one concern per commit:
 2. `BND-002` Junify player package boundary.
 3. `SEEK-001` virtual-DOM seek correction.
 4. `CANVAS-001` injectable MV3 Canvas processor.
-5. `PRIV-001`, `PRIV-002`, `PRIV-003` as separate privacy commits.
+5. `PRIV-001`, `PRIV-002`, `PRIV-003`, `PRIV-004` as separate privacy commits.
 6. `LIFE-REC-001` recorder cleanup.
 7. `LIFE-REP-001` replayer teardown.
 8. `DEF-001`, `DEF-002` as separate defensive commits.
