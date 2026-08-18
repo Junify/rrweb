@@ -294,7 +294,7 @@ describe('canonical Junify boundary package pipeline', () => {
     }
   });
 
-  test('rejects dirty tracked source and retained boundary build residue before changing outputs', () => {
+  test('rejects dirty tracked source and retained boundary or upstream build residue before changing outputs', () => {
     const temporaryDirectory = mkdtempSync(
       path.join(tmpdir(), 'junify-source-preflight-'),
     );
@@ -304,12 +304,17 @@ describe('canonical Junify boundary package pipeline', () => {
       'packages/junify-rrweb/README.md',
     );
     const trackedContents = readFileSync(trackedPath);
+    const ignoredUpstreamResiduePaths = [
+      'packages/rrweb-player/src/round5-residue-probe.svelte.d.ts',
+      'packages/rrweb-player/tsconfig.tsbuildinfo',
+    ];
     const residuePaths = [
       'packages/junify-rrweb/.round4-probe.svelte.d.ts',
       'packages/junify-rrweb/tsconfig.tsbuildinfo',
       'packages/junify-rrweb-player/.round4-probe.svelte.d.ts',
       'packages/junify-rrweb-player/tsconfig.tsbuildinfo',
       'packages/junify-rrweb-player/types/retained.d.ts',
+      ...ignoredUpstreamResiduePaths,
     ];
     expect(
       residuePaths.filter((relativePath) =>
@@ -325,6 +330,14 @@ describe('canonical Junify boundary package pipeline', () => {
         mkdirSync(path.dirname(filename), { recursive: true });
         writeFileSync(filename, 'round4-generated-residue-probe\n');
       }
+      expect(
+        ignoredUpstreamResiduePaths.map(
+          (relativePath) =>
+            spawnSync('git', ['check-ignore', '--quiet', '--', relativePath], {
+              cwd: repositoryRoot,
+            }).status,
+        ),
+      ).toEqual([0, 0]);
       result = spawnSync(
         process.execPath,
         [canonicalPackagesScript, '--output', outputDirectory, '--runs', '2'],
@@ -359,8 +372,10 @@ describe('canonical Junify boundary package pipeline', () => {
     expect(output).toMatch(/source state is not clean before build/i);
     expect(output).toContain('packages/junify-rrweb/README.md');
     for (const relativePath of residuePaths)
-      expect(output).toContain(relativePath);
+      expect(output).toContain(`residue: ${relativePath}`);
     expect(residuesRetainedAfterRejection).toEqual([
+      true,
+      true,
       true,
       true,
       true,
@@ -368,6 +383,11 @@ describe('canonical Junify boundary package pipeline', () => {
       true,
     ]);
     expect(existsSync(outputDirectory)).toBe(false);
+    expect(
+      residuePaths.filter((relativePath) =>
+        existsSync(path.join(repositoryRoot, relativePath)),
+      ),
+    ).toEqual([]);
     rmSync(temporaryDirectory, { recursive: true, force: true });
   }, 180_000);
 

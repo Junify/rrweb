@@ -90,16 +90,19 @@ Run from the rrweb repository root with a new, empty output directory:
 export PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH
 yarn test:junify-packaging
 yarn pack:junify-boundaries \
-  --output ../../verification/rrweb-2.1.1/packages-canonical-fix-round4 \
+  --output ../../verification/rrweb-2.1.1/packages-canonical-fix-round5 \
   --runs 2
 ```
 
 The pipeline rejects any runtime other than Node 20.9 and captures HEAD plus an
 exact clean tracked/untracked and generated-residue census before creating
 output or clearing build products. It rejects retained boundary `types`,
-`.svelte.d.ts`, and `tsconfig.tsbuildinfo` paths rather than deleting them. The
-same HEAD and clean policy are rechecked after every clean, core build, player
-build, shared pack, and immediately before canonical emission.
+`.svelte.d.ts`, and `tsconfig.tsbuildinfo` paths rather than deleting them. Its
+collected seven-path sentinel includes the Git-ignored upstream player
+`src/*.svelte.d.ts` and root `tsconfig.tsbuildinfo` surfaces and mutation-proves
+that removing the upstream scan root fails before output. The same HEAD and
+clean policy are rechecked after every clean, core build, player build, shared
+pack, and immediately before canonical emission.
 
 Every targeted dependency/boundary build is forced to `NODE_ENV=production`.
 Each run invokes exactly one resolved npm process as `npm pack <absolute-core>
@@ -120,10 +123,12 @@ The old shared `packages/` set remains invalid: core SHA-256 `e075ed25...` used
 a different pack path, and player SHA-256 `c4bd708d...` / tree `6b8aaaf9...`
 is a production/test hybrid. The round 3 manifest `592f305c...` is also
 superseded because it did not fail closed on source state and used one pack
-process per role. Install only the two tarballs named by the round 4 combined
-manifest, verify their SHA-256, SHA-512, file counts, and tree digests, then
-rerun browser and Rails gates. Publication and registry installation remain
-separate release actions.
+process per role. The round 4 manifest is also superseded for evidence lineage:
+its production package bytes are unchanged, but its commit lacks the upstream
+ignored-residue mutation sentinel. Install only the two tarballs named by the
+round 5 combined manifest, verify their SHA-256, SHA-512, file counts, and tree
+digests, then rerun browser and Rails gates. Publication and registry
+installation remain separate release actions.
 
 ## Compatibility And Replay Gates
 

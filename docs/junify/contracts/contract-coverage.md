@@ -63,6 +63,17 @@ directories and a shared empty destination; exactly two name/version/filename
 results are required. The round 3 manifest is therefore superseded even though
 its package bytes match, and consumers must revalidate the round 4 manifest.
 
+Task 3 fix round 5 closes the remaining generated-residue sensitivity gap.
+The source-preflight fixture now creates seven exact residues: five under the
+two Junify boundary packages plus ignored upstream player
+`src/*.svelte.d.ts` and root `tsconfig.tsbuildinfo` paths. It proves every path
+is reported by the explicit residue scanner, remains untouched after rejection,
+and is removed only by test cleanup while no canonical output is created. A
+collected mutation that removes the upstream player scan root fails on the
+first missing upstream path. Production package code is unchanged; the round 4
+manifest is superseded only so consumers use evidence tied to the strengthened
+round 5 test commit.
+
 Task 4 closes `junify.replay.seek-visible-dom`. An unmodified 2.1.1 candidate
 fails both forward and backward cases after casting the target event: public
 time advances past the mutation while the visible iframe stays at

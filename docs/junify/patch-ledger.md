@@ -68,8 +68,13 @@ the upstream fixed changeset group. Publication remains release-gated.
   count, census, and unpacked-tree digests are exact. Before any output or
   cleanup, and after each clean/build/pack stage, it requires one unchanged HEAD,
   an empty tracked/untracked status, and zero retained boundary `types`, Svelte
-  declarations, or tsbuildinfo residue. The CSS provenance mutation remains
-  isolated and leaves the live 18-file player tree unchanged.
+  declarations, or tsbuildinfo residue. The collected source-preflight fixture
+  covers five boundary residues plus the two Git-ignored upstream player
+  surfaces (`src/*.svelte.d.ts` and root `tsconfig.tsbuildinfo`). Removing the
+  upstream scan root fails on the first missing exact diagnostic; all seven
+  paths remain after rejection and no canonical output is created. The CSS
+  provenance mutation remains isolated and leaves the live 18-file player tree
+  unchanged.
 - Public privacy type boundary: the exact browser policy literal with
   `password`, `textarea`, and `hidden` compiles from the packed `record()`
   parameter. The public rrweb type intersects official
@@ -86,9 +91,11 @@ the upstream fixed changeset group. Publication remains release-gated.
   Neither belongs to the canonical set. Fix round 3 manifest `592f305c...` is
   also superseded: its package bytes were deterministic, but source cleanliness
   was only reported at the end and it used separate core/player npm processes.
-  Consumer evidence derived from any prior set is stale until browser and Rails
-  reinstall and rerun against the round 4 manifest. No publish, registry
-  install, or consumer edit occurs here.
+  Fix round 4 package bytes remain deterministic but its manifest is superseded
+  for evidence lineage because its commit lacks the ignored-upstream-residue
+  mutation sentinel. Consumer evidence derived from any prior set is stale until
+  browser and Rails reinstall and rerun against the round 5 manifest. No
+  publish, registry install, or consumer edit occurs here.
 - Residual upstream declaration blocker: a no-`skipLibCheck` diagnostic pass
   must exactly match pinned upstream 2.1.1 path/code/line/column/message tuples,
   occurrence counts, and fresh declaration digests. Collected same-code and
