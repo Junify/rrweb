@@ -348,6 +348,9 @@ function record<T = eventWithTime>(
     mirror.removeNodeFromMap(iframeDocument, {
       removeMeta: true,
       onVisit: (node: Node) => {
+        if ((node as Element).tagName === 'LINK') {
+          stylesheetManager.releaseLinkLoadObserver(node as HTMLLinkElement);
+        }
         if ((node as Element).tagName === 'IFRAME') {
           return iframeManager.cleanupIframe(node as HTMLIFrameElement);
         }
@@ -424,6 +427,9 @@ function record<T = eventWithTime>(
       },
       onStylesheetLoad: (linkEl, childSn) => {
         stylesheetManager.attachLinkElement(linkEl, childSn);
+      },
+      onStylesheetLoadObserver: (linkEl, cleanup) => {
+        stylesheetManager.setLinkLoadCleanup(linkEl, cleanup);
       },
       keepIframeSrcFn,
     });
@@ -642,9 +648,12 @@ function record<T = eventWithTime>(
       if (stopped) return;
       stopped = true;
       sessionActive = false;
-      handlers.forEach((handler) => {
+      const runCleanup = (
+        cleanup: () => void,
+        ignoreCrossOriginError = false,
+      ) => {
         try {
-          handler();
+          cleanup();
         } catch (error) {
           const msg = String(error).toLowerCase();
           /**
@@ -656,19 +665,25 @@ function record<T = eventWithTime>(
            throw a "cannot access cross-origin frame" error.
            * This error is expected and can be safely ignored.
            */
-          if (!msg.includes('cross-origin')) {
+          if (!ignoreCrossOriginError || !msg.includes('cross-origin')) {
             console.warn(error);
           }
         }
-      });
-      iframeManager.destroy();
-      shadowDomManager.reset();
-      canvasManager.reset();
-      stylesheetManager.reset();
-      processedNodeManager.destroy();
-      mirror.reset();
-      recording = false;
-      unregisterErrorHandler();
+      };
+      try {
+        handlers.forEach((handler) => runCleanup(handler, true));
+        [
+          () => iframeManager.destroy(),
+          () => shadowDomManager.reset(),
+          () => canvasManager.reset(),
+          () => stylesheetManager.reset(),
+          () => processedNodeManager.destroy(),
+          () => mirror.reset(),
+        ].forEach((cleanup) => runCleanup(cleanup));
+      } finally {
+        recording = false;
+        runCleanup(unregisterErrorHandler);
+      }
     };
   } catch (error) {
     // TODO: handle internal error

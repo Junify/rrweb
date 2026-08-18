@@ -444,6 +444,9 @@ export default class MutationBuffer {
         onStylesheetLoad: (link, childSn) => {
           this.stylesheetManager.attachLinkElement(link, childSn);
         },
+        onStylesheetLoadObserver: (link, cleanup) => {
+          this.stylesheetManager.setLinkLoadCleanup(link, cleanup);
+        },
         cssCaptured,
       });
       if (sn) {
@@ -465,6 +468,11 @@ export default class MutationBuffer {
           ? {
               removeMeta: true,
               onVisit: (node: Node) => {
+                if ((node as Element).tagName === 'LINK') {
+                  this.stylesheetManager.releaseLinkLoadObserver(
+                    node as HTMLLinkElement,
+                  );
+                }
                 if ((node as Element).tagName === 'IFRAME') {
                   const iframeDocument = this.iframeManager.cleanupIframe(
                     node as HTMLIFrameElement,

@@ -79,18 +79,34 @@ export class CanvasManager {
   public reset() {
     if (!this.active) return;
     this.active = false;
-    this.animationFrames.forEach((id) => this.win.cancelAnimationFrame(id));
+    const animationFrames = Array.from(this.animationFrames);
     this.animationFrames.clear();
     this.pendingCanvasMutations.clear();
-    this.resetObservers && this.resetObservers();
+    animationFrames.forEach((id) => {
+      try {
+        this.win.cancelAnimationFrame(id);
+      } catch (error) {
+        console.warn('[rrweb] Failed to cancel canvas animation frame', error);
+      }
+    });
+    const resetObservers = this.resetObservers;
+    this.resetObservers = undefined;
     try {
-      this.processImageBitmap?.dispose?.();
+      resetObservers?.();
+    } catch (error) {
+      console.warn('[rrweb] Failed to dispose canvas observers', error);
+    }
+    const processImageBitmap = this.processImageBitmap;
+    this.processImageBitmap = undefined;
+    try {
+      processImageBitmap?.dispose?.();
     } catch (error) {
       console.warn(
         '[rrweb] Failed to dispose canvas snapshot processor',
         error,
       );
     }
+    this.rafStamps.invokeId = null;
   }
 
   public freeze() {

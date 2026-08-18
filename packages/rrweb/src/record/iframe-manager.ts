@@ -169,7 +169,22 @@ export class IframeManager {
     }
 
     const iframeDocument = iframeEl.contentDocument;
-    if (iframeDocument) this.iframeDocuments.set(iframeEl, iframeDocument);
+    if (iframeDocument) {
+      this.iframeDocuments.set(iframeEl, iframeDocument);
+      const iframeWindow = iframeDocument.defaultView;
+      if (iframeWindow) {
+        const onPageHide = () => {
+          if (this.iframeDocuments.get(iframeEl) !== iframeDocument) return;
+          const releasedDocument = this.cleanupIframeGeneration(iframeEl);
+          if (releasedDocument)
+            this.runCleanup(() => this.documentCleanup?.(releasedDocument));
+        };
+        iframeWindow.addEventListener('pagehide', onPageHide);
+        this.addIframeCleanup(iframeEl, () =>
+          iframeWindow.removeEventListener('pagehide', onPageHide),
+        );
+      }
+    }
     this.addIframeCleanup(iframeEl, this.loadListener?.(iframeEl));
 
     if (

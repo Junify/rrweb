@@ -16,6 +16,7 @@ export class StylesheetManager {
   public styleMirror = new StyleSheetMirror();
   private hostSheets = new Map<Document | ShadowRoot, Set<CSSStyleSheet>>();
   private sheetOwners = new Map<CSSStyleSheet, number>();
+  private linkLoadCleanups = new Map<HTMLLinkElement, () => void>();
 
   constructor(options: {
     mutationCb: mutationCallBack;
@@ -29,6 +30,7 @@ export class StylesheetManager {
     linkEl: HTMLLinkElement,
     childSn: serializedNodeWithId,
   ) {
+    this.releaseLinkLoadObserver(linkEl);
     if ('_cssText' in (childSn as elementNode).attributes)
       this.mutationCb({
         adds: [],
@@ -51,6 +53,22 @@ export class StylesheetManager {
 
     this.trackedLinkElements.add(linkEl);
     this.trackStylesheetInLinkElement(linkEl);
+  }
+
+  public setLinkLoadCleanup(linkEl: HTMLLinkElement, cleanup: () => void) {
+    this.releaseLinkLoadObserver(linkEl);
+    this.linkLoadCleanups.set(linkEl, cleanup);
+  }
+
+  public releaseLinkLoadObserver(linkEl: HTMLLinkElement) {
+    const cleanup = this.linkLoadCleanups.get(linkEl);
+    this.linkLoadCleanups.delete(linkEl);
+    if (!cleanup) return;
+    try {
+      cleanup();
+    } catch (error) {
+      console.warn('[rrweb] Failed to dispose stylesheet load observer', error);
+    }
   }
 
   public adoptStyleSheets(
@@ -112,6 +130,10 @@ export class StylesheetManager {
   }
 
   public reset() {
+    Array.from(this.linkLoadCleanups.keys()).forEach((linkEl) => {
+      this.releaseLinkLoadObserver(linkEl);
+    });
+    this.linkLoadCleanups.clear();
     this.styleMirror.reset();
     this.trackedLinkElements = new WeakSet();
     this.hostSheets.clear();

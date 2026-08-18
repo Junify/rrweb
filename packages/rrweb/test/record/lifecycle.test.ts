@@ -27,6 +27,9 @@ type RemovalResult = {
   oldDocumentRetained: boolean;
   oldStyleRetained: boolean;
   liveSharedSheetEvents: number;
+  releasedSharedSheetEvents: number;
+  reAdoptedDefinitionEvents: number;
+  reAdoptedRuleEvents: number;
 };
 
 const installResourceCensus = `
@@ -283,9 +286,58 @@ describe('recorder lifecycle', () => {
     expect(result.final).toEqual(result.baseline);
   }, 120_000);
 
+  it('releases pending stylesheet load listeners and timers on every stop', async () => {
+    const result = await page.evaluate(() => {
+      const lifecycle = (
+        window as unknown as {
+          __rrwebLifecycleCensus: {
+            snapshot(): ResourceSnapshot;
+          };
+        }
+      ).__rrwebLifecycleCensus;
+      const rrweb = (
+        window as unknown as {
+          rrweb: {
+            record(options: {
+              emit(event: eventWithTime): void;
+            }): (() => void) | undefined;
+          };
+        }
+      ).rrweb;
+      const baseline = lifecycle.snapshot();
+      const cycles: ResourceSnapshot[] = [];
+
+      for (let cycle = 0; cycle < 10; cycle++) {
+        const pendingStylesheet = document.createElement('link');
+        pendingStylesheet.rel = 'stylesheet';
+        document.head.appendChild(pendingStylesheet);
+        const stop = rrweb.record({ emit: () => undefined });
+        if (!stop) throw new Error(`record() did not start at cycle ${cycle}`);
+        stop();
+        stop();
+        cycles.push(lifecycle.snapshot());
+        pendingStylesheet.remove();
+      }
+
+      return { baseline, cycles, final: lifecycle.snapshot() };
+    });
+
+    result.cycles.forEach((resources, cycle) => {
+      expect(
+        resources,
+        `pending stylesheet retained in cycle ${cycle}`,
+      ).toEqual(result.baseline);
+    });
+    expect(result.final).toEqual(result.baseline);
+  });
+
   it('releases permanently removed iframe, stylesheet, and shadow-root state while preserving a shared live sheet', async () => {
     const result = await page.evaluate(
-      async ({ incrementalSnapshotType, styleSheetRuleSource }) => {
+      async ({
+        incrementalSnapshotType,
+        styleSheetRuleSource,
+        adoptedStyleSheetSource,
+      }) => {
         const lifecycle = (
           window as unknown as {
             __rrwebLifecycleCensus: {
@@ -372,6 +424,37 @@ describe('recorder lifecycle', () => {
             event.type === incrementalSnapshotType &&
             event.data.source === styleSheetRuleSource,
         ).length;
+
+        document.adoptedStyleSheets = [];
+        await lifecycle.frame();
+        events.length = 0;
+        sharedSheet.replaceSync('.shared { color: blue }');
+        await lifecycle.frame();
+        const releasedSharedSheetEvents = events.filter(
+          (event) =>
+            event.type === incrementalSnapshotType &&
+            event.data.source === styleSheetRuleSource,
+        ).length;
+
+        events.length = 0;
+        document.adoptedStyleSheets = [sharedSheet];
+        await lifecycle.frame();
+        const reAdoptedDefinitionEvents = events.filter(
+          (event) =>
+            event.type === incrementalSnapshotType &&
+            event.data.source === adoptedStyleSheetSource &&
+            'styles' in event.data &&
+            Array.isArray(event.data.styles) &&
+            event.data.styles.length > 0,
+        ).length;
+        events.length = 0;
+        sharedSheet.replaceSync('.shared { color: orange }');
+        await lifecycle.frame();
+        const reAdoptedRuleEvents = events.filter(
+          (event) =>
+            event.type === incrementalSnapshotType &&
+            event.data.source === styleSheetRuleSource,
+        ).length;
         stop();
 
         return {
@@ -381,11 +464,15 @@ describe('recorder lifecycle', () => {
           oldDocumentRetained,
           oldStyleRetained,
           liveSharedSheetEvents,
+          releasedSharedSheetEvents,
+          reAdoptedDefinitionEvents,
+          reAdoptedRuleEvents,
         } satisfies RemovalResult;
       },
       {
         incrementalSnapshotType: EventType.IncrementalSnapshot,
         styleSheetRuleSource: IncrementalSource.StyleSheetRule,
+        adoptedStyleSheetSource: IncrementalSource.AdoptedStyleSheet,
       },
     );
 
@@ -396,6 +483,9 @@ describe('recorder lifecycle', () => {
         oldDocumentRetained: result.oldDocumentRetained,
         oldStyleRetained: result.oldStyleRetained,
         liveSharedSheetEvents: result.liveSharedSheetEvents,
+        releasedSharedSheetEvents: result.releasedSharedSheetEvents,
+        reAdoptedDefinitionEvents: result.reAdoptedDefinitionEvents,
+        reAdoptedRuleEvents: result.reAdoptedRuleEvents,
       }),
     );
     expect(result.oldDocumentId).toBeGreaterThan(0);
@@ -404,6 +494,9 @@ describe('recorder lifecycle', () => {
     expect(result.oldDocumentRetained).toBe(false);
     expect(result.oldStyleRetained).toBe(false);
     expect(result.liveSharedSheetEvents).toBe(1);
+    expect(result.releasedSharedSheetEvents).toBe(0);
+    expect(result.reAdoptedDefinitionEvents).toBe(1);
+    expect(result.reAdoptedRuleEvents).toBe(1);
   }, 30_000);
 
   it('replaces iframe observer generations on navigation and releases the removed generation', async () => {
@@ -445,6 +538,16 @@ describe('recorder lifecycle', () => {
       if (!stop) throw new Error('record() did not start');
       await lifecycle.frame();
       await lifecycle.frame();
+
+      events.length = 0;
+      const firstWindow = firstDocument.defaultView!;
+      firstWindow.dispatchEvent(new firstWindow.Event('pagehide'));
+      firstParagraph.textContent = 'stale-before-replacement';
+      firstSheet.insertRule('p { outline: 1px solid black }', 0);
+      await lifecycle.frame();
+      const pagehideGenerationEvents = events.length;
+      const oldDocumentRetainedAfterPagehide =
+        rrweb.record.mirror.hasNode(firstDocument);
 
       iframe.srcdoc =
         '<!doctype html><style>p{color:blue}</style><p>second</p>';
@@ -488,15 +591,19 @@ describe('recorder lifecycle', () => {
       return {
         baseline,
         final: lifecycle.snapshot(),
+        pagehideGenerationEvents,
         staleGenerationEvents,
         liveGenerationEvents,
         removedGenerationEvents,
         oldDocumentRetainedAfterNavigation,
+        oldDocumentRetainedAfterPagehide,
         liveDocumentRecorded,
         removedDocumentRetained,
       };
     });
 
+    expect(result.pagehideGenerationEvents).toBe(0);
+    expect(result.oldDocumentRetainedAfterPagehide).toBe(false);
     expect(result.staleGenerationEvents).toBe(0);
     expect(result.liveGenerationEvents).toBeGreaterThan(0);
     expect(result.removedGenerationEvents).toBe(0);
@@ -588,23 +695,37 @@ describe('recorder lifecycle', () => {
       const rrweb = (
         window as unknown as {
           rrweb: {
-            record(options: {
+            record: ((options: {
               emit(event: eventWithTime): void;
               collectFonts: boolean;
+              recordCanvas: boolean;
+              sampling: { canvas: 'all' };
+              errorHandler(error: unknown): boolean;
               plugins: Array<{
                 name: string;
                 observer(): () => void;
               }>;
-            }): (() => void) | undefined;
+            }) => (() => void) | undefined) & {
+              addCustomEvent(tag: string, payload: unknown): void;
+              mirror: { hasNode(node: Node): boolean };
+            };
           };
         }
       ).rrweb;
       const baseline = lifecycle.snapshot();
       let laterCleanupCount = 0;
       const events: eventWithTime[] = [];
+      const canvas = document.createElement('canvas');
+      document.body.appendChild(canvas);
+      const pendingStylesheet = document.createElement('link');
+      pendingStylesheet.rel = 'stylesheet';
+      document.head.appendChild(pendingStylesheet);
       const stop = rrweb.record({
         emit: (event) => events.push(event),
         collectFonts: true,
+        recordCanvas: true,
+        sampling: { canvas: 'all' },
+        errorHandler: () => true,
         plugins: [
           {
             name: 'throwing-cleanup',
@@ -622,33 +743,64 @@ describe('recorder lifecycle', () => {
       });
       if (!stop) throw new Error('record() did not start');
       await lifecycle.frame();
+      canvas.getContext('2d')!.fillRect(0, 0, 2, 2);
+      const savedWrappedInsertRule = CSSStyleSheet.prototype.insertRule;
       const font = new FontFace(
         'LifecycleCleanup',
         'url(data:font/woff2;base64,d09GMgABAAAAAA)',
       );
       document.fonts.add(font);
+      const trackedCancelAnimationFrame = window.cancelAnimationFrame;
+      let cancelAnimationFrameCalls = 0;
+      window.cancelAnimationFrame = () => {
+        cancelAnimationFrameCalls++;
+        throw new Error('expected cancelAnimationFrame cleanup failure');
+      };
       let stopThrew = false;
       try {
+        stop();
         stop();
       } catch {
         stopThrew = true;
       }
+      window.cancelAnimationFrame = trackedCancelAnimationFrame;
       const eventsAtStop = events.length;
       document.body.appendChild(document.createElement('div'));
       await lifecycle.frame();
+      await lifecycle.frame();
+      let recordingAfterStop = true;
+      try {
+        rrweb.record.addCustomEvent('after-stop', {});
+      } catch {
+        recordingAfterStop = false;
+      }
+      let savedProxyErrorEscaped = false;
+      try {
+        savedWrappedInsertRule.call({} as CSSStyleSheet, 'body {}', 0);
+      } catch {
+        savedProxyErrorEscaped = true;
+      }
       return {
         baseline,
         final: lifecycle.snapshot(),
         stopThrew,
+        cancelAnimationFrameCalls,
         laterCleanupCount,
         eventsAtStop,
         eventsAfterStop: events.length,
+        recordingAfterStop,
+        savedProxyErrorEscaped,
+        mirrorReleased: !rrweb.record.mirror.hasNode(canvas),
       };
     });
 
     expect(result.stopThrew).toBe(false);
+    expect(result.cancelAnimationFrameCalls).toBeGreaterThan(0);
     expect(result.laterCleanupCount).toBe(1);
     expect(result.eventsAfterStop).toBe(result.eventsAtStop);
+    expect(result.recordingAfterStop).toBe(false);
+    expect(result.savedProxyErrorEscaped).toBe(true);
+    expect(result.mirrorReleased).toBe(true);
     expect(result.final).toEqual(result.baseline);
   }, 30_000);
 });

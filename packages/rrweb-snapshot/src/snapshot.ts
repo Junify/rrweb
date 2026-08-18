@@ -372,7 +372,7 @@ function onceStylesheetLoaded(
   link: HTMLLinkElement,
   listener: () => unknown,
   styleSheetLoadTimeout: number,
-) {
+): (() => void) | undefined {
   let fired = false;
   let styleSheetLoaded: StyleSheet | null;
   try {
@@ -383,18 +383,23 @@ function onceStylesheetLoaded(
 
   if (styleSheetLoaded) return;
 
-  const timer = setTimeout(() => {
-    if (!fired) {
-      listener();
-      fired = true;
-    }
-  }, styleSheetLoadTimeout);
-
-  link.addEventListener('load', () => {
-    clearTimeout(timer);
+  let active = true;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const cleanup = () => {
+    if (!active) return;
+    active = false;
+    if (timer !== undefined) clearTimeout(timer);
+    link.removeEventListener('load', onLoad);
+  };
+  const onLoad = () => {
+    if (!active || fired) return;
     fired = true;
+    cleanup();
     listener();
-  });
+  };
+  timer = setTimeout(onLoad, styleSheetLoadTimeout);
+  link.addEventListener('load', onLoad);
+  return cleanup;
 }
 
 function serializeNode(
@@ -982,6 +987,10 @@ export function serializeNodeWithId(
       linkNode: HTMLLinkElement,
       node: serializedElementNodeWithId,
     ) => unknown;
+    onStylesheetLoadObserver?: (
+      linkNode: HTMLLinkElement,
+      cleanup: () => void,
+    ) => unknown;
     stylesheetLoadTimeout?: number;
     cssCaptured?: boolean;
   },
@@ -1007,6 +1016,7 @@ export function serializeNodeWithId(
     onIframeLoadObserver,
     iframeLoadTimeout = 5000,
     onStylesheetLoad,
+    onStylesheetLoadObserver,
     stylesheetLoadTimeout = 5000,
     keepIframeSrcFn = () => false,
     newlyAddedElement = false,
@@ -1120,6 +1130,7 @@ export function serializeNodeWithId(
       onIframeLoadObserver,
       iframeLoadTimeout,
       onStylesheetLoad,
+      onStylesheetLoadObserver,
       stylesheetLoadTimeout,
       keepIframeSrcFn,
       cssCaptured: false,
@@ -1197,6 +1208,7 @@ export function serializeNodeWithId(
             onIframeLoadObserver,
             iframeLoadTimeout,
             onStylesheetLoad,
+            onStylesheetLoadObserver,
             stylesheetLoadTimeout,
             keepIframeSrcFn,
           });
@@ -1224,7 +1236,7 @@ export function serializeNodeWithId(
         typeof serializedNode.attributes.href === 'string' &&
         extractFileExtension(serializedNode.attributes.href) === 'css'))
   ) {
-    onceStylesheetLoaded(
+    const stylesheetLoadCleanup = onceStylesheetLoaded(
       n as HTMLLinkElement,
       () => {
         if (onStylesheetLoad) {
@@ -1251,6 +1263,7 @@ export function serializeNodeWithId(
             onIframeLoadObserver,
             iframeLoadTimeout,
             onStylesheetLoad,
+            onStylesheetLoadObserver,
             stylesheetLoadTimeout,
             keepIframeSrcFn,
           });
@@ -1265,6 +1278,8 @@ export function serializeNodeWithId(
       },
       stylesheetLoadTimeout,
     );
+    if (stylesheetLoadCleanup)
+      onStylesheetLoadObserver?.(n as HTMLLinkElement, stylesheetLoadCleanup);
   }
 
   return serializedNode;
@@ -1301,6 +1316,10 @@ function snapshot(
       linkNode: HTMLLinkElement,
       node: serializedElementNodeWithId,
     ) => unknown;
+    onStylesheetLoadObserver?: (
+      linkNode: HTMLLinkElement,
+      cleanup: () => void,
+    ) => unknown;
     stylesheetLoadTimeout?: number;
     keepIframeSrcFn?: KeepIframeSrcFn;
   },
@@ -1325,6 +1344,7 @@ function snapshot(
     onIframeLoadObserver,
     iframeLoadTimeout,
     onStylesheetLoad,
+    onStylesheetLoadObserver,
     stylesheetLoadTimeout,
     keepIframeSrcFn = () => false,
   } = options || {};
@@ -1378,6 +1398,7 @@ function snapshot(
     onIframeLoadObserver,
     iframeLoadTimeout,
     onStylesheetLoad,
+    onStylesheetLoadObserver,
     stylesheetLoadTimeout,
     keepIframeSrcFn,
     newlyAddedElement: false,
