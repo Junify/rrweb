@@ -31,8 +31,14 @@ function writeStrictCoreTypeConsumer(consumerDirectory: string): void {
     `import { record, Replayer, type eventWithTime, type recordOptions } from '@junify-app/rrweb';
 const recordFunction: (options?: recordOptions<eventWithTime>) => (() => void) | undefined = record;
 const ReplayerConstructor: typeof Replayer = Replayer;
+const explicitMaskInputOptions = {
+  password: true,
+  textarea: true,
+  hidden: true,
+} satisfies NonNullable<Parameters<typeof record>[0]>['maskInputOptions'];
 void recordFunction;
 void ReplayerConstructor;
+void explicitMaskInputOptions;
 `,
   );
   writeFileSync(
@@ -175,7 +181,7 @@ console.log(JSON.stringify({ css, text: readFileSync(css, 'utf8') }));`,
       .split('\n')
       .find((line) =>
         line.startsWith(
-          'node_modules/@junify-app/rrweb/dist/rrweb.d.ts(211,25): error TS2395:',
+          'node_modules/@junify-app/rrweb/dist/rrweb.d.ts(241,25): error TS2395:',
         ),
       );
     if (!boundaryDiagnostic) {
@@ -225,7 +231,7 @@ console.log(JSON.stringify({ css, text: readFileSync(css, 'utf8') }));`,
       rrweb: {
         path: '../rrweb/src/index.ts',
         sha256:
-          'd658f1936dea37ff918907de44f4826a3b9f85e7c745fcc5720883b2234d99fc',
+          'f029716f82f0316a2487cb97de3ac21fbae4f0e76ecbc92fe55f022e7d23a953',
       },
       '@rrweb/types': {
         path: '../types/src/index.ts',
@@ -235,7 +241,7 @@ console.log(JSON.stringify({ css, text: readFileSync(css, 'utf8') }));`,
       '@rrweb/utils': {
         path: '../utils/src/index.ts',
         sha256:
-          '2522fa4d574527384256f977aad627906d7a1a3a7935455fb7fb50550dc30666',
+          '3630d30bce6cb20b41997358be8bc02faa21491ccd7cf5a905967de603d2c8d9',
       },
       rrdom: {
         path: '../rrdom/src/index.ts',

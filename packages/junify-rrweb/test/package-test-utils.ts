@@ -210,13 +210,21 @@ export function assertExactUpstreamDeclarationDiagnostics(
     "Cannot find name 'RRNodeType'. Did you mean the instance member 'this.RRNodeType'?";
   const ambientInitializerMessage =
     "A 'const' initializer in an ambient context must be a string or numeric literal or literal enum reference.";
+  const rrwebDiagnosticLocations =
+    rrwebPackageName === '@junify-app/rrweb'
+      ? [
+          [241, 25],
+          [243, 26],
+          [519, 19],
+        ]
+      : [
+          [211, 25],
+          [213, 26],
+          [464, 19],
+        ];
   const expectedDiagnostics = [
     ...['d.cts', 'd.ts'].flatMap((extension) =>
-      [
-        [211, 25],
-        [213, 26],
-        [464, 19],
-      ].map(
+      rrwebDiagnosticLocations.map(
         ([line, column]) =>
           `${rrwebDeclarationRoot}.${extension}(${line},${column}): error TS2395: ${mergedRecordMessage}`,
       ),
@@ -241,14 +249,18 @@ function assertPinnedUpstreamDeclarationDigests(
   consumerDirectory: string,
   rrwebPackageName: '@junify-app/rrweb' | 'rrweb',
 ): void {
+  const rrwebDeclarationDigest =
+    rrwebPackageName === '@junify-app/rrweb'
+      ? 'c897bca0f949652764072c96557ec90ca44aed2d175a6f964673be214e11e894'
+      : 'c59c5624be860f9b0ff3c6b29c4488e34941e0c2858f7a7e777b48d840513c74';
   const expectedDeclarationDigests = new Map([
     [
       `node_modules/${rrwebPackageName}/dist/rrweb.d.cts`,
-      'c59c5624be860f9b0ff3c6b29c4488e34941e0c2858f7a7e777b48d840513c74',
+      rrwebDeclarationDigest,
     ],
     [
       `node_modules/${rrwebPackageName}/dist/rrweb.d.ts`,
-      'c59c5624be860f9b0ff3c6b29c4488e34941e0c2858f7a7e777b48d840513c74',
+      rrwebDeclarationDigest,
     ],
     [
       'node_modules/rrdom/dist/index.d.cts',
@@ -277,7 +289,7 @@ function assertPinnedUpstreamDeclarationDigests(
   const freshLocalDeclarationDigests = new Map([
     [
       'packages/rrweb/dist/rrweb.d.ts',
-      'c59c5624be860f9b0ff3c6b29c4488e34941e0c2858f7a7e777b48d840513c74',
+      'c897bca0f949652764072c96557ec90ca44aed2d175a6f964673be214e11e894',
     ],
     [
       'packages/rrdom/dist/index.d.ts',

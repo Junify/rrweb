@@ -24,6 +24,7 @@ export type {
   recordOptions,
   ReplayPlugin,
   ImageBitmapDataURLProcessor,
+  MaskInputOptions,
 } from './types';
 export {
   createInlineImageBitmapProcessor,

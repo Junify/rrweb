@@ -31,6 +31,14 @@ count/path drift and an official replay CSS resolution. The previously covered
 `junify.rails.password-rotation-artifact` remains narrow: its synthetic fixture
 still cannot prove alpha producer compatibility or either Monitors pipeline.
 
+Task 3 fix round 2 closes an integration-discovered public declaration gap.
+The exact browser policy literal with `password`, `textarea`, and `hidden`
+failed against the previously packed boundary because its rolled declaration
+resolved the official snapshot type without `hidden`. The packed isolated
+consumer now compiles that literal through `Parameters<typeof record>` while
+the manifest still depends on official `rrweb-snapshot@2.1.1`; no internal
+package is renamed or duplicated.
+
 Task 4 closes `junify.replay.seek-visible-dom`. An unmodified 2.1.1 candidate
 fails both forward and backward cases after casting the target event: public
 time advances past the mutation while the visible iframe stays at

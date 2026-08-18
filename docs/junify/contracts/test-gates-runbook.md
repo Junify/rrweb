@@ -51,6 +51,21 @@ then runs the strict consumer stage. The emitted provenance map contains only
 actually loaded local source paths and SHA-256 digests. Publication remains a
 separate release-gated action.
 
+The strict consumer must include this exact literal contract; assigning an
+extra-property variable instead is not equivalent:
+
+```ts
+const maskInputOptions = {
+  password: true,
+  textarea: true,
+  hidden: true,
+} satisfies NonNullable<Parameters<typeof record>[0]>['maskInputOptions'];
+```
+
+The packed declaration may extend the official `rrweb-snapshot@2.1.1` public
+type locally, but the manifest, tarball, imports, and dependencies must not add
+or rename a Junify snapshot package.
+
 ### `G-PKG-PLAYER`
 
 ```sh

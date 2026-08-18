@@ -59,10 +59,16 @@ the upstream fixed changeset group. Publication remains release-gated.
   Turbo prepublish path, whose root reference update modified unrelated plugin
   tsconfigs. Fresh boundary builds leave those files and generated Svelte
   ambient declarations clean.
-- Artifact census: core has 19 files, 1,319,872 packed bytes, SHA-256
-  `a0f8f5115ad12077bc88daa292c89813ca5443878bc76ed8bb41d21d98f32fbd`;
-  player has 18 files, 1,431,304 packed bytes, SHA-256
-  `fc65cecb98202d6cfffeec8ee79ec04a0376d3694b2a7ed7b0efca51bbf74085`.
+- Public privacy type boundary: the exact browser policy literal with
+  `password`, `textarea`, and `hidden` compiles from the packed `record()`
+  parameter. The public rrweb type intersects official
+  `rrweb-snapshot@2.1.1` with `hidden?: boolean`; no internal package is renamed
+  or duplicated, and runtime/wire behavior is unchanged.
+- Current artifact census after the retained patch stack: core has 19 files,
+  1,422,347 packed bytes, SHA-256
+  `cb3d29c6d7552710a5fa377a8e68ba7e7d5930ba80e4df25a24873efe737a7a3`;
+  player has 18 files, 1,454,910 packed bytes, SHA-256
+  `b317a39f16ce786aeabe70aa107195643c2e4602b094bbc896cc3a658f7f6a23`.
 - Residual upstream declaration blocker: a no-`skipLibCheck` diagnostic pass
   must exactly match pinned upstream 2.1.1 path/code/line/column/message tuples,
   occurrence counts, and fresh declaration digests. Collected same-code and

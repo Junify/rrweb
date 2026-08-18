@@ -1,6 +1,6 @@
 import type {
   Mirror,
-  MaskInputOptions,
+  MaskInputOptions as SnapshotMaskInputOptions,
   SlimDOMOptions,
   MaskInputFn,
   MaskTextFn,
@@ -47,6 +47,10 @@ export type ImageBitmapDataURLProcessor = ((
   params: ImageBitmapDataURLWorkerParams,
 ) => Promise<ImageBitmapDataURLWorkerResponse>) & {
   dispose?: () => void;
+};
+
+export type MaskInputOptions = SnapshotMaskInputOptions & {
+  hidden?: boolean;
 };
 
 export type recordOptions<T> = {
