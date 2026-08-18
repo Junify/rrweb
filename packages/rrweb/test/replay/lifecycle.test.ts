@@ -790,10 +790,16 @@ describe('replayer lifecycle', () => {
 
   it('contains cleanup and lifecycle-listener exceptions while finishing teardown', async () => {
     const result = await page.evaluate(
-      ({ events, destroyEvent, pauseEvent }) => {
+      async ({ events, destroyEvent, pauseEvent }) => {
         type ReplayerInternals = {
           wrapper: HTMLDivElement;
-          timer: { isActive(): boolean };
+          timer: {
+            actions: unknown[];
+            addAction(action: { delay: number; doAction(): void }): void;
+            clear(): void;
+            isActive(): boolean;
+            start(): void;
+          };
           service: { status: number };
           speedService: { status: number };
           emitter: { all: Map<string, unknown[]> };
@@ -833,12 +839,26 @@ describe('replayer lifecycle', () => {
           throw new Error('expected media cleanup failure');
         };
         replayer.imageMap.set('retained-image', new Image());
+        let lateTimerActions = 0;
+        replayer.timer.clear();
+        replayer.timer.addAction({
+          delay: 0,
+          doAction: () => lateTimerActions++,
+        });
+        replayer.timer.start();
+        const nativeCancelAnimationFrame = window.cancelAnimationFrame;
+        window.cancelAnimationFrame = () => {
+          throw new Error('expected RAF cleanup failure');
+        };
         let destroyThrew = false;
         try {
           replayer.destroy();
         } catch {
           destroyThrew = true;
+        } finally {
+          window.cancelAnimationFrame = nativeCancelAnimationFrame;
         }
+        await new Promise((resolve) => setTimeout(resolve, 50));
         const emitterHandlers = Array.from(
           replayer.emitter.all.values(),
         ).reduce((total, handlers) => total + handlers.length, 0);
@@ -847,6 +867,8 @@ describe('replayer lifecycle', () => {
           destroyEvents,
           wrapperAttached: replayer.wrapper.isConnected,
           timerActive: replayer.timer.isActive(),
+          timerActions: replayer.timer.actions.length,
+          lateTimerActions,
           serviceStatus: replayer.service.status,
           speedServiceStatus: replayer.speedService.status,
           emitterHandlers,
@@ -865,6 +887,8 @@ describe('replayer lifecycle', () => {
       destroyEvents: 1,
       wrapperAttached: false,
       timerActive: false,
+      timerActions: 0,
+      lateTimerActions: 0,
       serviceStatus: 2,
       speedServiceStatus: 2,
       emitterHandlers: 0,
