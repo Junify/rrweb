@@ -179,6 +179,13 @@ export class Replayer {
   // Similar to the reason for constructedStyleMutations.
   private adoptedStyleSheets: adoptedStyleSheetData[] = [];
 
+  private destroyed = false;
+  private emitterHandlers: Array<{ event: string; handler: Handler }> = [];
+  private serviceSubscription?: { unsubscribe(): void };
+  private speedServiceSubscription?: { unsubscribe(): void };
+  private timeouts = new Set<ReturnType<typeof setTimeout>>();
+  private pendingStyleSheetLoads = new Set<() => void>();
+
   // Fall back to real DOM mutations for the next synchronous catch-up so an
   // explicit seek cannot leave the live mirror pointing at stale nodes.
   private disableVirtualDomForNextSync = false;
@@ -214,7 +221,7 @@ export class Replayer {
     this.handleResize = this.handleResize.bind(this);
     this.getCastFn = this.getCastFn.bind(this);
     this.applyEventsSynchronously = this.applyEventsSynchronously.bind(this);
-    this.emitter.on(ReplayerEvents.Resize, this.handleResize as Handler);
+    this.addEmitterHandler(ReplayerEvents.Resize, this.handleResize as Handler);
 
     this.setupDom();
 
@@ -225,7 +232,7 @@ export class Replayer {
       if (plugin.getMirror) plugin.getMirror({ nodeMirror: this.mirror });
     }
 
-    this.emitter.on(ReplayerEvents.Flush, () => {
+    this.addEmitterHandler(ReplayerEvents.Flush, () => {
       if (this.usingVirtualDom) {
         const replayerHandler: ReplayerHandler = {
           mirror: this.mirror,
@@ -340,7 +347,7 @@ export class Replayer {
         this.lastSelectionData = null;
       }
     });
-    this.emitter.on(ReplayerEvents.PlayBack, () => {
+    this.addEmitterHandler(ReplayerEvents.PlayBack, () => {
       this.firstFullSnapshot = null;
       this.mirror.reset();
       this.styleMirror.reset();
@@ -372,7 +379,7 @@ export class Replayer {
       },
     );
     this.service.start();
-    this.service.subscribe((state) => {
+    this.serviceSubscription = this.service.subscribe((state) => {
       this.emitter.emit(ReplayerEvents.StateChange, {
         player: state,
       });
@@ -382,7 +389,7 @@ export class Replayer {
       timer,
     });
     this.speedService.start();
-    this.speedService.subscribe((state) => {
+    this.speedServiceSubscription = this.speedService.subscribe((state) => {
       this.emitter.emit(ReplayerEvents.StateChange, {
         speed: state,
       });
@@ -405,7 +412,7 @@ export class Replayer {
     );
     if (firstMeta) {
       const { width, height } = firstMeta.data as metaEvent['data'];
-      setTimeout(() => {
+      this.addTimeout(() => {
         this.emitter.emit(ReplayerEvents.Resize, {
           width,
           height,
@@ -413,7 +420,7 @@ export class Replayer {
       }, 0);
     }
     if (firstFullsnapshot) {
-      setTimeout(() => {
+      this.addTimeout(() => {
         // when something has been played, there is no need to rebuild poster
         if (this.firstFullSnapshot) {
           // true if any other fullSnapshot has been executed by Timer already
@@ -433,7 +440,47 @@ export class Replayer {
     }
   }
 
+  private addEmitterHandler(event: string, handler: Handler) {
+    this.emitter.on(event, handler);
+    this.emitterHandlers.push({ event, handler });
+  }
+
+  private removeEmitterHandler(event: string, handler: Handler) {
+    this.emitter.off(event, handler);
+    this.emitterHandlers = this.emitterHandlers.filter(
+      (entry) => entry.event !== event || entry.handler !== handler,
+    );
+  }
+
+  private addTimeout(callback: () => void, delay: number) {
+    if (this.destroyed) return null;
+    const timeout = setTimeout(() => {
+      this.timeouts.delete(timeout);
+      if (!this.destroyed) callback();
+    }, delay);
+    this.timeouts.add(timeout);
+    return timeout;
+  }
+
+  private clearTimeout(timeout: ReturnType<typeof setTimeout> | null) {
+    if (timeout === null) return;
+    clearTimeout(timeout);
+    this.timeouts.delete(timeout);
+  }
+
+  private clearPendingStyleSheetLoads() {
+    for (const dispose of Array.from(this.pendingStyleSheetLoads)) {
+      try {
+        dispose();
+      } catch {
+        // Continue releasing the rest of the pending stylesheet resources.
+      }
+    }
+    this.pendingStyleSheetLoads.clear();
+  }
+
   public on(event: string, handler: Handler) {
+    if (this.destroyed) return this;
     this.emitter.on(event, handler);
     return this;
   }
@@ -444,6 +491,7 @@ export class Replayer {
   }
 
   public setConfig(config: Partial<playerConfig>) {
+    if (this.destroyed) return;
     Object.keys(config).forEach((key) => {
       const newConfigValue = config[key as keyof playerConfig];
       (this.config as Record<keyof playerConfig, typeof newConfigValue>)[
@@ -524,6 +572,7 @@ export class Replayer {
    * @param timeOffset - number
    */
   public play(timeOffset = 0) {
+    if (this.destroyed) return;
     if (this.config.useVirtualDom && timeOffset !== this.getCurrentTime()) {
       this.disableVirtualDomForNextSync = true;
     }
@@ -540,6 +589,7 @@ export class Replayer {
   }
 
   public pause(timeOffset?: number) {
+    if (this.destroyed) return;
     if (timeOffset === undefined && this.service.state.matches('playing')) {
       this.service.send({ type: 'PAUSE' });
     }
@@ -554,6 +604,7 @@ export class Replayer {
   }
 
   public resume(timeOffset = 0) {
+    if (this.destroyed) return;
     this.warn(
       `The 'resume' was deprecated in 1.0. Please use 'play' method which has the same interface.`,
     );
@@ -566,28 +617,91 @@ export class Replayer {
    * Memory occupation can be released by removing all references to this replayer.
    */
   public destroy() {
-    this.pause();
-    this.mirror.reset();
-    this.styleMirror.reset();
-    this.mediaManager.reset();
-    this.config.root.removeChild(this.wrapper);
-    this.emitter.emit(ReplayerEvents.Destroy);
+    if (this.destroyed) return;
+    this.destroyed = true;
+
+    const cleanup = (operation: () => void) => {
+      try {
+        operation();
+      } catch {
+        // A consumer callback or one broken resource must not retain the rest
+        // of an irreversible replayer teardown.
+      }
+    };
+
+    cleanup(() => this.service.send({ type: 'PAUSE' }));
+    cleanup(() => this.timer.clear());
+    cleanup(() => {
+      this.iframe.contentDocument
+        ?.getElementsByTagName('html')[0]
+        ?.classList.add('rrweb-paused');
+    });
+    cleanup(() => this.emitter.emit(ReplayerEvents.Pause));
+
+    this.clearPendingStyleSheetLoads();
+    for (const timeout of this.timeouts) cleanup(() => clearTimeout(timeout));
+    this.timeouts.clear();
+
+    cleanup(() => this.mediaManager.destroy());
+    cleanup(() => this.serviceSubscription?.unsubscribe());
+    cleanup(() => this.speedServiceSubscription?.unsubscribe());
+    this.serviceSubscription = undefined;
+    this.speedServiceSubscription = undefined;
+    cleanup(() => this.service.stop());
+    cleanup(() => this.speedService.stop());
+
+    for (const { event, handler } of this.emitterHandlers)
+      cleanup(() => this.emitter.off(event, handler));
+    this.emitterHandlers = [];
+
+    cleanup(() => this.mirror.reset());
+    cleanup(() => this.styleMirror.reset());
+    cleanup(() => this.virtualDom.destroyTree());
+    cleanup(() => this.resetCache());
+    this.imageMap.clear();
+    this.canvasEventMap.clear();
+    this.legacy_missingNodeRetryMap = {};
+    this.newDocumentQueue = [];
+    this.constructedStyleMutations = [];
+    this.adoptedStyleSheets = [];
+    this.tailPositions = [];
+    this.mousePos = null;
+    this.touchActive = null;
+    this.lastMouseDownEvent = null;
+    this.lastSelectionData = null;
+    this.firstFullSnapshot = null;
+
+    cleanup(() => this.wrapper.parentNode?.removeChild(this.wrapper));
+    try {
+      this.emitter.emit(ReplayerEvents.Destroy);
+    } catch {
+      // Destroy is still delivered before external listener release. A
+      // throwing listener cannot retain the remaining listeners.
+    } finally {
+      const clearableEmitter = this.emitter as Emitter & {
+        all?: Map<unknown, unknown>;
+      };
+      clearableEmitter.all?.clear();
+    }
   }
 
   public startLive(baselineTime?: number) {
+    if (this.destroyed) return;
     this.service.send({ type: 'TO_LIVE', payload: { baselineTime } });
   }
 
   public addEvent(rawEvent: eventWithTime | string) {
+    if (this.destroyed) return;
     const event = this.config.unpackFn
       ? this.config.unpackFn(rawEvent as string)
       : (rawEvent as eventWithTime);
     if (indicatesTouchDevice(event)) {
       this.mouse.classList.add('touch-device');
     }
-    void Promise.resolve().then(() =>
-      this.service.send({ type: 'ADD_EVENT', payload: { event } }),
-    );
+    void Promise.resolve().then(() => {
+      if (!this.destroyed)
+        this.service.send({ type: 'ADD_EVENT', payload: { event } });
+    });
   }
 
   public enableInteract() {
@@ -767,6 +881,7 @@ export class Replayer {
       default:
     }
     const wrappedCastFn = () => {
+      if (this.destroyed) return;
       if (castFn) {
         castFn();
       }
@@ -801,7 +916,7 @@ export class Replayer {
           // extend finish event if the last event is a mouse move so that the timer isn't stopped by the service before checking the last event
           finishBuffer += Math.max(0, -event.data.positions[0].timeOffset);
         }
-        setTimeout(finish, finishBuffer);
+        this.addTimeout(finish, finishBuffer);
       }
 
       this.emitter.emit(ReplayerEvents.EventCast, event);
@@ -1010,39 +1125,54 @@ export class Replayer {
    * pause when loading style sheet, resume when loaded all timeout exceed
    */
   private waitForStylesheetLoad() {
+    this.clearPendingStyleSheetLoads();
     const head = this.iframe.contentDocument?.head;
     if (head) {
       const unloadSheets: Set<HTMLLinkElement> = new Set();
-      let timer: ReturnType<typeof setTimeout> | -1;
+      const loadHandlers = new Map<HTMLLinkElement, () => void>();
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let disposed = false;
       let beforeLoadState = this.service.state;
       const stateHandler = () => {
         beforeLoadState = this.service.state;
       };
-      this.emitter.on(ReplayerEvents.Start, stateHandler);
-      this.emitter.on(ReplayerEvents.Pause, stateHandler);
-      const unsubscribe = () => {
-        this.emitter.off(ReplayerEvents.Start, stateHandler);
-        this.emitter.off(ReplayerEvents.Pause, stateHandler);
+      const dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        for (const [stylesheet, handler] of loadHandlers) {
+          stylesheet.removeEventListener('load', handler);
+        }
+        loadHandlers.clear();
+        unloadSheets.clear();
+        this.removeEmitterHandler(ReplayerEvents.Start, stateHandler);
+        this.removeEmitterHandler(ReplayerEvents.Pause, stateHandler);
+        this.clearTimeout(timer);
+        timer = null;
+        this.pendingStyleSheetLoads.delete(dispose);
       };
+      const finish = (emitLoadEnd: boolean) => {
+        if (disposed) return;
+        const shouldResume = beforeLoadState.matches('playing');
+        dispose();
+        if (this.destroyed) return;
+        if (shouldResume) this.play(this.getCurrentTime());
+        if (emitLoadEnd) this.emitter.emit(ReplayerEvents.LoadStylesheetEnd);
+      };
+
+      this.addEmitterHandler(ReplayerEvents.Start, stateHandler);
+      this.addEmitterHandler(ReplayerEvents.Pause, stateHandler);
+      this.pendingStyleSheetLoads.add(dispose);
       head
         .querySelectorAll('link[rel="stylesheet"]')
         .forEach((css: HTMLLinkElement) => {
           if (!css.sheet) {
             unloadSheets.add(css);
-            css.addEventListener('load', () => {
+            const onLoad = () => {
               unloadSheets.delete(css);
-              // all loaded and timer not released yet
-              if (unloadSheets.size === 0 && timer !== -1) {
-                if (beforeLoadState.matches('playing')) {
-                  this.play(this.getCurrentTime());
-                }
-                this.emitter.emit(ReplayerEvents.LoadStylesheetEnd);
-                if (timer) {
-                  clearTimeout(timer);
-                }
-                unsubscribe();
-              }
-            });
+              if (unloadSheets.size === 0) finish(true);
+            };
+            loadHandlers.set(css, onLoad);
+            css.addEventListener('load', onLoad);
           }
         });
 
@@ -1050,14 +1180,9 @@ export class Replayer {
         // find some unload sheets after iterate
         this.service.send({ type: 'PAUSE' });
         this.emitter.emit(ReplayerEvents.LoadStylesheetStart);
-        timer = setTimeout(() => {
-          if (beforeLoadState.matches('playing')) {
-            this.play(this.getCurrentTime());
-          }
-          // mark timer was called
-          timer = -1;
-          unsubscribe();
-        }, this.config.loadTimeout);
+        timer = this.addTimeout(() => finish(false), this.config.loadTimeout);
+      } else {
+        dispose();
       }
     }
   }
@@ -1114,13 +1239,13 @@ export class Replayer {
             return { ...c, args };
           }),
         );
-        if (status.isUnchanged === false)
+        if (!this.destroyed && status.isUnchanged === false)
           this.canvasEventMap.set(event, { ...data, commands });
       } else {
         const args = await Promise.all(
           data.args.map(deserializeArg(this.imageMap, null, status)),
         );
-        if (status.isUnchanged === false)
+        if (!this.destroyed && status.isUnchanged === false)
           this.canvasEventMap.set(event, { ...data, args });
       }
     }
@@ -2158,7 +2283,7 @@ export class Replayer {
        * This retry mechanism can help resolve this situation.
        */
       if (stylesToAdopt.length !== styleIds.length && count < MAX_RETRY_TIME) {
-        setTimeout(
+        this.addTimeout(
           () => adoptStyleSheets(targetHost, styleIds),
           0 + 100 * count,
         );
@@ -2254,7 +2379,7 @@ export class Replayer {
 
     this.tailPositions.push(position);
     draw();
-    setTimeout(() => {
+    this.addTimeout(() => {
       this.tailPositions = this.tailPositions.filter((p) => p !== position);
       draw();
     }, duration / this.speedService.state.context.timer.speed);
