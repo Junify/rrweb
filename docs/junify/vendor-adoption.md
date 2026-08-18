@@ -41,14 +41,32 @@ source reference when the coordinator census did not provide a commit object.
 | P1 | general attribute masking callback: rrweb open PR 1257, `74819490`; Sentry PR 107 | no | `defer` | only add an API if narrow placeholder/sensitive policies leave an evidenced attribute leak | Task 6's narrow `G-PRIVACY` cases leave no such leak, so no public API is added | no patch exists; if later adapted, remove once upstream API semantics and Junify sentinel agree |
 | P0 | always-sensitive autocomplete handling: Sentry PR 166, `432fe1f9` | no | `adapt` | values associated with sensitive autocomplete tokens are absent from persisted payloads even with an identity mask function | Task 6 plus fix round 1 cover compound/mixed-case tokens and both autocomplete-removal/value orders with exact `null` removal; ledger `PRIV-003`; Task 9 storage/V1/V2 residual | delete when upstream stable passes the same autocomplete sentinel matrix |
 | P0 | same-batch and pre-observer-flush dynamic password masking: Task 6 differential against upstream 2.1.1 | no | `adapt` | both same-batch type/value mutation orders plus assigned/unassigned temporary password Input through the type property or setAttribute/removeAttribute remain masked before observer flush, without stale or post-stop masking afterward | Task 6 plus fix rounds 1-3 package-local `G-PRIVACY`; ledger `PRIV-004`; Task 9 storage/V1/V2 residual | upstream correctness candidate; delete when upstream stable passes all focused lifecycle and method-hook partitions without the patch |
-| P1 | recorder cleanup train: PostHog PRs 91, 94, 142, 157, 159, 162, 163 | no/incomplete | `adapt` | stop releases observers/maps/RAF/workers and shadow restarts stay live | `G-RECORDER-LIFECYCLE`; ledger `LIFE-REC-001` | evaluate as one train because PR 142 needs follow-up shadow reset fixes; delete only when upstream stable passes full churn gate |
-| P1 | stylesheet/iframe cleanup: Mixpanel PRs 8 and 12; rrweb open PR 1791 | no/incomplete | `adapt` | removed stylesheets/documents/iframes leave no retained mirror/observer state | `G-RECORDER-LIFECYCLE`; ledger `LIFE-REC-001` | adapt bounded cleanup, not an unreviewed recursive walker; delete when upstream stable passes bounded retention gate |
+| P1 | recorder cleanup train: PostHog PRs 91 / `2d29f2b`, 94 / `a2ae149`, 142 / `1b1ab0a`, 157 / `6540468`, 159 / `6c3fc6b`, 162 / `20b53c4`, 163 / `89320d3` | no/incomplete | `adapt` implemented in `9a48eb58` | stop releases observers/maps/RAF/workers and shadow restarts stay live | Task 7 `G-RECORDER-LIFECYCLE` GREEN; ledger `LIFE-REC-001` | retain exact ownership rather than global/shared resets or anonymous handlers; delete only when upstream stable passes the full churn gate |
+| P1 | stylesheet/iframe cleanup: Mixpanel PR 8 / `eebcd63`, PR 12 / `23d0e1f`; rrweb open PR 1791 / `78b1bdd` | no/incomplete | `adapt` implemented in `9a48eb58` | removed stylesheets/documents/iframes leave no retained mirror/observer state | Task 7 `G-RECORDER-LIFECYCLE` GREEN; ledger `LIFE-REC-001` | retain single iterative disposal and host refcounts, not the recursive walkers; delete when upstream stable passes the bounded retention gate |
 | P1 | replayer teardown train: PostHog PRs 92, 121, 122, 123 | no/incomplete | `adapt` | destroy clears timers/subscriptions/pending callbacks/iframe maps/roots | `G-REPLAYER-LIFECYCLE`; ledger `LIFE-REP-001` | delete when upstream stable passes repeated create/play/seek/destroy gate |
 | P1 | reusable OffscreenCanvas: PostHog PR 139, `1124435e` | no | `defer` | allocation reuse is allowed only if long-session evidence proves bounded lifetime and preserved pixels | `G-CANVAS-PIXELS` with allocation/cleanup measurement | no patch exists; if later adapted, delete when upstream provides equivalent bounded implementation |
 | P1 | malformed media-node guard: Mixpanel PR 10, `dfeeb602`; rrweb open PR 1673 | no | `adapt` | malformed accepted legacy artifacts do not abort replay | malformed-media fixture through `G-REPLAYER-LIFECYCLE` and replay matrix; ledger `DEF-001` | delete when upstream stable includes the guard and fixture passes unmodified |
 | P1 | missing style `rules` guard: Sentry PR 162, `0b0e26db` | no | `adapt` | absent/null style rules in accepted legacy artifacts do not abort replay | missing-rules fixture through `G-REPLAYER-LIFECYCLE` and replay matrix; ledger `DEF-002` | delete when upstream stable includes the guard and fixture passes unmodified |
 | P1 | non-destructive WebGL capture: Sentry PR 307, `027138c9` | concept in old Junify Canvas patch, not a complete 2.1.1 contract | `adapt` | recording leaves application WebGL pixels unchanged and closes bitmap resources | `G-CANVAS-PIXELS`; ledger `CANVAS-001` | retain as regression-backed behavior, not a duplicate patch; delete when upstream stable passes Junify pixel/cleanup gate |
 | P0 scope | Datadog browser-sdk experimental compact DOM-mutation encoding: [DataDog/browser-sdk PR 4060](https://github.com/DataDog/browser-sdk/pull/4060) | no; separate wire format and implementation lineage | `reject` | `junify.scope.no-compact-serializer`; rrweb event wire format remains unchanged | `G-NO-COMPACT-SERIALIZER` | separate architecture story only; never revisit as part of this patch stack without a new approved design |
+
+## Task 7 Recorder Lifecycle Adaptation
+
+Task 7 used the vendor train as design evidence, not cherry-pick units.
+PostHog PR 91's global mutation-buffer reset is replaced by recorder-owned
+idempotent disposers. PR 142's observer-local reset of shared Shadow/Canvas
+managers is rejected in light of its PR 162 follow-up; manager lifetime belongs
+to the recorder. PR 157's anonymous `pagehide`/removed-node handlers are
+replaced by exact registered callbacks, and PR 163's realm-sensitive
+`instanceof DOMException` check is adapted to `SecurityError` by name. PR 159's
+WebKit method classification is retained with a consumer refcount so one stop
+cannot invalidate another recorder.
+
+Mixpanel PRs 8/12 and upstream PR 1791 informed the removed-tree behavior, but
+their recursive walkers were not copied. The implementation performs one
+iterative queue traversal, permanently releases mirror metadata, and tracks
+constructed stylesheets by host with shared-sheet refcounts. No cross-origin
+iframe recording or wire-format behavior was added.
 
 ## Documented Non-Candidate Boundaries
 

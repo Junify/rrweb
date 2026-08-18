@@ -45,11 +45,11 @@ cross-repository Canvas row. Unit and real-Chrome gates cover processor
 injection, transfer/fallback/error/timeout/dispose, transparent and unchanged
 suppression, format/dimension changes, bitmap closure, post-stop silence,
 failure containment for injected error/dispose callbacks, non-destructive
-WebGL screenshots, and a JSON-persisted candidate
-Canvas2D/WebGL record-to-replay pixel round trip. The extension's packaged MV3
-worker and long-session/restart cleanup are still observable effects of the two
-contract rows, so production MV3 Task 9 and bounded lifecycle Task 7 evidence
-remain required.
+WebGL screenshots, and a JSON-persisted candidate Canvas2D/WebGL
+record-to-replay pixel round trip. Task 7 separately closes package-local
+long-session/restart cleanup. The extension's packaged MV3 worker remains an
+observable effect of both cross-repository Canvas rows, so production MV3 Task
+9 evidence remains required.
 
 Task 6 closes the package-local privacy gaps without over-promoting the
 cross-repository contract. Authentic stable REDs cover hidden values,
@@ -74,13 +74,26 @@ unrelated normal controls remain visible after classification expires.
 stays `red-known-risk` until Task 9 observes real extension Chrome storage and
 decoded V1/V2 request bodies.
 
+Task 7 closes `junify.lifecycle.recorder-stop` with a real-Chrome source-to-
+sink gate, not WeakRef-only evidence. Unmodified stable grows by two listeners
+and two Canvas RAFs per cycle and emits two late events; after 50 cycles it
+retains 100 listeners and 100 RAFs. The candidate keeps baseline, first, last,
+and final listener/MutationObserver/RAF/timer counts at zero, emits nothing
+after idempotent stop, and keeps dynamic-password literals out of the payload.
+Separate fixtures prove iframe navigation/removal generation disposal,
+iterative permanent mirror/metadata release, shared constructed-stylesheet
+host refcounts, removed-shadow silence plus replacement liveness, cleanup-
+throw containment, and WebKit untainted-MutationObserver stop/restart. The
+packaged MV3 worker remains a Task 9 Canvas boundary; it does not prevent the
+package-local recorder lifecycle row from closing.
+
 ## Status Summary
 
 | Status                      | Count | Meaning here                                                                                                 |
 | --------------------------- | ----: | ------------------------------------------------------------------------------------------------------------ |
-| `covered`                   |     4 | executable boundary evidence exists and its exact gate is recorded                                           |
+| `covered`                   |     5 | executable boundary evidence exists and its exact gate is recorded                                           |
 | `must-cover`                |    11 | important, feasible contract lacks adequate boundary evidence                                                |
-| `red-known-risk`            |     5 | P0/P1 behavior is known to require a fix or stronger proof and is not accepted                               |
+| `red-known-risk`            |     4 | P0/P1 behavior is known to require a fix or stronger proof and is not accepted                               |
 | `out-of-scope`              |     4 | explicit boundary with reason; not silently omitted                                                          |
 | `accepted-current-behavior` |     0 | no surprising behavior was accepted as a permanent contract                                                  |
 | `not-testable-yet`          |     0 | missing future harnesses are feasible work, so they remain `must-cover`/`red-known-risk` with exact blockers |
@@ -92,8 +105,8 @@ Layer counts are non-exclusive.
 | Recommended layer | Total contracts | `covered` | `must-cover` | `red-known-risk` | `out-of-scope` |
 | ----------------- | --------------: | --------: | -----------: | ---------------: | -------------: |
 | static analysis   |               3 |         2 |            0 |                0 |              1 |
-| integration       |              14 |         3 |            6 |                5 |              0 |
-| E2E               |              12 |         1 |            6 |                5 |              0 |
+| integration       |              14 |         4 |            6 |                4 |              0 |
+| E2E               |              12 |         2 |            6 |                4 |              0 |
 | workflow-contract |               4 |         1 |            3 |                0 |              0 |
 | golden/replay     |               6 |         1 |            5 |                0 |              0 |
 
@@ -105,7 +118,8 @@ Layer counts are non-exclusive.
 | P0 compatibility | `junify.compatibility.wire-format`, `junify.compatibility.historical-replay`, `junify.compatibility.candidate-recorder` | provenance-locked real-browser fixtures replayed across both candidate surfaces                                                            |
 | P1 seek (closed) | `junify.replay.seek-visible-dom`                                                                                        | Task 4 authentic RED/GREEN, eight historical candidate seeks, public time/visible DOM, and 13.6 MB CSSOM/timing evidence                   |
 | P1 Canvas        | both `junify.canvas.*` IDs                                                                                              | Task 5 closes local API/fallback/transfer/pixel behavior; packaged MV3 worker and long-session cleanup evidence remain                     |
-| P1 lifecycle     | both `junify.lifecycle.*` IDs                                                                                           | repeated real-browser churn with retained-resource and no-post-stop/destroy assertions                                                     |
+| P1 recorder lifecycle (closed) | `junify.lifecycle.recorder-stop`                                                                                | Task 7 real-Chrome 50-cycle source-to-sink churn, generation/retention sinks, WebKit restart, and cleanup-throw containment                |
+| P1 replayer lifecycle | `junify.lifecycle.replayer-destroy`                                                                                  | repeated real-browser create/play/seek/destroy churn with retained-resource and no-post-destroy assertions                                |
 | P1 transport     | `junify.extension.persistence` and all `junify.transport.*` IDs                                                         | real storage plus decoded V1/V2 parity including oversized UTF-8 fragmentation                                                             |
 | P1 Rails         | Monitors V1/V2 and legacy static IDs                                                                                    | production-shaped browser routes; mocks and README do not qualify                                                                          |
 | build boundary   | both `junify.package-boundary.*` IDs                                                                                    | closed by Task 3 packed-artifact imports/exports, observed local-source provenance, strict declaration gates, and upstream namespace proof |
@@ -123,7 +137,8 @@ Layer counts are non-exclusive.
 | static-player README/build            | intended message protocol and packaging                                                                                                                                                                            | any accepted fixture rendered in a browser                                                                                              |
 | service real recordings               | service pipeline scale and varied rrweb markers                                                                                                                                                                    | producer version, privacy provenance, 13.6 MB CSS, Rails playback                                                                       |
 | Task 2 authenticated fixtures         | loaded UMD-to-registry-tarball integrity, temporary real-browser regeneration, target-ID mutation evidence, marker-terminated SPA/seek-ready/stylesheet sinks, full official 2.1.1 replay, hashes, and 13.6 MB CSS | future Junify candidate recording output, Rails main/static consumers, extension storage/transport/fragmentation, or privacy acceptance |
-| Task 5 local Canvas gates             | injectable factories, worker failure/timeout/dispose, strict fallback, application/replay pixels, temporary JSON persistence, and post-stop silence                                                                | browser_extension packaged-worker execution under real MV3, bridge/Blob URL cleanup, or full repeated-recorder observer lifecycle       |
+| Task 5 local Canvas gates             | injectable factories, worker failure/timeout/dispose, strict fallback, application/replay pixels, temporary JSON persistence, and post-stop silence                                                                | browser_extension packaged-worker execution under real MV3 or bridge/Blob URL cleanup                                                    |
+| Task 7 recorder lifecycle gate        | 50-cycle post-stop silence and exact listener/MO/RAF/timer counts; iframe/shadow/stylesheet/mirror generation release; WebKit stop/restart; throwing cleanup containment                                             | production MV3 packaged-worker execution, extension persistence/transport, or replayer teardown                                          |
 
 ## Privacy Characterization And Local Fixes
 

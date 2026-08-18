@@ -74,6 +74,15 @@ For every row in [`patch-ledger.md`](patch-ledger.md):
    with the exact upstream commit and stable version.
 5. Keep the regression test after deleting a patch.
 
+For `LIFE-REC-001`, require explicit pre/post counts from the real-Chrome
+50-cycle gate, post-stop event silence, iframe/shadow generation liveness and
+silence, constructed-stylesheet host refcounts, permanent mirror metadata
+release, Canvas timer/RAF/worker shutdown, and WebKit stop/restart. WeakRef or
+unit-spy evidence is supplemental only. Do not replace this proof with a blind
+PostHog/Mixpanel cherry-pick: shared manager resets, anonymous handlers,
+realm-sensitive exception checks, and recursive removed-tree walkers remain
+rejected unless a new differential fixture requires them.
+
 Datadog compact serialization remains rejected unless a separate approved
 architecture decision changes the immutable-wire-format contract.
 

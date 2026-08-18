@@ -240,14 +240,28 @@ gzip fixtures are tracked; generation never uses customer data.
 ### `G-RECORDER-LIFECYCLE`
 
 ```sh
-yarn workspace rrweb build
-PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/lifecycle.test.ts test/record.test.ts
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace rrweb build
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/lifecycle.test.ts
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/integration.test.ts
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/webkit-mutation-observer.test.ts
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/canvas-manager.test.ts test/record/canvas.test.ts test/replay/canvas.test.ts test/replayer.test.ts
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace @junify/rrweb-compatibility test -- record-fixtures
 ```
 
-Record iteration count and duration. Assert no events after stop, idempotent
-repeated start/stop, worker/RAF shutdown, observer release, live shadow-root
-restart, and no retained removed iframe/stylesheet/document mirrors. Current
-blocker: `test/record/lifecycle.test.ts` is created in Task 7.
+The authentic stable RED starts at zero tracked resources; cycle 0 retains two
+listeners and two RAFs and emits two late events, while cycle 49 retains 100
+listeners and 100 RAFs. A removed iframe's old sheet emits one stale event and
+its old document remains retained. Task 7 GREEN passes 5/5 in 56.10 seconds:
+all 50 cycles keep listeners/MutationObservers/RAFs/timers at zero after stop,
+events remain unchanged at four, the dynamic-password sentinel is absent, and
+iframe navigation/removal, shadow replacement, stylesheet host refcounts,
+permanent mirror release, Canvas shutdown, and throwing cleanup are observed
+through explicit sinks. The WebKit restart gate passes 1/1 and observes the
+hidden untainted-observer iframe count transition from one while active to zero
+after each stop. Supplemental regression evidence is Canvas/replayer 78/78,
+privacy integration 60/60, compatibility record fixtures 4/4, snapshot 32/32,
+and remaining record suites 86 passed with two pre-existing skips. WeakRef or
+unit-spy evidence alone does not close this gate.
 
 ### `G-REPLAYER-LIFECYCLE`
 

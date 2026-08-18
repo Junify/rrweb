@@ -26,7 +26,7 @@ patch is already present or that coverage is green.
 | `PRIV-002`     | implemented; consumer-gated     | Mask placeholders for masked inputs/textareas, including mutations while preserving removal as `null` (`junify.privacy.persisted-sentinels`)                 | Mixpanel PR 18 / `2a8326d0`                                                                                                                        | Task 6 package-local `G-PRIVACY`; Task 9 storage/V1/V2 residual                                      | absent from 2.1.1                                                                                        | upstream stable provides equivalent placeholder masking and passes the persisted sentinel gate                    |
 | `PRIV-003`     | implemented; consumer-gated     | Always protect values for sensitive autocomplete tokens, even with an identity mask function (`junify.privacy.persisted-sentinels`)                         | Sentry PR 166 / `432fe1f9`                                                                                                                         | Task 6 package-local `G-PRIVACY`; Task 9 storage/V1/V2 residual                                      | absent from 2.1.1                                                                                        | upstream stable provides equivalent sensitive-autocomplete handling and passes the persisted sentinel gate        |
 | `PRIV-004`     | implemented; upstream-candidate | Preserve password masking across same-batch type/value orders and synchronous property/setAttribute/removeAttribute Input before observer flush (`junify.privacy.persisted-sentinels`) | Task 6 differential against upstream 2.1.1                                                                                                         | Task 6 package-local `G-PRIVACY`; Task 9 storage/V1/V2 residual                                      | absent from 2.1.1; suitable for a focused upstream correctness PR                                      | upstream stable passes same-batch and synchronous property/attribute-method fixtures without this patch           |
-| `LIFE-REC-001` | planned                         | Stop must release MutationObserver, iframe, stylesheet, shadow-root, Canvas RAF/worker, and mirror resources (`junify.lifecycle.recorder-stop`)              | PostHog PRs 91, 94, 142, 157, 159, 162, 163 as a coherent train; Mixpanel PRs 8 and 12 / upstream PR 1791 as design references                     | `G-RECORDER-LIFECYCLE`; record churn count/duration/retention assertions                              | coherent cleanup behavior absent/incomplete in 2.1.1; isolated PostHog PR 142 has follow-up shadow fixes | upstream stable passes the full bounded-churn gate without Junify adaptation                                      |
+| `LIFE-REC-001` | implemented; upstream-candidate | Stop must release MutationObserver, iframe, stylesheet, shadow-root, Canvas RAF/worker, and mirror resources (`junify.lifecycle.recorder-stop`)              | PostHog PRs 91 / `2d29f2b`, 94 / `a2ae149`, 142 / `1b1ab0a`, 157 / `6540468`, 159 / `6c3fc6b`, 162 / `20b53c4`, 163 / `89320d3`; Mixpanel PRs 8 / `eebcd63`, 12 / `23d0e1f`; upstream PR 1791 / `78b1bdd` | Task 7 `G-RECORDER-LIFECYCLE`; 50-cycle real-Chrome churn, post-stop source-to-sink silence, generation and retention sinks | coherent behavior absent/incomplete in 2.1.1; implemented in `9a48eb58` without shared resets, anonymous handlers, or recursive walkers | upstream stable passes the complete 50-cycle/generation/retention/WebKit gate without this adaptation             |
 | `LIFE-REP-001` | planned                         | Destroy must release timers, subscriptions, pending callbacks, iframe maps, and roots (`junify.lifecycle.replayer-destroy`)                                  | PostHog PRs 92, 121, 122, 123                                                                                                                      | `G-REPLAYER-LIFECYCLE`; no callback/reference after repeated destroy                                  | 2.1.1 destroy test proves wrapper removal only                                                           | upstream stable passes the complete lifecycle gate without Junify adaptation                                      |
 | `DEF-001`      | planned                         | Malformed legacy media nodes must not abort replay matrix (`junify.compatibility.historical-replay`)                                                         | Mixpanel PR 10 / `dfeeb602`; upstream open PR 1673                                                                                                 | `G-REPLAYER-LIFECYCLE` plus malformed legacy fixture in replay matrix                                 | absent from 2.1.1                                                                                        | upstream stable contains the guard and passes the legacy fixture                                                  |
 | `DEF-002`      | planned                         | Missing/null style `rules` must not abort legacy replay (`junify.compatibility.historical-replay`)                                                           | Sentry PR 162 / `0b0e26db`                                                                                                                         | `G-REPLAYER-LIFECYCLE` plus missing-rules legacy fixture in replay matrix                             | absent from 2.1.1                                                                                        | upstream stable contains the guard and passes the legacy fixture                                                  |
@@ -221,6 +221,45 @@ general attribute-masking callback remains deferred.
   prove absence from real extension Chrome storage and decoded V1/V2 request
   bodies. The cross-repository privacy row therefore remains
   `red-known-risk`.
+
+## Task 7 Recorder Lifecycle Evidence
+
+`LIFE-REC-001` changes recorder resource ownership only. It does not change
+event schema, wire format, package identity, cross-origin iframe policy, or the
+production MV3 worker boundary.
+
+- RED: unmodified 2.1.1 starts from zero tracked listeners,
+  MutationObservers, RAFs, and timers. The first start/stop leaves two
+  listeners and two Canvas RAFs, and late activity grows emitted events from
+  four to six. After 50 cycles it retains 100 listeners and 100 RAFs. Removing
+  an iframe also lets its old stylesheet emit one stale `StyleSheetRule` event
+  and retains the old document.
+- Implementation: `9a48eb58` gives each recorder explicit, idempotent
+  ownership of mutation buffers, listeners, generation observers, timers,
+  Canvas work, shadow roots, stylesheet hosts, and mirror metadata. Disposal
+  is a single iterative queue; shared constructed sheets use host refcounts;
+  every cleanup step contains exceptions so later resources still release.
+- Vendor boundary: PostHog's global/shared resets, anonymous handlers, and
+  realm-sensitive exception test were deliberately not copied. Mixpanel's and
+  upstream PR 1791's recursive removed-tree walkers were replaced by the
+  bounded traversal. Stable's hidden untainted MutationObserver remains
+  refcounted and live across stop/restart.
+- GREEN: the real-Chrome 50-cycle test keeps baseline, first, last, and final
+  listener/MutationObserver/RAF/timer counts at zero, keeps events at four
+  after stop, and stores no dynamic-password sentinel. The complete lifecycle
+  file passes 5/5 in 56.10 seconds, including iframe navigation/removal,
+  shadow replacement, stylesheet refcounts, permanent mirror release, and a
+  throwing cleanup. The WebKit stop/restart fixture passes 1/1. Focused Canvas
+  and replayer suites pass 78/78; rrweb privacy integration passes 60/60;
+  compatibility record fixtures pass 4/4; snapshot passes 32/32; the remaining
+  record suites pass 86 with two pre-existing skips.
+- Upstream plan: offer the externally observable 50-cycle and generation/
+  retention fixtures with focused ownership changes. Preserve the fixture and
+  delete the Junify patch only when an unmodified stable release passes the
+  complete gate; similarly named cleanup commits are insufficient.
+- Residual boundary: Task 9 still proves the production-packed extension MV3
+  worker and transport sinks. Task 8 owns replayer teardown. Neither is part
+  of the recorder lifecycle promotion.
 
 ## Deferred Or Rejected Candidates
 
