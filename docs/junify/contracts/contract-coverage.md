@@ -39,6 +39,19 @@ consumer now compiles that literal through `Parameters<typeof record>` while
 the manifest still depends on official `rrweb-snapshot@2.1.1`; no internal
 package is renamed or duplicated.
 
+Task 3 fix round 3 corrects a package-provenance false green found by Task 11.
+After a clean production build, the player CSS mutation test changed the exact
+18-file package tree from `c9929b76...` to the frozen hybrid `6b8aaaf9...`
+because its `finally` rebuilt only the player under Vitest `NODE_ENV=test`.
+The probe now writes only to an isolated temporary output, excludes unrelated
+declaration generation, and requires byte/content plus metadata equality before
+and after its expected failure. The declared Node 20.9 pipeline performs two
+fresh `NODE_ENV=production` builds and two `npm pack --ignore-scripts` runs for
+both boundaries, rejecting archive SHA-256/SHA-512/size or unpacked census/tree
+drift. The old `e075ed25...`/`c4bd708d...` set is superseded/quarantined; the
+canonical replacements require browser and Rails consumer revalidation. This
+changes packaging evidence only, not runtime, wire format, or public API.
+
 Task 4 closes `junify.replay.seek-visible-dom`. An unmodified 2.1.1 candidate
 fails both forward and backward cases after casting the target event: public
 time advances past the mutation while the visible iframe stays at

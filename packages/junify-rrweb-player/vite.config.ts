@@ -28,7 +28,13 @@ async function generateDts(inputPath: string): Promise<void> {
     libRoot: path.dirname(inputPath),
     svelteShimsPath,
   };
-  await emitDts(dtsConfig);
+  const originalWorkingDirectory = process.cwd();
+  try {
+    process.chdir(upstreamPlayerRoot);
+    await emitDts(dtsConfig);
+  } finally {
+    process.chdir(originalWorkingDirectory);
+  }
 }
 
 function viteSvelteDts(): Plugin {

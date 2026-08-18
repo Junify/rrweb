@@ -82,6 +82,39 @@ patched rrweb source. A collected official-CSS mutation fails the build. The
 entrypoint is upstream `packages/rrweb-player/src/main.ts`; no dead wrapper or
 copied player implementation exists. Publication remains release-gated.
 
+### Canonical boundary artifact gate
+
+Run from the rrweb repository root with a new, empty output directory:
+
+```sh
+export PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH
+yarn test:junify-packaging
+yarn pack:junify-boundaries \
+  --output ../../verification/rrweb-2.1.1/packages-canonical-fix-round3 \
+  --runs 2
+```
+
+The pipeline rejects any runtime other than Node 20.9, forces
+`NODE_ENV=production` for every targeted dependency/boundary build, clears the
+two boundary output trees before each run, and invokes the same local
+`npm pack --ignore-scripts --json` path for core and player. Two consecutive
+archives must match in SHA-256, SHA-512, integrity, byte size, regular-file
+count, file census, and unpacked-tree digest. Archive bytes are mandatory;
+tree-only equality is not sufficient.
+
+The player CSS mutation gate must fail while leaving the exact live 18-file
+content and metadata tree unchanged, including on the expected Vite failure;
+no generated `.svelte.d.ts`, `types`, nested absolute-path, or
+`tsconfig.tsbuildinfo` artifact may remain. Never run `npm pack` after a
+boundary test as an implicit production step.
+
+The old shared `packages/` set is superseded evidence, not a valid candidate:
+core SHA-256 `e075ed25...` used a different pack path, and player SHA-256
+`c4bd708d...` / tree `6b8aaaf9...` is a production/test hybrid. Install only
+the two tarballs named by the new combined manifest, verify their SHA-256,
+SHA-512, file counts, and tree digests, then rerun browser and Rails gates.
+Publication and registry installation remain separate release actions.
+
 ## Compatibility And Replay Gates
 
 ### `G-COMPAT-HISTORICAL`

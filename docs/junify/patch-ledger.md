@@ -59,6 +59,14 @@ the upstream fixed changeset group. Publication remains release-gated.
   Turbo prepublish path, whose root reference update modified unrelated plugin
   tsconfigs. Fresh boundary builds leave those files and generated Svelte
   ambient declarations clean.
+- Canonical packaging: `yarn pack:junify-boundaries --output <new-empty-dir>
+--runs 2` requires Node 20.9, forces `NODE_ENV=production`, starts each run
+  from fresh boundary outputs, and uses `npm pack --ignore-scripts --json` for
+  both packages. It fails closed unless consecutive archive SHA-256, SHA-512,
+  integrity, size, regular-file count, census, and unpacked-tree digests are
+  exact. The CSS provenance mutation is isolated in a temporary outDir and its
+  expected failure must leave the live 18-file player content/metadata tree and
+  generated Svelte declaration census unchanged.
 - Public privacy type boundary: the exact browser policy literal with
   `password`, `textarea`, and `hidden` compiles from the packed `record()`
   parameter. The public rrweb type intersects official
@@ -69,6 +77,12 @@ the upstream fixed changeset group. Publication remains release-gated.
   `cb3d29c6d7552710a5fa377a8e68ba7e7d5930ba80e4df25a24873efe737a7a3`;
   player has 18 files, 1,454,910 packed bytes, SHA-256
   `b317a39f16ce786aeabe70aa107195643c2e4602b094bbc896cc3a658f7f6a23`.
+- Supersession: Task 11's core `e075ed25...` archive used a noncanonical pack
+  path even though its unpacked tree was `b9ff62b0...`; player
+  `c4bd708d...`/`6b8aaaf9...` was the production-dependency/test-player hybrid.
+  Neither belongs to the canonical set. Consumer evidence derived from them is
+  stale until browser and Rails reinstall and rerun against the new combined
+  manifest. No publish, registry install, or consumer edit occurs here.
 - Residual upstream declaration blocker: a no-`skipLibCheck` diagnostic pass
   must exactly match pinned upstream 2.1.1 path/code/line/column/message tuples,
   occurrence counts, and fresh declaration digests. Collected same-code and

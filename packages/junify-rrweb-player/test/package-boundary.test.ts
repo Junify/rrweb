@@ -1,5 +1,14 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+  readdirSync,
+  readFileSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
@@ -23,6 +32,77 @@ const forbiddenRenamedInternals =
 interface PlayerRuntimeExports {
   type: string;
   same: boolean;
+}
+
+interface ArtifactTreeSnapshot {
+  contentDigest: string;
+  metadataDigest: string;
+  regularFileCount: number;
+}
+
+function snapshotArtifactTree(packageDirectory: string): ArtifactTreeSnapshot {
+  const relativeFiles = ['README.md', 'package.json'];
+  for (const artifactDirectory of ['dist', 'umd']) {
+    const visit = (relativeDirectory: string): void => {
+      for (const entry of readdirSync(
+        path.join(packageDirectory, relativeDirectory),
+        { withFileTypes: true },
+      )) {
+        const relativePath = path.posix.join(relativeDirectory, entry.name);
+        if (entry.isDirectory()) visit(relativePath);
+        else if (entry.isFile()) relativeFiles.push(relativePath);
+        else
+          throw new Error(`Unexpected artifact tree member: ${relativePath}`);
+      }
+    };
+    visit(artifactDirectory);
+  }
+
+  const contentCensus: string[] = [];
+  const metadataCensus: string[] = [];
+  for (const relativePath of relativeFiles.sort()) {
+    const filename = path.join(packageDirectory, relativePath);
+    const contents = readFileSync(filename);
+    const stats = statSync(filename, { bigint: true });
+    contentCensus.push(
+      `${createHash('sha256').update(contents).digest('hex')}  ${
+        contents.byteLength
+      }  ${relativePath}`,
+    );
+    metadataCensus.push(
+      `${relativePath}\0${stats.mode}\0${stats.size}\0${stats.mtimeNs}`,
+    );
+  }
+
+  return {
+    contentDigest: createHash('sha256')
+      .update(`${contentCensus.join('\n')}\n`)
+      .digest('hex'),
+    metadataDigest: createHash('sha256')
+      .update(`${metadataCensus.join('\n')}\n`)
+      .digest('hex'),
+    regularFileCount: relativeFiles.length,
+  };
+}
+
+function generatedPlayerBuildArtifacts(): string[] {
+  const sourceRoot = path.join(repositoryRoot, 'packages/rrweb-player');
+  const artifacts: string[] = [];
+  const visit = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const filename = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(filename);
+      else if (
+        entry.isFile() &&
+        (entry.name.endsWith('.svelte.d.ts') ||
+          entry.name === 'tsconfig.tsbuildinfo')
+      ) {
+        artifacts.push(path.relative(repositoryRoot, filename));
+      }
+    }
+  };
+  visit(sourceRoot);
+  return artifacts.sort();
 }
 
 describe('@junify-app/rrweb-player packed boundary', () => {
@@ -239,6 +319,10 @@ void namedConstructor;
       boundaryDirectory,
       `.vite-config-css-provenance-probe-${process.pid}.ts`,
     );
+    const probeDirectory = mkdtempSync(
+      path.join(tmpdir(), 'junify-rrweb-player-css-probe-'),
+    );
+    const probeOutputDirectory = path.join(probeDirectory, 'dist');
     const originalConfig = readFileSync(configPath, 'utf8');
     const localTarget =
       "path.resolve(__dirname, '../rrweb/src/replay/styles/style.css'),";
@@ -249,24 +333,39 @@ void namedConstructor;
       mutationIndex,
     )}path.resolve(__dirname, '../replay/dist/style.css'),${originalConfig.slice(
       mutationIndex + localTarget.length,
-    )}`.replace('      copyCommonJsDeclaration(),\n', '');
+    )}`
+      .replace('      viteSvelteDts(),\n', '')
+      .replace('      copyCommonJsDeclaration(),\n', '');
     const vitePath = path.join(repositoryRoot, 'node_modules/vite/bin/vite.js');
+    const beforeProbe = snapshotArtifactTree(boundaryDirectory);
+    const generatedArtifactsBeforeProbe = generatedPlayerBuildArtifacts();
+    expect(generatedArtifactsBeforeProbe).toEqual([]);
 
     let mutationResult: ReturnType<typeof spawnSync>;
     try {
       writeFileSync(probeConfigPath, mutatedConfig);
       mutationResult = spawnSync(
         process.execPath,
-        [vitePath, 'build', '--config', probeConfigPath],
+        [
+          vitePath,
+          'build',
+          '--config',
+          probeConfigPath,
+          '--outDir',
+          probeOutputDirectory,
+          '--emptyOutDir',
+        ],
         { cwd: boundaryDirectory, encoding: 'utf8' },
       );
     } finally {
       rmSync(probeConfigPath, { force: true });
-      spawnSync(process.execPath, [vitePath, 'build', '--config', configPath], {
-        cwd: boundaryDirectory,
-        encoding: 'utf8',
-      });
+      rmSync(probeDirectory, { recursive: true, force: true });
     }
+
+    expect(snapshotArtifactTree(boundaryDirectory)).toEqual(beforeProbe);
+    expect(generatedPlayerBuildArtifacts()).toEqual(
+      generatedArtifactsBeforeProbe,
+    );
 
     const output = `${String(mutationResult.stdout)}${String(
       mutationResult.stderr,
