@@ -106,8 +106,9 @@ destroy cycles with an explicit pending Timer action, stylesheet load handler,
 media metadata handler, and populated ownership maps. Every post-destroy count
 returns to the zero baseline, both services stop, the wrapper detaches, and
 late callbacks, events, DOM mutations, and a second destroy stay silent. A
-separate cleanup-throw case proves one consumer or media failure cannot prevent
-global teardown. Exact malformed media-node and absent style-rules events also
+separate cleanup-throw case proves consumer, media, and host RAF-cancellation
+failures cannot prevent global teardown or leave a stale Timer action live.
+Exact malformed media-node and absent style-rules events also
 survive a temporary persisted-JSON candidate replay while following valid
 events reach the video and computed-style sinks. Cross-origin attached-iframe
 expansion and schema changes remain excluded.

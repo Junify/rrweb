@@ -289,8 +289,10 @@ nonzero. After destroy, both state machines are stopped; all handlers, maps,
 queues, mirror IDs, listeners, RAFs, timeouts, intervals, and DOM roots are
 zero. Late link/media events, service sends, speed changes, `addEvent`, and a
 second destroy produce no callback, event-count, or DOM-mutation change. A
-separate case injects throwing Pause/Destroy consumers and media cleanup and
-still observes complete finalization.
+separate case injects throwing Pause/Destroy consumers, media cleanup, and host
+`cancelAnimationFrame`. It waits for the uncancelled native RAF and still
+observes zero late actions, inactive/empty Timer state, and complete global
+finalization.
 
 The unmodified 2.1.1 RED retained the Running player/speed services, fifteen
 emitter handlers, image/canvas/new-document maps, media metadata and stylesheet
