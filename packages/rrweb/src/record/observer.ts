@@ -49,7 +49,7 @@ import type {
   selectionCallback,
   customElementCallback,
 } from '@rrweb/types';
-import MutationBuffer from './mutation';
+import MutationBuffer, { transientPasswordInputs } from './mutation';
 import { callbackWrapper } from './error-handler';
 import dom, { mutationObserverCtor } from '@rrweb/utils';
 
@@ -392,7 +392,6 @@ function initInputObserver({
   userTriggeredOnInput,
 }: observerParam): listenerHandler {
   const knownPasswordInputs = new WeakSet<HTMLElement>();
-  const transientPasswordInputs = new WeakSet<HTMLElement>();
   const transientPasswordGenerations = new WeakMap<HTMLElement, number>();
   doc.querySelectorAll('input').forEach((input) => {
     if (getInputType(input) === 'password') knownPasswordInputs.add(input);
@@ -543,25 +542,30 @@ function initInputObserver({
     const setType = (input: HTMLInputElement, value: string) => {
       typeDescriptor.set?.call(input, value);
     };
+    const preserveTransientPasswordType = (
+      input: HTMLInputElement,
+      previousType: string,
+      currentType: string,
+    ) => {
+      if (previousType !== 'password' && currentType !== 'password') return;
+      transientPasswordInputs.add(input);
+      const generation = (transientPasswordGenerations.get(input) || 0) + 1;
+      transientPasswordGenerations.set(input, generation);
+      currentWindow.setTimeout(() => {
+        currentWindow.setTimeout(() => {
+          if (transientPasswordGenerations.get(input) === generation) {
+            transientPasswordInputs.delete(input);
+          }
+        }, 0);
+      }, 0);
+    };
     currentWindow.Object.defineProperty(inputPrototype, 'type', {
       ...typeDescriptor,
       set(this: HTMLInputElement, value: string) {
         const previousType = toLowerCase(getType(this));
         setType(this, value);
         const currentType = toLowerCase(getType(this));
-        if (previousType === 'password' || currentType === 'password') {
-          const input = this as HTMLElement;
-          transientPasswordInputs.add(input);
-          const generation = (transientPasswordGenerations.get(input) || 0) + 1;
-          transientPasswordGenerations.set(input, generation);
-          currentWindow.setTimeout(() => {
-            currentWindow.setTimeout(() => {
-              if (transientPasswordGenerations.get(input) === generation) {
-                transientPasswordInputs.delete(input);
-              }
-            }, 0);
-          }, 0);
-        }
+        preserveTransientPasswordType(this, previousType, currentType);
       },
     });
     handlers.push(() => {
@@ -570,6 +574,70 @@ function initInputObserver({
         'type',
         typeDescriptor,
       );
+    });
+
+    const elementPrototype = currentWindow.Element.prototype;
+    const setAttribute = currentWindow.Object.getOwnPropertyDescriptor(
+      elementPrototype,
+      'setAttribute',
+    )?.value as typeof elementPrototype.setAttribute;
+    const removeAttribute = currentWindow.Object.getOwnPropertyDescriptor(
+      elementPrototype,
+      'removeAttribute',
+    )?.value as typeof elementPrototype.removeAttribute;
+    const setAttributeProxy = new Proxy(setAttribute, {
+      apply(
+        target: typeof setAttribute,
+        thisArg: Element,
+        argumentsList: [qualifiedName: string, value: string],
+      ) {
+        if (
+          !(thisArg instanceof currentWindow.HTMLInputElement) ||
+          toLowerCase(String(argumentsList[0])) !== 'type'
+        ) {
+          return target.apply(thisArg, argumentsList);
+        }
+        const previousType = toLowerCase(getType(thisArg));
+        const result = target.apply(thisArg, argumentsList);
+        preserveTransientPasswordType(
+          thisArg,
+          previousType,
+          toLowerCase(getType(thisArg)),
+        );
+        return result;
+      },
+    });
+    const removeAttributeProxy = new Proxy(removeAttribute, {
+      apply(
+        target: typeof removeAttribute,
+        thisArg: Element,
+        argumentsList: [qualifiedName: string],
+      ) {
+        if (
+          !(thisArg instanceof currentWindow.HTMLInputElement) ||
+          toLowerCase(String(argumentsList[0])) !== 'type'
+        ) {
+          return target.apply(thisArg, argumentsList);
+        }
+        const previousType = toLowerCase(getType(thisArg));
+        const result = target.apply(thisArg, argumentsList);
+        preserveTransientPasswordType(
+          thisArg,
+          previousType,
+          toLowerCase(getType(thisArg)),
+        );
+        return result;
+      },
+    });
+    elementPrototype.setAttribute = setAttributeProxy;
+    elementPrototype.removeAttribute = removeAttributeProxy;
+    handlers.push(() => {
+      if (elementPrototype.setAttribute === setAttributeProxy) {
+        elementPrototype.setAttribute = setAttribute;
+      }
+      if (elementPrototype.removeAttribute === removeAttributeProxy) {
+        elementPrototype.removeAttribute = removeAttribute;
+      }
     });
   }
   return callbackWrapper(() => {

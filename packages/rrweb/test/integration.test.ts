@@ -693,6 +693,308 @@ describe('record integration tests', function (this: ISuite) {
     );
   });
 
+  it('masks pre-flush Input events for password attribute methods without stale masking', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const addedSetSecret = 'attribute-added-set-password-secret-001';
+    const addedRemoveSecret = 'attribute-added-remove-password-secret-0002';
+    const assignedSetSecret = 'attribute-assigned-set-password-secret-00003';
+    const assignedRemoveSecret =
+      'attribute-assigned-remove-password-secret-000004';
+    const visibleValues = {
+      addedSet: 'attribute-added-set-visible-after-batch-0000005',
+      addedRemove: 'attribute-added-remove-visible-after-batch-00000006',
+      assignedSet: 'attribute-assigned-set-visible-after-batch-000000007',
+      assignedRemove:
+        'attribute-assigned-remove-visible-after-batch-0000000008',
+      ordinary: 'attribute-method-ordinary-control-visible-00000000009',
+    };
+    await page.setContent(`<!doctype html><html><body>
+      <input id="attribute-assigned-set" type="text" value="">
+      <input id="attribute-assigned-remove" type="text" value="">
+      <input id="attribute-method-control" type="text" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { password: true },
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({
+        addedSetSecret,
+        addedRemoveSecret,
+        assignedSetSecret,
+        assignedRemoveSecret,
+      }) => {
+        const addedSet = document.createElement('input');
+        addedSet.id = 'attribute-added-set';
+        document.body.append(addedSet);
+        addedSet.setAttribute('type', 'password');
+        addedSet.setAttribute('type', 'text');
+        addedSet.value = addedSetSecret;
+        addedSet.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const addedRemove = document.createElement('input');
+        addedRemove.id = 'attribute-added-remove';
+        document.body.append(addedRemove);
+        addedRemove.setAttribute('type', 'password');
+        addedRemove.removeAttribute('type');
+        addedRemove.value = addedRemoveSecret;
+        addedRemove.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const assignedSet = document.querySelector(
+          '#attribute-assigned-set',
+        ) as HTMLInputElement;
+        assignedSet.setAttribute('type', 'password');
+        assignedSet.setAttribute('type', 'text');
+        assignedSet.value = assignedSetSecret;
+        assignedSet.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const assignedRemove = document.querySelector(
+          '#attribute-assigned-remove',
+        ) as HTMLInputElement;
+        assignedRemove.setAttribute('type', 'password');
+        assignedRemove.removeAttribute('type');
+        assignedRemove.value = assignedRemoveSecret;
+        assignedRemove.dispatchEvent(new Event('input', { bubbles: true }));
+      },
+      {
+        addedSetSecret,
+        addedRemoveSecret,
+        assignedSetSecret,
+        assignedRemoveSecret,
+      },
+    );
+    await waitForRAF(page);
+
+    await page.evaluate((visibleValues) => {
+      const values = [
+        ['#attribute-added-set', visibleValues.addedSet],
+        ['#attribute-added-remove', visibleValues.addedRemove],
+        ['#attribute-assigned-set', visibleValues.assignedSet],
+        ['#attribute-assigned-remove', visibleValues.assignedRemove],
+      ] as const;
+      values.forEach(([selector, value]) => {
+        const input = document.querySelector(selector) as HTMLInputElement;
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      const ordinary = document.querySelector(
+        '#attribute-method-control',
+      ) as HTMLInputElement;
+      ordinary.setAttribute('data-privacy-control', 'unchanged');
+      ordinary.setAttribute('type', 'email');
+      ordinary.value = visibleValues.ordinary;
+      ordinary.dispatchEvent(new Event('input', { bubbles: true }));
+    }, visibleValues);
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullSnapshot = events.find(
+      (event) => event.type === EventType.FullSnapshot,
+    );
+    expect(fullSnapshot?.type).toBe(EventType.FullSnapshot);
+    const ids = new Map<string, number>();
+    if (fullSnapshot?.type === EventType.FullSnapshot) {
+      visitSnapshot(fullSnapshot.data.node, (node) => {
+        if (
+          node.type === NodeType.Element &&
+          typeof node.attributes.id === 'string'
+        ) {
+          ids.set(node.attributes.id, node.id);
+        }
+      });
+    }
+    events.forEach((event) => {
+      if (
+        event.type !== EventType.IncrementalSnapshot ||
+        event.data.source !== IncrementalSource.Mutation
+      ) {
+        return;
+      }
+      event.data.adds.forEach((add) => {
+        visitSnapshot(add.node, (node) => {
+          if (
+            node.type === NodeType.Element &&
+            typeof node.attributes.id === 'string'
+          ) {
+            ids.set(node.attributes.id, node.id);
+          }
+        });
+      });
+    });
+    const inputEvents = events.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        event.data.source === IncrementalSource.Input,
+    );
+    const hasInput = (id: number, text: string) =>
+      inputEvents.some(
+        (event) => event.data.id === id && event.data.text === text,
+      );
+    expect.soft(hasInput(-1, '*'.repeat(addedSetSecret.length))).toBe(true);
+    expect.soft(hasInput(-1, '*'.repeat(addedRemoveSecret.length))).toBe(true);
+    expect
+      .soft(
+        hasInput(
+          ids.get('attribute-assigned-set') as number,
+          '*'.repeat(assignedSetSecret.length),
+        ),
+      )
+      .toBe(true);
+    expect
+      .soft(
+        hasInput(
+          ids.get('attribute-assigned-remove') as number,
+          '*'.repeat(assignedRemoveSecret.length),
+        ),
+      )
+      .toBe(true);
+    expect(
+      hasInput(
+        ids.get('attribute-added-set') as number,
+        visibleValues.addedSet,
+      ),
+    ).toBe(true);
+    expect(
+      hasInput(
+        ids.get('attribute-added-remove') as number,
+        visibleValues.addedRemove,
+      ),
+    ).toBe(true);
+    expect(
+      hasInput(
+        ids.get('attribute-assigned-set') as number,
+        visibleValues.assignedSet,
+      ),
+    ).toBe(true);
+    expect(
+      hasInput(
+        ids.get('attribute-assigned-remove') as number,
+        visibleValues.assignedRemove,
+      ),
+    ).toBe(true);
+    expect(
+      hasInput(
+        ids.get('attribute-method-control') as number,
+        visibleValues.ordinary,
+      ),
+    ).toBe(true);
+    for (const secret of [
+      addedSetSecret,
+      addedRemoveSecret,
+      assignedSetSecret,
+      assignedRemoveSecret,
+    ]) {
+      expect.soft(JSON.stringify(inputEvents)).not.toContain(secret);
+    }
+  });
+
+  it('restores password attribute method hooks across stop and restart', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const restartSecret = 'attribute-method-restart-password-secret-001';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="attribute-method-restart" type="text" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    const firstCycle = await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        rrweb: typeof import('../src');
+      };
+      const originalSetAttribute = Element.prototype.setAttribute;
+      const originalRemoveAttribute = Element.prototype.removeAttribute;
+      const stop = pageWindow.rrweb.record({ emit: () => undefined });
+      const setWrapped =
+        Element.prototype.setAttribute !== originalSetAttribute;
+      const removeWrapped =
+        Element.prototype.removeAttribute !== originalRemoveAttribute;
+      stop?.();
+      stop?.();
+      return {
+        setWrapped,
+        removeWrapped,
+        setRestored: Element.prototype.setAttribute === originalSetAttribute,
+        removeRestored:
+          Element.prototype.removeAttribute === originalRemoveAttribute,
+      };
+    });
+    expect(firstCycle).toEqual({
+      setWrapped: true,
+      removeWrapped: true,
+      setRestored: true,
+      removeRestored: true,
+    });
+
+    const restartEvents = await page.evaluate(async (restartSecret) => {
+      const pageWindow = window as typeof window & {
+        rrweb: typeof import('../src');
+      };
+      const events: eventWithTime[] = [];
+      const originalSetAttribute = Element.prototype.setAttribute;
+      const originalRemoveAttribute = Element.prototype.removeAttribute;
+      const stop = pageWindow.rrweb.record({
+        emit: (event) => events.push(event),
+        maskInputOptions: { password: true },
+      });
+      const input = document.querySelector(
+        '#attribute-method-restart',
+      ) as HTMLInputElement;
+      input.setAttribute('type', 'password');
+      input.setAttribute('type', 'text');
+      input.value = restartSecret;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      stop?.();
+      if (
+        Element.prototype.setAttribute !== originalSetAttribute ||
+        Element.prototype.removeAttribute !== originalRemoveAttribute
+      ) {
+        throw new Error(
+          'attribute method hooks were not restored after restart',
+        );
+      }
+      return events;
+    }, restartSecret);
+    const restartInputEvents = restartEvents.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        event.data.source === IncrementalSource.Input,
+    );
+    expect(JSON.stringify(restartInputEvents)).not.toContain(restartSecret);
+    expect(JSON.stringify(restartInputEvents)).toContain(
+      '*'.repeat(restartSecret.length),
+    );
+
+    const preservesLaterPatch = await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        rrweb: typeof import('../src');
+      };
+      const stop = pageWindow.rrweb.record({ emit: () => undefined });
+      const recorderSetAttribute = Element.prototype.setAttribute;
+      const recorderRemoveAttribute = Element.prototype.removeAttribute;
+      const thirdPartySetAttribute = new Proxy(recorderSetAttribute, {});
+      const thirdPartyRemoveAttribute = new Proxy(recorderRemoveAttribute, {});
+      Element.prototype.setAttribute = thirdPartySetAttribute;
+      Element.prototype.removeAttribute = thirdPartyRemoveAttribute;
+      stop?.();
+      return (
+        Element.prototype.setAttribute === thirdPartySetAttribute &&
+        Element.prototype.removeAttribute === thirdPartyRemoveAttribute
+      );
+    });
+    await page.close();
+    expect(preservesLaterPatch).toBe(true);
+  });
+
   it('keeps configured textarea initial, add, attribute, child, and Input values out of payloads', async () => {
     const page: puppeteer.Page = await browser.newPage();
     const initialSecret = 'textarea-full-secret-001';

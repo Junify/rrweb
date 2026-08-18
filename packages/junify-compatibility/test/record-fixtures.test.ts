@@ -375,6 +375,10 @@ describe('junify.privacy candidate persisted artifact', () => {
       hiddenTypeBeforeValue: 227,
       autocompleteValueBeforeRemoval: 229,
       autocompleteRemovalBeforeValue: 233,
+      passwordAttributeAddedSet: 239,
+      passwordAttributeAddedRemove: 241,
+      passwordAttributeAssignedSet: 251,
+      passwordAttributeAssignedRemove: 257,
     } as const;
     const makeSentinel = (name: string, length: number) => {
       const prefix = `${name}-${nonce}-`;
@@ -390,6 +394,14 @@ describe('junify.privacy candidate persisted artifact', () => {
     const visibleValues = {
       passwordTemporaryAfterBatch:
         'temporary-password-normal-after-batch-visible',
+      passwordAttributeAddedSetAfterBatch:
+        'attribute-added-set-normal-after-batch-visible',
+      passwordAttributeAddedRemoveAfterBatch:
+        'attribute-added-remove-normal-after-batch-visible',
+      passwordAttributeAssignedSetAfterBatch:
+        'attribute-assigned-set-normal-after-batch-visible',
+      passwordAttributeAssignedRemoveAfterBatch:
+        'attribute-assigned-remove-normal-after-batch-visible',
       normalText: 'ordinary-normal-text-control-visible',
     };
     expect(
@@ -406,6 +418,8 @@ describe('junify.privacy candidate persisted artifact', () => {
         <input id="password-value-before-type" type="password" value="">
         <input id="password-type-before-value" type="password" value="">
         <input id="password-temporary" type="text" value="">
+        <input id="password-attribute-assigned-set" type="text" value="">
+        <input id="password-attribute-assigned-remove" type="text" value="">
         <input id="hidden-value-before-type" type="hidden" value="">
         <input id="hidden-type-before-value" type="hidden" value="">
         <input id="autocomplete-value-before-removal" type="text" autocomplete="current-password" value="">
@@ -502,6 +516,44 @@ describe('junify.privacy candidate persisted artifact', () => {
             new Event('input', { bubbles: true }),
           );
 
+          const attributeAddedSet = document.createElement('input');
+          attributeAddedSet.id = 'password-attribute-added-set';
+          document.body.append(attributeAddedSet);
+          attributeAddedSet.setAttribute('type', 'password');
+          attributeAddedSet.setAttribute('type', 'text');
+          attributeAddedSet.value = values.passwordAttributeAddedSet;
+          attributeAddedSet.dispatchEvent(
+            new Event('input', { bubbles: true }),
+          );
+          const attributeAddedRemove = document.createElement('input');
+          attributeAddedRemove.id = 'password-attribute-added-remove';
+          document.body.append(attributeAddedRemove);
+          attributeAddedRemove.setAttribute('type', 'password');
+          attributeAddedRemove.removeAttribute('type');
+          attributeAddedRemove.value = values.passwordAttributeAddedRemove;
+          attributeAddedRemove.dispatchEvent(
+            new Event('input', { bubbles: true }),
+          );
+          const attributeAssignedSet = document.querySelector(
+            '#password-attribute-assigned-set',
+          ) as HTMLInputElement;
+          attributeAssignedSet.setAttribute('type', 'password');
+          attributeAssignedSet.setAttribute('type', 'text');
+          attributeAssignedSet.value = values.passwordAttributeAssignedSet;
+          attributeAssignedSet.dispatchEvent(
+            new Event('input', { bubbles: true }),
+          );
+          const attributeAssignedRemove = document.querySelector(
+            '#password-attribute-assigned-remove',
+          ) as HTMLInputElement;
+          attributeAssignedRemove.setAttribute('type', 'password');
+          attributeAssignedRemove.removeAttribute('type');
+          attributeAssignedRemove.value =
+            values.passwordAttributeAssignedRemove;
+          attributeAssignedRemove.dispatchEvent(
+            new Event('input', { bubbles: true }),
+          );
+
           const hiddenValueFirst = document.querySelector(
             '#hidden-value-before-type',
           ) as HTMLInputElement;
@@ -536,6 +588,28 @@ describe('junify.privacy candidate persisted artifact', () => {
           temporaryPassword.dispatchEvent(
             new Event('input', { bubbles: true }),
           );
+          const attributeAfterBatch = [
+            [
+              attributeAddedSet,
+              visibleValues.passwordAttributeAddedSetAfterBatch,
+            ],
+            [
+              attributeAddedRemove,
+              visibleValues.passwordAttributeAddedRemoveAfterBatch,
+            ],
+            [
+              attributeAssignedSet,
+              visibleValues.passwordAttributeAssignedSetAfterBatch,
+            ],
+            [
+              attributeAssignedRemove,
+              visibleValues.passwordAttributeAssignedRemoveAfterBatch,
+            ],
+          ] as const;
+          attributeAfterBatch.forEach(([input, value]) => {
+            input.value = value;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          });
           const normalText = document.querySelector(
             '#normal-text-control',
           ) as HTMLInputElement;
@@ -679,6 +753,12 @@ describe('junify.privacy candidate persisted artifact', () => {
       expect(addedNodes.get('password-added')?.attributes?.value).toBe(
         mask('passwordAddedBeforeFlush'),
       );
+      expect(
+        addedNodes.get('password-attribute-added-set')?.attributes?.value,
+      ).toBe(mask('passwordAttributeAddedSet'));
+      expect(
+        addedNodes.get('password-attribute-added-remove')?.attributes?.value,
+      ).toBe(mask('passwordAttributeAddedRemove'));
       expect(addedNodes.get('textarea-private-added')?.attributes?.value).toBe(
         mask('textareaAdded'),
       );
@@ -686,8 +766,14 @@ describe('junify.privacy candidate persisted artifact', () => {
       const hiddenId = fullId('hidden-private');
       const autocompleteId = fullId('autocomplete-private');
       const temporaryPasswordId = fullId('password-temporary');
+      const attributeAssignedSetId = fullId('password-attribute-assigned-set');
+      const attributeAssignedRemoveId = fullId(
+        'password-attribute-assigned-remove',
+      );
       const normalTextId = fullId('normal-text-control');
       const addedPasswordId = addedId('password-added');
+      const attributeAddedSetId = addedId('password-attribute-added-set');
+      const attributeAddedRemoveId = addedId('password-attribute-added-remove');
       expect(hasMutation(hiddenId, { value: mask('attribute') })).toBe(true);
       expect(
         hasMutation(fullId('placeholder-private'), {
@@ -755,10 +841,45 @@ describe('junify.privacy candidate persisted artifact', () => {
       expect(
         hasInput(temporaryPasswordId, mask('passwordTemporaryBeforeFlush')),
       ).toBe(true);
+      expect(hasInput(-1, mask('passwordAttributeAddedSet'))).toBe(true);
+      expect(hasInput(-1, mask('passwordAttributeAddedRemove'))).toBe(true);
+      expect(
+        hasInput(attributeAssignedSetId, mask('passwordAttributeAssignedSet')),
+      ).toBe(true);
+      expect(
+        hasInput(
+          attributeAssignedRemoveId,
+          mask('passwordAttributeAssignedRemove'),
+        ),
+      ).toBe(true);
       expect(
         hasInput(
           temporaryPasswordId,
           visibleValues.passwordTemporaryAfterBatch,
+        ),
+      ).toBe(true);
+      expect(
+        hasInput(
+          attributeAddedSetId,
+          visibleValues.passwordAttributeAddedSetAfterBatch,
+        ),
+      ).toBe(true);
+      expect(
+        hasInput(
+          attributeAddedRemoveId,
+          visibleValues.passwordAttributeAddedRemoveAfterBatch,
+        ),
+      ).toBe(true);
+      expect(
+        hasInput(
+          attributeAssignedSetId,
+          visibleValues.passwordAttributeAssignedSetAfterBatch,
+        ),
+      ).toBe(true);
+      expect(
+        hasInput(
+          attributeAssignedRemoveId,
+          visibleValues.passwordAttributeAssignedRemoveAfterBatch,
         ),
       ).toBe(true);
       expect(hasInput(normalTextId, visibleValues.normalText)).toBe(true);
@@ -814,6 +935,18 @@ describe('junify.privacy candidate persisted artifact', () => {
       }
       expect(persistedPayload).toContain(
         visibleValues.passwordTemporaryAfterBatch,
+      );
+      expect(persistedPayload).toContain(
+        visibleValues.passwordAttributeAddedSetAfterBatch,
+      );
+      expect(persistedPayload).toContain(
+        visibleValues.passwordAttributeAddedRemoveAfterBatch,
+      );
+      expect(persistedPayload).toContain(
+        visibleValues.passwordAttributeAssignedSetAfterBatch,
+      );
+      expect(persistedPayload).toContain(
+        visibleValues.passwordAttributeAssignedRemoveAfterBatch,
       );
       expect(persistedPayload).toContain(visibleValues.normalText);
     } finally {

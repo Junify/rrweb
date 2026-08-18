@@ -150,6 +150,8 @@ function hasSensitiveAutocompleteToken(value: string | null): boolean {
     .some((token) => sensitiveAutocompleteTokens.has(toLowerCase(token)));
 }
 
+export const transientPasswordInputs = new WeakSet<HTMLElement>();
+
 /**
  * controls behaviour of a MutationObserver
  */
@@ -378,6 +380,9 @@ export default class MutationBuffer {
       if (parentId === -1 || nextId === -1) {
         return addList.addNode(n);
       }
+      const isTransientPasswordInput = transientPasswordInputs.has(
+        n as HTMLElement,
+      );
       const sn = serializeNodeWithId(n, {
         doc: this.doc,
         mirror: this.mirror,
@@ -388,9 +393,13 @@ export default class MutationBuffer {
         skipChild: true,
         newlyAddedElement: true,
         inlineStylesheet: this.inlineStylesheet,
-        maskInputOptions: this.maskInputOptions,
+        maskInputOptions: isTransientPasswordInput
+          ? { ...this.maskInputOptions, text: true }
+          : this.maskInputOptions,
         maskTextFn: this.maskTextFn,
-        maskInputFn: this.maskInputFn,
+        maskInputFn: isTransientPasswordInput
+          ? (value) => '*'.repeat(value.length)
+          : this.maskInputFn,
         slimDOMOptions: this.slimDOMOptions,
         dataURLOptions: this.dataURLOptions,
         recordCanvas: this.recordCanvas,
