@@ -392,6 +392,8 @@ function initInputObserver({
   userTriggeredOnInput,
 }: observerParam): listenerHandler {
   const knownPasswordInputs = new WeakSet<HTMLElement>();
+  const transientPasswordInputs = new WeakSet<HTMLElement>();
+  const transientPasswordGenerations = new WeakMap<HTMLElement, number>();
   doc.querySelectorAll('input').forEach((input) => {
     if (getInputType(input) === 'password') knownPasswordInputs.add(input);
   });
@@ -429,7 +431,8 @@ function initInputObserver({
     if (target.tagName === 'INPUT' && currentType === 'password') {
       knownPasswordInputs.add(target);
     }
-    const type: Lowercase<string> = knownPasswordInputs.has(target)
+    const type: Lowercase<string> =
+      knownPasswordInputs.has(target) || transientPasswordInputs.has(target)
       ? 'password'
       : currentType;
 
@@ -528,6 +531,44 @@ function initInputObserver({
         ),
       ),
     );
+  }
+  const inputPrototype = currentWindow.HTMLInputElement.prototype;
+  const typeDescriptor = currentWindow.Object.getOwnPropertyDescriptor(
+    inputPrototype,
+    'type',
+  );
+  if (typeDescriptor?.get && typeDescriptor.set) {
+    const getType = typeDescriptor.get;
+    const setType = typeDescriptor.set;
+    currentWindow.Object.defineProperty(inputPrototype, 'type', {
+      ...typeDescriptor,
+      set(value: string) {
+        const previousType = toLowerCase(getType.call(this));
+        setType.call(this, value);
+        const currentType = toLowerCase(getType.call(this));
+        if (previousType === 'password' || currentType === 'password') {
+          const input = this as HTMLElement;
+          transientPasswordInputs.add(input);
+          const generation =
+            (transientPasswordGenerations.get(input) || 0) + 1;
+          transientPasswordGenerations.set(input, generation);
+          currentWindow.setTimeout(() => {
+            currentWindow.setTimeout(() => {
+              if (transientPasswordGenerations.get(input) === generation) {
+                transientPasswordInputs.delete(input);
+              }
+            }, 0);
+          }, 0);
+        }
+      },
+    });
+    handlers.push(() => {
+      currentWindow.Object.defineProperty(
+        inputPrototype,
+        'type',
+        typeDescriptor,
+      );
+    });
   }
   return callbackWrapper(() => {
     handlers.forEach((h) => h());

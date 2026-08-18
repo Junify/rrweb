@@ -390,12 +390,15 @@ describe('record integration tests', function (this: ISuite) {
     }
   });
 
-  it('masks a synchronous Input event after password becomes text and before observer flush', async () => {
+  it('masks pre-flush Input events for post-start and temporary password states without stale masking', async () => {
     const page: puppeteer.Page = await browser.newPage();
-    const synchronousInputSecret = 'password-sync-input-secret-001';
-    const visibleControl = 'ordinary-text-input-control-0002';
+    const addedBeforeFlushSecret = 'added-password-before-flush-001';
+    const addedAfterFlushSecret = 'added-password-after-flush-0000000002';
+    const temporaryPasswordSecret = 'temporary-password-before-flush-00003';
+    const afterBatchVisible = 'temporary-password-visible-after-batch-000004';
+    const ordinaryVisible = 'ordinary-text-input-control-0000005';
     await page.setContent(`<!doctype html><html><body>
-      <input id="password-sync-input" type="password" value="">
+      <input id="temporary-password-input" type="text" value="">
       <input id="ordinary-text-input" type="text" value="">
     </body></html>`);
     await page.addScriptTag({ content: code });
@@ -413,36 +416,134 @@ describe('record integration tests', function (this: ISuite) {
     await waitForRAF(page);
 
     await page.evaluate(
-      ({ secret, visibleControl }) => {
-        const input = document.querySelector(
-          '#password-sync-input',
+      ({ addedBeforeFlushSecret, temporaryPasswordSecret }) => {
+        const added = document.createElement('input');
+        added.id = 'added-password-input';
+        added.type = 'password';
+        document.body.append(added);
+        added.type = 'text';
+        added.value = addedBeforeFlushSecret;
+        added.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const temporary = document.querySelector(
+          '#temporary-password-input',
         ) as HTMLInputElement;
-        input.type = 'text';
-        input.value = secret;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
+        temporary.type = 'password';
+        temporary.type = 'text';
+        temporary.value = temporaryPasswordSecret;
+        temporary.dispatchEvent(new Event('input', { bubbles: true }));
+      },
+      { addedBeforeFlushSecret, temporaryPasswordSecret },
+    );
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ addedAfterFlushSecret, afterBatchVisible, ordinaryVisible }) => {
+        const added = document.querySelector(
+          '#added-password-input',
+        ) as HTMLInputElement;
+        added.value = addedAfterFlushSecret;
+        added.dispatchEvent(new Event('input', { bubbles: true }));
+        const temporary = document.querySelector(
+          '#temporary-password-input',
+        ) as HTMLInputElement;
+        temporary.value = afterBatchVisible;
+        temporary.dispatchEvent(new Event('input', { bubbles: true }));
         const control = document.querySelector(
           '#ordinary-text-input',
         ) as HTMLInputElement;
-        control.value = visibleControl;
+        control.value = ordinaryVisible;
         control.dispatchEvent(new Event('input', { bubbles: true }));
       },
-      { secret: synchronousInputSecret, visibleControl },
+      { addedAfterFlushSecret, afterBatchVisible, ordinaryVisible },
     );
     await waitForRAF(page);
 
     const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
     await page.close();
-    const inputPayload = JSON.stringify(
-      events.filter(
-        (event) =>
-          event.type === EventType.IncrementalSnapshot &&
-          event.data.source === IncrementalSource.Input,
-      ),
+    const fullSnapshot = events.find(
+      (event) => event.type === EventType.FullSnapshot,
+    );
+    expect(fullSnapshot?.type).toBe(EventType.FullSnapshot);
+    let temporaryId = -1;
+    let ordinaryId = -1;
+    if (fullSnapshot?.type === EventType.FullSnapshot) {
+      visitSnapshot(fullSnapshot.data.node, (node) => {
+        if (node.type !== NodeType.Element) return;
+        if (node.attributes.id === 'temporary-password-input') {
+          temporaryId = node.id;
+        }
+        if (node.attributes.id === 'ordinary-text-input') {
+          ordinaryId = node.id;
+        }
+      });
+    }
+    let addedId = -1;
+    for (const event of events) {
+      if (
+        event.type !== EventType.IncrementalSnapshot ||
+        event.data.source !== IncrementalSource.Mutation
+      ) {
+        continue;
+      }
+      for (const add of event.data.adds) {
+        visitSnapshot(add.node, (node) => {
+          if (
+            node.type === NodeType.Element &&
+            node.attributes.id === 'added-password-input'
+          ) {
+            addedId = node.id;
+          }
+        });
+      }
+    }
+    const inputEvents = events.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        event.data.source === IncrementalSource.Input,
     );
 
-    expect(inputPayload).not.toContain(synchronousInputSecret);
-    expect(inputPayload).toContain('*'.repeat(synchronousInputSecret.length));
-    expect(inputPayload).toContain(visibleControl);
+    expect(temporaryId).toBeGreaterThan(0);
+    expect(ordinaryId).toBeGreaterThan(0);
+    expect(addedId).toBeGreaterThan(0);
+    expect(JSON.stringify(inputEvents)).not.toContain(
+      addedBeforeFlushSecret,
+    );
+    expect(JSON.stringify(inputEvents)).not.toContain(temporaryPasswordSecret);
+    expect(inputEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: -1,
+            text: '*'.repeat(addedBeforeFlushSecret.length),
+          }),
+        }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: addedId,
+            text: '*'.repeat(addedAfterFlushSecret.length),
+          }),
+        }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: temporaryId,
+            text: '*'.repeat(temporaryPasswordSecret.length),
+          }),
+        }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: temporaryId,
+            text: afterBatchVisible,
+          }),
+        }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: ordinaryId,
+            text: ordinaryVisible,
+          }),
+        }),
+      ]),
+    );
   });
 
   it('keeps configured textarea initial, add, attribute, child, and Input values out of payloads', async () => {
