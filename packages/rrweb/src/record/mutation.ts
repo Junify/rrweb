@@ -133,6 +133,22 @@ class DoubleLinkedList {
 }
 
 const moveKey = (id: number, parentId: number) => `${id}@${parentId}`;
+const sensitiveAutocompleteTokens = new Set([
+  'current-password',
+  'new-password',
+  'cc-number',
+  'cc-exp',
+  'cc-exp-month',
+  'cc-exp-year',
+  'cc-csc',
+]);
+
+function hasSensitiveAutocompleteToken(value: string | null): boolean {
+  if (!value) return false;
+  return value
+    .split(/[\t\n\f\r ]+/)
+    .some((token) => sensitiveAutocompleteTokens.has(toLowerCase(token)));
+}
 
 /**
  * controls behaviour of a MutationObserver
@@ -144,6 +160,8 @@ export default class MutationBuffer {
   private texts: textCursor[] = [];
   private attributes: attributeCursor[] = [];
   private attributeMap = new WeakMap<Node, attributeCursor>();
+  private batchInputTypes = new WeakMap<HTMLElement, Lowercase<string>>();
+  private batchSensitiveAutocompleteInputs = new WeakSet<HTMLElement>();
   private removes: removedNodeMutation[] = [];
   private mapRemoves: Node[] = [];
 
@@ -278,10 +296,33 @@ export default class MutationBuffer {
     });
   };
 
+  private preserveBatchInputPrivacy = (mutations: mutationRecord[]) => {
+    this.batchInputTypes = new WeakMap();
+    this.batchSensitiveAutocompleteInputs = new WeakSet();
+    mutations.forEach((mutation) => {
+      if (mutation.type !== 'attributes') return;
+      const target = mutation.target as HTMLElement;
+      if (target.tagName !== 'INPUT') return;
+      if (
+        mutation.attributeName === 'type' &&
+        toLowerCase(mutation.oldValue || '') === 'hidden'
+      ) {
+        this.batchInputTypes.set(target, 'hidden');
+      }
+      if (
+        mutation.attributeName === 'autocomplete' &&
+        hasSensitiveAutocompleteToken(mutation.oldValue)
+      ) {
+        this.batchSensitiveAutocompleteInputs.add(target);
+      }
+    });
+  };
+
   public processMutations = (mutations: mutationRecord[]) => {
     // Mark every input that was a password before any value record in the
     // same observer batch reads the element's final type.
     this.preservePasswordInputTypes(mutations);
+    this.preserveBatchInputPrivacy(mutations);
     mutations.forEach(this.processMutation); // adds mutations to the buffer
     this.emit(); // clears buffer if not locked/frozen
   };
@@ -606,19 +647,28 @@ export default class MutationBuffer {
         let attributeName = m.attributeName as string;
         let value = (m.target as HTMLElement).getAttribute(attributeName);
 
-        if (
-          attributeName === 'value' ||
-          (attributeName === 'placeholder' &&
-            value !== null &&
-            (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'))
+        if (attributeName === 'value') {
+          const type = this.batchInputTypes.get(target) || getInputType(target);
+          value = this.batchSensitiveAutocompleteInputs.has(target)
+            ? '*'.repeat(value?.length || 0)
+            : maskInputValue({
+                element: target,
+                maskInputOptions: this.maskInputOptions,
+                tagName: target.tagName,
+                type,
+                value,
+                maskInputFn: this.maskInputFn,
+              });
+        } else if (
+          attributeName === 'placeholder' &&
+          value !== null &&
+          (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
         ) {
-          const type = getInputType(target);
-
           value = maskInputValue({
             element: target,
             maskInputOptions: this.maskInputOptions,
             tagName: target.tagName,
-            type,
+            type: getInputType(target),
             value,
             maskInputFn: this.maskInputFn,
           });

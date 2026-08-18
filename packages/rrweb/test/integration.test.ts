@@ -178,6 +178,155 @@ describe('record integration tests', function (this: ISuite) {
     }
   });
 
+  it('masks value mutations using hidden and autocomplete states from the same batch', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const hiddenValueBeforeType = 'hidden-value-before-type-001';
+    const hiddenTypeBeforeValue = 'hidden-type-before-value-0002';
+    const autocompleteValueBeforeRemoval =
+      'autocomplete-value-before-removal-00003';
+    const autocompleteRemovalBeforeValue =
+      'autocomplete-removal-before-value-000004';
+    const visibleControl = 'normal-text-value-control-0000005';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="hidden-value-before-type" type="hidden" value="">
+      <input id="hidden-type-before-value" type="hidden" value="">
+      <input id="autocomplete-value-before-removal" type="text" autocomplete="current-password" value="">
+      <input id="autocomplete-removal-before-value" type="text" autocomplete="cc-number" value="">
+      <input id="normal-text-control" type="text" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { hidden: true },
+        maskInputFn: (value, element) =>
+          element.id.startsWith('autocomplete')
+            ? value
+            : '*'.repeat(value.length),
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({
+        hiddenValueBeforeType,
+        hiddenTypeBeforeValue,
+        autocompleteValueBeforeRemoval,
+        autocompleteRemovalBeforeValue,
+        visibleControl,
+      }) => {
+        const hiddenValueFirst = document.querySelector(
+          '#hidden-value-before-type',
+        ) as HTMLInputElement;
+        hiddenValueFirst.setAttribute('value', hiddenValueBeforeType);
+        hiddenValueFirst.setAttribute('type', 'text');
+
+        const hiddenTypeFirst = document.querySelector(
+          '#hidden-type-before-value',
+        ) as HTMLInputElement;
+        hiddenTypeFirst.setAttribute('type', 'text');
+        hiddenTypeFirst.setAttribute('value', hiddenTypeBeforeValue);
+
+        const autocompleteValueFirst = document.querySelector(
+          '#autocomplete-value-before-removal',
+        ) as HTMLInputElement;
+        autocompleteValueFirst.setAttribute(
+          'value',
+          autocompleteValueBeforeRemoval,
+        );
+        autocompleteValueFirst.removeAttribute('autocomplete');
+
+        const autocompleteRemovalFirst = document.querySelector(
+          '#autocomplete-removal-before-value',
+        ) as HTMLInputElement;
+        autocompleteRemovalFirst.removeAttribute('autocomplete');
+        autocompleteRemovalFirst.setAttribute(
+          'value',
+          autocompleteRemovalBeforeValue,
+        );
+
+        document
+          .querySelector('#normal-text-control')
+          ?.setAttribute('value', visibleControl);
+      },
+      {
+        hiddenValueBeforeType,
+        hiddenTypeBeforeValue,
+        autocompleteValueBeforeRemoval,
+        autocompleteRemovalBeforeValue,
+        visibleControl,
+      },
+    );
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullSnapshot = events.find(
+      (event) => event.type === EventType.FullSnapshot,
+    );
+    expect(fullSnapshot?.type).toBe(EventType.FullSnapshot);
+    const ids = new Map<string, number>();
+    if (fullSnapshot?.type === EventType.FullSnapshot) {
+      visitSnapshot(fullSnapshot.data.node, (node) => {
+        if (
+          node.type === NodeType.Element &&
+          typeof node.attributes.id === 'string'
+        ) {
+          ids.set(node.attributes.id, node.id);
+        }
+      });
+    }
+    const attributes = events.flatMap((event) =>
+      event.type === EventType.IncrementalSnapshot &&
+      event.data.source === IncrementalSource.Mutation
+        ? event.data.attributes
+        : [],
+    );
+    const attributesFor = (id: string) =>
+      attributes.find((mutation) => mutation.id === ids.get(id))?.attributes;
+
+    const hiddenValueFirst = attributesFor('hidden-value-before-type');
+    const hiddenTypeFirst = attributesFor('hidden-type-before-value');
+    const autocompleteValueFirst = attributesFor(
+      'autocomplete-value-before-removal',
+    );
+    const autocompleteRemovalFirst = attributesFor(
+      'autocomplete-removal-before-value',
+    );
+    const normalText = attributesFor('normal-text-control');
+
+    expect.soft(hiddenValueFirst).toMatchObject({
+      type: 'text',
+      value: '*'.repeat(hiddenValueBeforeType.length),
+    });
+    expect.soft(hiddenTypeFirst).toMatchObject({
+      type: 'text',
+      value: '*'.repeat(hiddenTypeBeforeValue.length),
+    });
+    expect.soft(autocompleteValueFirst).toMatchObject({
+      autocomplete: null,
+      value: '*'.repeat(autocompleteValueBeforeRemoval.length),
+    });
+    expect.soft(autocompleteRemovalFirst).toMatchObject({
+      autocomplete: null,
+      value: '*'.repeat(autocompleteRemovalBeforeValue.length),
+    });
+    expect(normalText).toMatchObject({ value: visibleControl });
+    for (const secret of [
+      hiddenValueBeforeType,
+      hiddenTypeBeforeValue,
+      autocompleteValueBeforeRemoval,
+      autocompleteRemovalBeforeValue,
+    ]) {
+      expect(JSON.stringify(attributes)).not.toContain(secret);
+    }
+  });
+
   it('masks configured placeholder snapshots and mutations while preserving removal and controls', async () => {
     const page: puppeteer.Page = await browser.newPage();
     const initialSecret = 'placeholder-full-secret-001';
@@ -506,9 +655,7 @@ describe('record integration tests', function (this: ISuite) {
     expect(temporaryId).toBeGreaterThan(0);
     expect(ordinaryId).toBeGreaterThan(0);
     expect(addedId).toBeGreaterThan(0);
-    expect(JSON.stringify(inputEvents)).not.toContain(
-      addedBeforeFlushSecret,
-    );
+    expect(JSON.stringify(inputEvents)).not.toContain(addedBeforeFlushSecret);
     expect(JSON.stringify(inputEvents)).not.toContain(temporaryPasswordSecret);
     expect(inputEvents).toEqual(
       expect.arrayContaining([
