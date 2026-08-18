@@ -305,6 +305,30 @@ production MV3 worker boundary.
   worker and transport sinks. Task 8 owns replayer teardown. Neither is part
   of the recorder lifecycle promotion.
 
+### Final review restart correction
+
+- RED: after a text-password-text transition and immediate stop, the cancelled
+  privacy timers left their element in the shared transient WeakSet. The next
+  recorder emitted 34 stars instead of `SECOND_SESSION_NORMAL_TEXT_VISIBLE`.
+  Separately, a module-global input dedup WeakMap emitted the same value only in
+  cycle 0 and suppressed cycles 1 through 24 on the same DOM input.
+- Implementation: `9a70260d` keeps a per-observer owned transient set and
+  deletes every owned entry during teardown after cancelling its timers. The
+  input dedup WeakMap now belongs to `initInputObserver`, so restart creates a
+  fresh cache while preserving dedup inside one observer.
+- GREEN and sensitivity: the real-Chrome lifecycle file passes 8/8 and privacy
+  integration passes 60/60. Removing only the teardown deletion restores the
+  next-session star-mask failure. Moving only the dedup map back to module
+  scope restores counts `[1, 0, ..., 0]` across 25 sessions.
+- Package impact: clean committed head `9f575f92` produced two byte-identical
+  runs in a new directory. The core archive is 1,422,939 bytes/19 files at
+  SHA-256 `3ec683a2ab2c8d79b7b17c903ddacaa84b7de0f1c26a05520f05fad74fb58ab0`
+  and tree SHA-256
+  `f83acf63b4b42642475491080c0ab0dca34f0dc9a1c15cb0eca0fc9322ad5188`.
+  Player bytes/tree remain `b317a39f...`/`c9929b76...`. Consumer locks still
+  name the preceding core and require a separately scoped repin/revalidation;
+  no browser or Rails repository was changed in this correction.
+
 ## Task 8 Replayer Lifecycle And Defensive Evidence
 
 `LIFE-REP-001`, `DEF-001`, and `DEF-002` change replay resource ownership and

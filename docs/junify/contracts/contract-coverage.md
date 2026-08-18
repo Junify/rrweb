@@ -130,6 +130,16 @@ throw containment, and WebKit untainted-MutationObserver stop/restart. The
 packaged MV3 worker remains a Task 9 Canvas boundary; it does not prevent the
 package-local recorder lifecycle row from closing.
 
+Final P0/P1 review found two restart partitions that the original resource
+census did not exercise: a pending text-password-text classification survived
+an immediate stop, and the input dedup cache suppressed the same value in the
+next recorder session. Commit `9a70260d` binds both states to the input observer
+lifetime. Two real-Chrome sentinels now preserve same-session password masking,
+make the next session's normal text visible, and emit the same value once in
+each of 25 recorder sessions. Removing the teardown deletion or restoring the
+module-global dedup map makes its corresponding sentinel RED. This correction
+does not change the event schema or same-session dedup/privacy behavior.
+
 Fix round 1 closes five Major review gaps before retaining that promotion: ten
 pending-link cycles release their exact listener/timer ownership; iframe
 `pagehide` releases the old generation before replacement load; Canvas and

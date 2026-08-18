@@ -323,7 +323,8 @@ PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLES
 The authentic stable RED starts at zero tracked resources; cycle 0 retains two
 listeners and two RAFs and emits two late events, while cycle 49 retains 100
 listeners and 100 RAFs. A removed iframe's old sheet emits one stale event and
-its old document remains retained. Task 7 fix-round GREEN passes 6/6 in 56.23 seconds:
+its old document remains retained. Task 7 fix-round GREEN originally passed
+6/6 in 56.23 seconds:
 all 50 cycles keep listeners/MutationObservers/RAFs/timers at zero after stop,
 events remain unchanged at four, the dynamic-password sentinel is absent, and
 ten pending-stylesheet cycles retain zero listeners/timers. Iframe `pagehide`
@@ -337,6 +338,17 @@ each stop. Supplemental regression evidence is Canvas/replayer 78/78,
 privacy integration 60/60, compatibility record fixtures 4/4, snapshot 32/32,
 and remaining record suites 86 passed with two pre-existing skips. WeakRef or
 unit-spy evidence alone does not close this gate.
+
+The final-review correction adds two collected restart sentinels to this same
+real-Chrome file. The complete file now passes 8/8: an immediate stop after a
+text-password-text transition clears the pending classification before the
+next recorder, while the first session still masks its secret; and 25 sessions
+on one DOM input each emit the same value exactly once. Deleting the owned
+transient cleanup reproduces the next-session star-mask RED. Moving the dedup
+WeakMap back to module scope reproduces counts `[1, 0, ..., 0]`. Run both
+mutations one at a time, rebuild the rrweb UMD, require the named test to exit
+1 for its intended assertion, restore the clean commit, rebuild, and require
+8/8 GREEN.
 
 ### `G-REPLAYER-LIFECYCLE`
 
@@ -556,11 +568,15 @@ whether the standard-build interaction is merge/release blocking is left to
 independent review.
 
 Repository-wide `yarn lint` is not green at the final head: the 4 GiB concurrent
-run reaches an ESLint OOM alongside existing non-Junify markdownlint findings;
+run reaches an ESLint OOM alongside existing documentation findings;
 an isolated 8 GiB ESLint run completes with 3 errors and 44 warnings, including
 the focused Svelte parser-service failure at
 `packages/rrweb-player/src/Controller.svelte:18`. Record that baseline openly.
-The required evidence-doc gate is focused `markdownlint docs/junify`, contract
+The task-authored plan and design use narrow file-local directives and pass
+their isolated markdownlint gate. Exact root `yarn markdownlint docs` remains
+RED with 411 findings in 50 inherited/upstream files; neither task-authored
+file appears in that result. The required evidence-doc gate is focused
+`markdownlint docs/junify`, isolated task-plan/design markdownlint, contract
 reconciliation, Prettier check, sensitivity probes, and `git diff --check`.
 
 ## Blocker Recording Template

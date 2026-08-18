@@ -118,6 +118,14 @@ shadow-canvas traversal remain rejected/deferred exactly as recorded above.
 No package was published and the unpublished registry/CDN install remains a
 separate release blocker.
 
+Final review added no vendor patch. It exposed two local lifecycle holes in the
+adapted password/dedup state: cancelled privacy timers retained a transient
+classification across stop, and upstream's module-global input dedup cache
+crossed recorder sessions. Correction `9a70260d` owns both states per input
+observer and is guarded by real-Chrome restart plus rollback-mutation evidence.
+Deletion criteria stay behavior-based: an upstream stable replacement must
+pass the same immediate-stop privacy partition and 25-session same-value gate.
+
 ## Documented Non-Candidate Boundaries
 
 - WebGPU fallback has no approved source patch and no failing Junify fixture.
