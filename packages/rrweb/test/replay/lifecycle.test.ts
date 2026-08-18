@@ -587,6 +587,17 @@ describe('replayer lifecycle', () => {
             node: document.createTextNode('owned legacy retry node'),
             mutation: { node: { id: 95_000 + cycle } },
           };
+          replayer.constructedStyleMutations.push({
+            source: eventTypes.styleSheetRule,
+            styleId: 96_000 + cycle,
+            adds: [],
+          });
+          replayer.adoptedStyleSheets.push({
+            source: eventTypes.adoptedStyleSheet,
+            id: 1,
+            styleIds: [],
+            styles: [],
+          });
           const beforeDestroy = inspect(replayer);
           const linkBalancesBeforeDestroy = linkProbes.map((probe) => ({
             load: probe.loadBalance,
@@ -695,6 +706,8 @@ describe('replayer lifecycle', () => {
           eventCast: ReplayerEvents.EventCast,
           customEventType: EventType.Custom,
           mediaPlay: MediaInteractions.Play,
+          styleSheetRule: IncrementalSource.StyleSheetRule,
+          adoptedStyleSheet: IncrementalSource.AdoptedStyleSheet,
         },
       },
     );
@@ -714,9 +727,18 @@ describe('replayer lifecycle', () => {
         `cycle ${cycle.cycle} iframe fixture`,
       ).toBeGreaterThanOrEqual(4);
       expect(cycle.beforeDestroy.timerActive).toBe(true);
+      expect(cycle.beforeDestroy.timerActions).toBeGreaterThan(0);
+      expect(cycle.beforeDestroy.emitterHandlers).toBeGreaterThan(0);
       expect(cycle.beforeDestroy.imageMap).toBeGreaterThan(0);
+      expect(cycle.beforeDestroy.canvasEventMap).toBeGreaterThan(0);
       expect(cycle.beforeDestroy.legacyMissingNodes).toBeGreaterThan(0);
       expect(cycle.beforeDestroy.newDocumentQueue).toBeGreaterThan(0);
+      expect(cycle.beforeDestroy.constructedStyleMutations).toBeGreaterThan(0);
+      expect(cycle.beforeDestroy.adoptedStyleSheets).toBeGreaterThan(0);
+      expect(cycle.beforeDestroy.mediaElements).toBeGreaterThan(0);
+      expect(cycle.beforeDestroy.metadataCallbacks).toBeGreaterThan(0);
+      expect(cycle.beforeDestroy.mirrorIds).toBeGreaterThan(0);
+      expect(cycle.beforeDestroy.wrapperAttached).toBe(true);
       expect(cycle.linkBalancesBeforeDestroy.some(({ load }) => load > 0)).toBe(
         true,
       );
