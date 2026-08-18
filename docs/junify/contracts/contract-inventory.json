@@ -112,7 +112,7 @@
       "expected_current_behavior": "Stop is idempotent, emits nothing afterward, and repeated start/stop churn does not retain observers, mirrors, RAF callbacks, workers, or detached documents.",
       "risk_if_broken": "Long sessions leak memory/CPU and stopped sessions continue collecting customer activity.",
       "gate_id": "G-RECORDER-LIFECYCLE",
-      "test_notes": "Task 7 adds a real-Chrome 50-cycle source-to-sink churn gate. Baseline, first, last, and final listener/MutationObserver/RAF/timer counts are all zero after stop; event counts remain unchanged after stop; dynamic-password literals remain absent. Focused fixtures also prove iframe navigation/removal generation disposal, iterative permanent mirror metadata release, shared constructed-stylesheet host refcounts, removed shadow-root silence with replacement liveness, Canvas stop integration, WebKit untainted-MutationObserver stop/restart, and cleanup-throw containment."
+      "test_notes": "Task 7 plus fix round 1 add real-Chrome source-to-sink gates. Baseline, first, last, and final resource counts are zero across 50 cycles; ten pending-stylesheet cycles retain zero listeners/timers; events remain unchanged after stop and dynamic-password literals remain absent. Focused fixtures prove iframe pagehide/navigation/removal generation disposal, iterative permanent mirror metadata release, shared constructed-stylesheet final-owner release and re-adoption, removed shadow-root silence with replacement liveness, Canvas stop integration, independent cleanup-throw containment, and WebKit untainted-MutationObserver stop/restart. A no-op releaseHost mutation fails the strengthened final-owner gate."
     },
     {
       "id": "junify.lifecycle.replayer-destroy",

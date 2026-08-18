@@ -87,6 +87,15 @@ throw containment, and WebKit untainted-MutationObserver stop/restart. The
 packaged MV3 worker remains a Task 9 Canvas boundary; it does not prevent the
 package-local recorder lifecycle row from closing.
 
+Fix round 1 closes five Major review gaps before retaining that promotion: ten
+pending-link cycles release their exact listener/timer ownership; iframe
+`pagehide` releases the old generation before replacement load; Canvas and
+recorder-scope cleanup exceptions cannot interrupt global finalization; the
+constructed-sheet fixture releases its final owner and proves definition plus
+rule events after re-adoption; and the runbook executes the actual WebKit
+configuration. A collected no-op `releaseHost` mutation fails the strengthened
+stylesheet gate.
+
 ## Status Summary
 
 | Status                      | Count | Meaning here                                                                                                 |
