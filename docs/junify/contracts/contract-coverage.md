@@ -57,13 +57,17 @@ placeholder values, all approved sensitive-autocomplete tokens, the leaking
 value-before-type password mutation order, and synchronous Input emission
 before the observer flush. Fix round 1 extends that proof to post-start password
 nodes, temporary text-password-text state, both hidden-to-text value orders,
-and both sensitive-autocomplete removal/value orders. Candidate tests scan
+and both sensitive-autocomplete removal/value orders. Fix round 2 adds page-
+realm `setAttribute` and `removeAttribute` password transitions for assigned
+and newly added nodes, including exact method restoration on stop/restart and
+non-destructive handling of a later third-party patch. Candidate tests scan
 serialized FullSnapshot, Mutation, Input, and dynamically added-node payloads
 plus a temporary persisted JSON artifact. Every private source has a unique
 mask length and an exact node/source/value assertion, so one field's stars
 cannot substitute for another field or for a missing event. Textarea protection
-remains inherited from upstream 2.1.1; removal remains `null`; normal controls
-remain visible after classification expires. `junify.privacy.persisted-sentinels`
+remains inherited from upstream 2.1.1; removal remains `null`; same-node and
+unrelated normal controls remain visible after classification expires.
+`junify.privacy.persisted-sentinels`
 stays `red-known-risk` until Task 9 observes real extension Chrome storage and
 decoded V1/V2 request bodies.
 
