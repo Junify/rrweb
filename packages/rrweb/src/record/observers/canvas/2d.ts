@@ -16,6 +16,7 @@ export default function initCanvas2DMutationObserver(
   blockSelector: string | null,
 ): listenerHandler {
   const handlers: listenerHandler[] = [];
+  const pendingTimeouts = new Set<number>();
   const props2D = Object.getOwnPropertyNames(
     win.CanvasRenderingContext2D.prototype,
   );
@@ -44,7 +45,8 @@ export default function initCanvas2DMutationObserver(
             if (!isBlocked(this.canvas, blockClass, blockSelector, true)) {
               // Using setTimeout as toDataURL can be heavy
               // and we'd rather not block the main thread
-              setTimeout(() => {
+              const timeout = win.setTimeout(() => {
+                pendingTimeouts.delete(timeout);
                 const recordArgs = serializeArgs(args, win, this);
                 cb(this.canvas, {
                   type: CanvasContext['2D'],
@@ -52,6 +54,7 @@ export default function initCanvas2DMutationObserver(
                   args: recordArgs,
                 });
               }, 0);
+              pendingTimeouts.add(timeout);
             }
             return original.apply(this, args);
           };
@@ -78,6 +81,8 @@ export default function initCanvas2DMutationObserver(
     }
   }
   return () => {
+    pendingTimeouts.forEach((timeout) => win.clearTimeout(timeout));
+    pendingTimeouts.clear();
     handlers.forEach((h) => h());
   };
 }

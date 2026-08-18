@@ -214,16 +214,41 @@ export class Mirror implements IMirror<Node> {
     return this.nodeMetaMap.get(n) || null;
   }
 
-  // removes the node from idNodeMap
-  // doesn't remove the node from nodeMetaMap
-  removeNodeFromMap(n: Node) {
-    const id = this.getId(n);
-    this.idNodeMap.delete(id);
+  // Removes a subtree in one pass. Metadata is preserved for DOM moves unless
+  // the caller has established that the subtree was permanently detached.
+  removeNodeFromMap(
+    n: Node,
+    options: {
+      removeMeta?: boolean;
+      onVisit?: (node: Node) => Node | Node[] | void;
+    } = {},
+  ) {
+    const queue = [n];
+    const visited = new Set<Node>();
+    while (queue.length) {
+      const node = queue.pop()!;
+      if (visited.has(node)) continue;
+      visited.add(node);
+      this.idNodeMap.delete(this.getId(node));
+      if (options.removeMeta) this.nodeMetaMap.delete(node);
+      const additionalNodes = options.onVisit?.(node);
+      if (additionalNodes) {
+        if (Array.isArray(additionalNodes)) queue.push(...additionalNodes);
+        else queue.push(additionalNodes);
+      }
 
-    if (n.childNodes) {
-      n.childNodes.forEach((childNode) =>
-        this.removeNodeFromMap(childNode as unknown as Node),
-      );
+      try {
+        node.childNodes?.forEach((childNode) => queue.push(childNode));
+        const shadowRoot = (node as Element).shadowRoot;
+        if (shadowRoot) queue.push(shadowRoot);
+        if ((node as Element).tagName === 'IFRAME') {
+          const iframeDocument = (node as HTMLIFrameElement).contentDocument;
+          if (iframeDocument) queue.push(iframeDocument);
+        }
+      } catch {
+        // A removed iframe may have navigated cross-origin. Its visible root is
+        // still released; inaccessible descendants cannot be referenced here.
+      }
     }
   }
   has(id: number): boolean {

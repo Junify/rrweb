@@ -105,6 +105,41 @@ describe('WebKit: monkey-patched MutationObserver', () => {
 
     expect(mutationEvents.length).toBeGreaterThan(0);
 
+    const retainedBeforeStop = await page.evaluate(
+      `document.querySelectorAll('[__rrwebUntaintedMutationObserver]').length`,
+    );
+    expect(retainedBeforeStop).toBe(1);
+    await page.evaluate(`window.__rrwebStop()`);
+    const retainedAfterStop = await page.evaluate(
+      `document.querySelectorAll('[__rrwebUntaintedMutationObserver]').length`,
+    );
+    expect(retainedAfterStop).toBe(0);
+
+    await page.evaluate(`
+      window.__rrwebEvents = [];
+      window.__rrwebStop = rrweb.record({ emit: (e) => window.__rrwebEvents.push(e) });
+      const restarted = document.createElement('li');
+      restarted.textContent = 'restart';
+      document.getElementById('list').appendChild(restarted);
+    `);
+    await waitForRAF(page);
+    await waitForRAF(page);
+    const restartMutationCount = await page.evaluate(
+      `window.__rrwebEvents.filter((e) => e.type === 3 && e.data.source === 0).length`,
+    );
+    expect(restartMutationCount).toBeGreaterThan(0);
+    expect(
+      await page.evaluate(
+        `document.querySelectorAll('[__rrwebUntaintedMutationObserver]').length`,
+      ),
+    ).toBe(1);
+    await page.evaluate(`window.__rrwebStop()`);
+    expect(
+      await page.evaluate(
+        `document.querySelectorAll('[__rrwebUntaintedMutationObserver]').length`,
+      ),
+    ).toBe(0);
+
     await page.close();
   });
 });

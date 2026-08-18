@@ -75,7 +75,7 @@ export function throttle<T>(
 ) {
   let timeout: ReturnType<typeof setTimeout> | null = null;
   let previous = 0;
-  return function (...args: T[]) {
+  const throttled = function (...args: T[]) {
     const now = Date.now();
     if (!previous && options.leading === false) {
       previous = now;
@@ -98,6 +98,14 @@ export function throttle<T>(
       }, remaining);
     }
   };
+  throttled.cancel = () => {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+    previous = 0;
+  };
+  return throttled;
 }
 
 export function hookSetter<T>(
@@ -108,6 +116,7 @@ export function hookSetter<T>(
   win = window,
 ): hookResetter {
   const original = win.Object.getOwnPropertyDescriptor(target, key);
+  const pending = new Set<number>();
   win.Object.defineProperty(
     target,
     key,
@@ -116,16 +125,22 @@ export function hookSetter<T>(
       : {
           set(value) {
             // put hooked setter into event loop to avoid of set latency
-            setTimeout(() => {
+            const timeout = win.setTimeout(() => {
+              pending.delete(timeout);
               d.set!.call(this, value);
             }, 0);
+            pending.add(timeout);
             if (original && original.set) {
               original.set.call(this, value);
             }
           },
         },
   );
-  return () => hookSetter(target, key, original || {}, true);
+  return () => {
+    pending.forEach((timeout) => win.clearTimeout(timeout));
+    pending.clear();
+    hookSetter(target, key, original || {}, true, win);
+  };
 }
 
 export function getWindowScroll(win: Window) {
@@ -496,6 +511,13 @@ export class StyleSheetMirror {
 
   getStyle(id: number): CSSStyleSheet | null {
     return this.idStyleMap.get(id) || null;
+  }
+
+  remove(stylesheet: CSSStyleSheet): void {
+    const id = this.styleIDMap.get(stylesheet);
+    if (id === undefined) return;
+    this.styleIDMap.delete(stylesheet);
+    this.idStyleMap.delete(id);
   }
 
   reset(): void {

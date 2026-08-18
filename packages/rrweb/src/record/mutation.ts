@@ -212,7 +212,7 @@ export default class MutationBuffer {
   private shadowDomManager: observerParam['shadowDomManager'];
   private canvasManager: observerParam['canvasManager'];
   private processedNodeManager: observerParam['processedNodeManager'];
-  private unattachedDoc: HTMLDocument;
+  private unattachedDoc?: HTMLDocument;
 
   public init(options: MutationBufferParam) {
     (
@@ -271,9 +271,22 @@ export default class MutationBuffer {
     this.emit();
   }
 
-  public reset() {
-    this.shadowDomManager.reset();
-    this.canvasManager.reset();
+  public destroy() {
+    this.frozen = false;
+    this.locked = false;
+    this.texts = [];
+    this.attributes = [];
+    this.attributeMap = new WeakMap();
+    this.batchInputTypes = new WeakMap();
+    this.batchSensitiveAutocompleteInputs = new WeakSet();
+    this.removes = [];
+    this.mapRemoves = [];
+    this.movedMap = {};
+    this.addedSet = new Set();
+    this.movedSet = new Set();
+    this.droppedSet = new Set();
+    this.removesSubTreeCache = new Set();
+    this.unattachedDoc = undefined;
   }
 
   private preservePasswordInputTypes = (mutations: mutationRecord[]) => {
@@ -420,7 +433,13 @@ export default class MutationBuffer {
         },
         onIframeLoad: (iframe, childSn) => {
           this.iframeManager.attachIframe(iframe, childSn);
-          this.shadowDomManager.observeAttachShadow(iframe);
+          this.iframeManager.addIframeCleanup(
+            iframe,
+            this.shadowDomManager.observeAttachShadow(iframe),
+          );
+        },
+        onIframeLoadObserver: (iframe, cleanup) => {
+          this.iframeManager.setIframeLoadCleanup(iframe, cleanup);
         },
         onStylesheetLoad: (link, childSn) => {
           this.stylesheetManager.attachLinkElement(link, childSn);
@@ -438,7 +457,30 @@ export default class MutationBuffer {
     };
 
     while (this.mapRemoves.length) {
-      this.mirror.removeNodeFromMap(this.mapRemoves.shift()!);
+      const removedNode = this.mapRemoves.shift()!;
+      const permanentlyRemoved = !inDom(removedNode);
+      this.mirror.removeNodeFromMap(
+        removedNode,
+        permanentlyRemoved
+          ? {
+              removeMeta: true,
+              onVisit: (node: Node) => {
+                if ((node as Element).tagName === 'IFRAME') {
+                  const iframeDocument = this.iframeManager.cleanupIframe(
+                    node as HTMLIFrameElement,
+                  );
+                  if (iframeDocument) return iframeDocument;
+                }
+                if (isShadowRoot(node)) {
+                  this.shadowDomManager.removeShadowRoot(node);
+                  this.stylesheetManager.releaseHost(node);
+                } else if (node.nodeType === Node.DOCUMENT_NODE) {
+                  this.stylesheetManager.releaseHost(node as Document);
+                }
+              },
+            }
+          : undefined,
+      );
     }
 
     for (const n of this.movedSet) {

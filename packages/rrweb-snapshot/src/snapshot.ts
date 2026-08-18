@@ -309,10 +309,10 @@ function onceIframeLoaded(
   iframeEl: HTMLIFrameElement,
   listener: () => unknown,
   iframeLoadTimeout: number,
-) {
+): () => void {
   const win = iframeEl.contentWindow;
   if (!win) {
-    return;
+    return () => undefined;
   }
   // document is loading
   let fired = false;
@@ -321,21 +321,31 @@ function onceIframeLoaded(
   try {
     readyState = win.document.readyState;
   } catch (error) {
-    return;
+    return () => undefined;
   }
+  let active = true;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const onLoad = () => {
+    if (!active) return;
+    if (timer !== undefined) clearTimeout(timer);
+    fired = true;
+    listener();
+  };
+  const cleanup = () => {
+    if (!active) return;
+    active = false;
+    if (timer !== undefined) clearTimeout(timer);
+    iframeEl.removeEventListener('load', onLoad);
+  };
   if (readyState !== 'complete') {
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       if (!fired) {
         listener();
         fired = true;
       }
     }, iframeLoadTimeout);
-    iframeEl.addEventListener('load', () => {
-      clearTimeout(timer);
-      fired = true;
-      listener();
-    });
-    return;
+    iframeEl.addEventListener('load', onLoad);
+    return cleanup;
   }
   // check blank frame for Chrome
   const blankUrl = 'about:blank';
@@ -346,12 +356,16 @@ function onceIframeLoaded(
   ) {
     // iframe was already loaded, make sure we wait to trigger the listener
     // till _after_ the mutation that found this iframe has had time to process
-    setTimeout(listener, 0);
+    timer = setTimeout(() => {
+      if (active) listener();
+    }, 0);
 
-    return iframeEl.addEventListener('load', listener); // keep listing for future loads
+    iframeEl.addEventListener('load', onLoad); // keep listening for future loads
+    return cleanup;
   }
   // use default listener
-  iframeEl.addEventListener('load', listener);
+  iframeEl.addEventListener('load', onLoad);
+  return cleanup;
 }
 
 function onceStylesheetLoaded(
@@ -959,6 +973,10 @@ export function serializeNodeWithId(
       iframeNode: HTMLIFrameElement,
       node: serializedElementNodeWithId,
     ) => unknown;
+    onIframeLoadObserver?: (
+      iframeNode: HTMLIFrameElement,
+      cleanup: () => void,
+    ) => unknown;
     iframeLoadTimeout?: number;
     onStylesheetLoad?: (
       linkNode: HTMLLinkElement,
@@ -986,6 +1004,7 @@ export function serializeNodeWithId(
     recordCanvas = false,
     onSerialize,
     onIframeLoad,
+    onIframeLoadObserver,
     iframeLoadTimeout = 5000,
     onStylesheetLoad,
     stylesheetLoadTimeout = 5000,
@@ -1098,6 +1117,7 @@ export function serializeNodeWithId(
       preserveWhiteSpace,
       onSerialize,
       onIframeLoad,
+      onIframeLoadObserver,
       iframeLoadTimeout,
       onStylesheetLoad,
       stylesheetLoadTimeout,
@@ -1149,7 +1169,7 @@ export function serializeNodeWithId(
     serializedNode.type === NodeType.Element &&
     serializedNode.tagName === 'iframe'
   ) {
-    onceIframeLoaded(
+    const iframeLoadCleanup = onceIframeLoaded(
       n as HTMLIFrameElement,
       () => {
         const iframeDoc = (n as HTMLIFrameElement).contentDocument;
@@ -1174,6 +1194,7 @@ export function serializeNodeWithId(
             preserveWhiteSpace,
             onSerialize,
             onIframeLoad,
+            onIframeLoadObserver,
             iframeLoadTimeout,
             onStylesheetLoad,
             stylesheetLoadTimeout,
@@ -1190,6 +1211,7 @@ export function serializeNodeWithId(
       },
       iframeLoadTimeout,
     );
+    onIframeLoadObserver?.(n as HTMLIFrameElement, iframeLoadCleanup);
   }
 
   // <link rel=stylesheet href=...>
@@ -1226,6 +1248,7 @@ export function serializeNodeWithId(
             preserveWhiteSpace,
             onSerialize,
             onIframeLoad,
+            onIframeLoadObserver,
             iframeLoadTimeout,
             onStylesheetLoad,
             stylesheetLoadTimeout,
@@ -1269,6 +1292,10 @@ function snapshot(
       iframeNode: HTMLIFrameElement,
       node: serializedElementNodeWithId,
     ) => unknown;
+    onIframeLoadObserver?: (
+      iframeNode: HTMLIFrameElement,
+      cleanup: () => void,
+    ) => unknown;
     iframeLoadTimeout?: number;
     onStylesheetLoad?: (
       linkNode: HTMLLinkElement,
@@ -1295,6 +1322,7 @@ function snapshot(
     preserveWhiteSpace,
     onSerialize,
     onIframeLoad,
+    onIframeLoadObserver,
     iframeLoadTimeout,
     onStylesheetLoad,
     stylesheetLoadTimeout,
@@ -1347,6 +1375,7 @@ function snapshot(
     preserveWhiteSpace,
     onSerialize,
     onIframeLoad,
+    onIframeLoadObserver,
     iframeLoadTimeout,
     onStylesheetLoad,
     stylesheetLoadTimeout,

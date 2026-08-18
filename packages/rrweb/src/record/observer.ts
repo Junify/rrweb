@@ -53,7 +53,9 @@ import MutationBuffer, { transientPasswordInputs } from './mutation';
 import { callbackWrapper } from './error-handler';
 import dom, { mutationObserverCtor } from '@rrweb/utils';
 
-export const mutationBuffers: MutationBuffer[] = [];
+export const mutationBuffers = new Set<MutationBuffer>();
+export const firstMutationBuffer = (): MutationBuffer | undefined =>
+  mutationBuffers.values().next().value as MutationBuffer | undefined;
 
 // Event.path is non-standard and used in some older browsers
 type NonStandardEvent = Omit<Event, 'composedPath'> & {
@@ -82,7 +84,7 @@ export function initMutationObserver(
   rootEl: Node,
 ): [MutationObserver, () => void] {
   const mutationBuffer = new MutationBuffer();
-  mutationBuffers.push(mutationBuffer);
+  mutationBuffers.add(mutationBuffer);
   // see mutation.ts for details
   mutationBuffer.init(options);
   const [ObserverCtor, iframeCleanup] = mutationObserverCtor();
@@ -99,7 +101,27 @@ export function initMutationObserver(
     childList: true,
     subtree: true,
   });
-  return [observer, iframeCleanup];
+  let disposed = false;
+  return [
+    observer,
+    () => {
+      if (disposed) return;
+      disposed = true;
+      const cleanups = [
+        () => observer.disconnect(),
+        iframeCleanup,
+        () => mutationBuffer.destroy(),
+        () => mutationBuffers.delete(mutationBuffer),
+      ];
+      cleanups.forEach((cleanup) => {
+        try {
+          cleanup();
+        } catch (error) {
+          console.warn('[rrweb] Failed to dispose mutation observer', error);
+        }
+      });
+    },
+  ];
 }
 
 function initMoveObserver({
@@ -185,6 +207,8 @@ function initMoveObserver({
   ];
   return callbackWrapper(() => {
     handlers.forEach((h) => h());
+    updatePosition.cancel();
+    wrappedCb.cancel();
   });
 }
 
@@ -347,7 +371,11 @@ export function initScrollObserver({
       sampling.scroll || 100,
     ),
   );
-  return on('scroll', updatePosition, doc);
+  const removeListener = on('scroll', updatePosition, doc);
+  return () => {
+    removeListener();
+    updatePosition.cancel();
+  };
 }
 
 function initViewportResizeObserver(
@@ -373,7 +401,11 @@ function initViewportResizeObserver(
       200,
     ),
   );
-  return on('resize', updateDimension, win);
+  const removeListener = on('resize', updateDimension, win);
+  return () => {
+    removeListener();
+    updateDimension.cancel();
+  };
 }
 
 export const INPUT_TAGS = ['INPUT', 'TEXTAREA', 'SELECT'];
@@ -497,6 +529,14 @@ function initInputObserver({
       handlers.forEach((h) => h());
     };
   }
+  const pendingTimeouts = new Set<number>();
+  const schedule = (callback: () => void) => {
+    const timeout = currentWindow.setTimeout(() => {
+      pendingTimeouts.delete(timeout);
+      callback();
+    }, 0);
+    pendingTimeouts.add(timeout);
+  };
   const propertyDescriptor = currentWindow.Object.getOwnPropertyDescriptor(
     currentWindow.HTMLInputElement.prototype,
     'value',
@@ -551,13 +591,13 @@ function initInputObserver({
       transientPasswordInputs.add(input);
       const generation = (transientPasswordGenerations.get(input) || 0) + 1;
       transientPasswordGenerations.set(input, generation);
-      currentWindow.setTimeout(() => {
-        currentWindow.setTimeout(() => {
+      schedule(() => {
+        schedule(() => {
           if (transientPasswordGenerations.get(input) === generation) {
             transientPasswordInputs.delete(input);
           }
-        }, 0);
-      }, 0);
+        });
+      });
     };
     currentWindow.Object.defineProperty(inputPrototype, 'type', {
       ...typeDescriptor,
@@ -649,6 +689,8 @@ function initInputObserver({
     });
   }
   return callbackWrapper(() => {
+    pendingTimeouts.forEach((timeout) => currentWindow.clearTimeout(timeout));
+    pendingTimeouts.clear();
     handlers.forEach((h) => h());
   });
 }
@@ -1031,7 +1073,7 @@ export function initAdoptedStyleSheetObserver(
       const result = originalPropertyDescriptor.set?.call(this, sheets);
       if (hostId !== null && hostId !== -1) {
         try {
-          stylesheetManager.adoptStyleSheets(sheets, hostId);
+          stylesheetManager.adoptStyleSheets(sheets, hostId, host);
         } catch (e) {
           // for safety
         }
@@ -1149,8 +1191,9 @@ function initMediaInteractionObserver({
   sampling,
   doc,
 }: observerParam): listenerHandler {
-  const handler = callbackWrapper((type: MediaInteractions) =>
-    throttle(
+  const throttledHandlers: ReturnType<typeof throttle<Event>>[] = [];
+  const handler = callbackWrapper((type: MediaInteractions) => {
+    const throttled = throttle(
       callbackWrapper((event: Event) => {
         const target = getEventTarget(event);
         if (
@@ -1172,8 +1215,10 @@ function initMediaInteractionObserver({
         });
       }),
       sampling.media || 500,
-    ),
-  );
+    );
+    throttledHandlers.push(throttled);
+    return throttled;
+  });
   const handlers = [
     on('play', handler(MediaInteractions.Play), doc),
     on('pause', handler(MediaInteractions.Pause), doc),
@@ -1183,6 +1228,7 @@ function initMediaInteractionObserver({
   ];
   return callbackWrapper(() => {
     handlers.forEach((h) => h());
+    throttledHandlers.forEach((handler) => handler.cancel());
   });
 }
 
@@ -1195,6 +1241,7 @@ function initFontObserver({ fontCb, doc }: observerParam): listenerHandler {
   }
 
   const handlers: listenerHandler[] = [];
+  const pendingTimeouts = new Set<number>();
 
   const fontMap = new WeakMap<FontFace, fontParam>();
 
@@ -1222,8 +1269,9 @@ function initFontObserver({ fontCb, doc }: observerParam): listenerHandler {
     'add',
     function (original: (font: FontFace) => void) {
       return function (this: FontFaceSet, fontFace: FontFace) {
-        setTimeout(
+        const timeout = win.setTimeout(
           callbackWrapper(() => {
+            pendingTimeouts.delete(timeout);
             const p = fontMap.get(fontFace);
             if (p) {
               fontCb(p);
@@ -1232,6 +1280,7 @@ function initFontObserver({ fontCb, doc }: observerParam): listenerHandler {
           }),
           0,
         );
+        pendingTimeouts.add(timeout);
         return original.apply(this, [fontFace]);
       };
     },
@@ -1243,6 +1292,8 @@ function initFontObserver({ fontCb, doc }: observerParam): listenerHandler {
   handlers.push(restoreHandler);
 
   return callbackWrapper(() => {
+    pendingTimeouts.forEach((timeout) => win.clearTimeout(timeout));
+    pendingTimeouts.clear();
     handlers.forEach((h) => h());
   });
 }
@@ -1434,11 +1485,9 @@ export function initObservers(
   }
 
   mergeHooks(o, hooks);
-  let mutationObserver: MutationObserver | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  let cleanupMutationIframe: () => void = () => {};
+  let mutationObserverCleanup: (() => void) | undefined;
   if (o.recordDOM) {
-    [mutationObserver, cleanupMutationIframe] = initMutationObserver(o, o.doc);
+    [, mutationObserverCleanup] = initMutationObserver(o, o.doc);
   }
   const mousemoveHandler = initMoveObserver(o);
   const mouseInteractionHandler = initMouseInteractionObserver(o);
@@ -1478,24 +1527,31 @@ export function initObservers(
     );
   }
 
-  return callbackWrapper(() => {
-    mutationBuffers.forEach((b) => b.reset());
-    mutationObserver?.disconnect();
-    cleanupMutationIframe();
-    mousemoveHandler();
-    mouseInteractionHandler();
-    scrollHandler();
-    viewportResizeHandler();
-    inputHandler();
-    mediaInteractionHandler();
-    styleSheetObserver();
-    adoptedStyleSheetObserver();
-    styleDeclarationObserver();
-    fontObserver();
-    selectionObserver();
-    customElementObserver();
-    pluginHandlers.forEach((h) => h());
-  });
+  return () => {
+    const cleanups = [
+      mutationObserverCleanup,
+      mousemoveHandler,
+      mouseInteractionHandler,
+      scrollHandler,
+      viewportResizeHandler,
+      inputHandler,
+      mediaInteractionHandler,
+      styleSheetObserver,
+      adoptedStyleSheetObserver,
+      styleDeclarationObserver,
+      fontObserver,
+      selectionObserver,
+      customElementObserver,
+      ...pluginHandlers,
+    ];
+    cleanups.forEach((cleanup) => {
+      try {
+        cleanup?.();
+      } catch (error) {
+        console.warn('[rrweb] Failed to dispose recorder observer', error);
+      }
+    });
+  };
 }
 
 type CSSGroupingProp =

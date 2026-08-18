@@ -7,6 +7,7 @@ export default class ProcessedNodeManager {
   private nodeMap: WeakMap<Node, Set<MutationBuffer>> = new WeakMap();
 
   private active = false;
+  private rafId: number | null = null;
 
   public inOtherBuffer(node: Node, thisBuffer: MutationBuffer) {
     const buffers = this.nodeMap.get(node);
@@ -18,15 +19,19 @@ export default class ProcessedNodeManager {
   public add(node: Node, buffer: MutationBuffer) {
     if (!this.active) {
       this.active = true;
-      requestAnimationFrame(() => {
+      this.rafId = requestAnimationFrame(() => {
         this.nodeMap = new WeakMap();
         this.active = false;
+        this.rafId = null;
       });
     }
     this.nodeMap.set(node, (this.nodeMap.get(node) || new Set()).add(buffer));
   }
 
   public destroy() {
-    // cleanup no longer needed
+    if (this.rafId !== null) cancelAnimationFrame(this.rafId);
+    this.rafId = null;
+    this.active = false;
+    this.nodeMap = new WeakMap();
   }
 }

@@ -14,6 +14,8 @@ export class StylesheetManager {
   private mutationCb: mutationCallBack;
   private adoptedStyleSheetCb: adoptedStyleSheetCallback;
   public styleMirror = new StyleSheetMirror();
+  private hostSheets = new Map<Document | ShadowRoot, Set<CSSStyleSheet>>();
+  private sheetOwners = new Map<CSSStyleSheet, number>();
 
   constructor(options: {
     mutationCb: mutationCallBack;
@@ -54,8 +56,21 @@ export class StylesheetManager {
   public adoptStyleSheets(
     sheets: CSSStyleSheet[] | readonly CSSStyleSheet[],
     hostId: number,
+    host: Document | ShadowRoot,
   ) {
-    if (sheets.length === 0) return;
+    const previousSheets = this.hostSheets.get(host) || new Set();
+    const nextSheets = new Set(sheets);
+    previousSheets.forEach((sheet) => {
+      if (!nextSheets.has(sheet)) this.releaseSheet(sheet);
+    });
+    nextSheets.forEach((sheet) => {
+      if (!previousSheets.has(sheet)) {
+        this.sheetOwners.set(sheet, (this.sheetOwners.get(sheet) || 0) + 1);
+      }
+    });
+    if (nextSheets.size) this.hostSheets.set(host, nextSheets);
+    else this.hostSheets.delete(host);
+
     const adoptedStyleSheetData: adoptedStyleSheetParam = {
       id: hostId,
       styleIds: [] as number[],
@@ -79,9 +94,28 @@ export class StylesheetManager {
     this.adoptedStyleSheetCb(adoptedStyleSheetData);
   }
 
+  public releaseHost(host: Document | ShadowRoot | null | undefined) {
+    if (!host) return;
+    const sheets = this.hostSheets.get(host);
+    this.hostSheets.delete(host);
+    sheets?.forEach((sheet) => this.releaseSheet(sheet));
+  }
+
+  private releaseSheet(sheet: CSSStyleSheet) {
+    const owners = this.sheetOwners.get(sheet) || 0;
+    if (owners > 1) {
+      this.sheetOwners.set(sheet, owners - 1);
+      return;
+    }
+    this.sheetOwners.delete(sheet);
+    this.styleMirror.remove(sheet);
+  }
+
   public reset() {
     this.styleMirror.reset();
     this.trackedLinkElements = new WeakSet();
+    this.hostSheets.clear();
+    this.sheetOwners.clear();
   }
 
   // TODO: take snapshot on stylesheet reload by applying event listener
