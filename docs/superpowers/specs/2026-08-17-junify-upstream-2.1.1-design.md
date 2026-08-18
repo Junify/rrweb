@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD043 -->
+
 # Junify rrweb Upstream 2.1.1 Integration Design
 
 ## Context

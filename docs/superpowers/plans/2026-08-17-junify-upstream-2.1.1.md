@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 MD036 MD043 -->
+
 # Junify rrweb Upstream 2.1.1 Implementation Plan
 
 > **Execution:** Use `superpowers:subagent-driven-development`. Give each task
