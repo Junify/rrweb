@@ -433,8 +433,8 @@ function initInputObserver({
     }
     const type: Lowercase<string> =
       knownPasswordInputs.has(target) || transientPasswordInputs.has(target)
-      ? 'password'
-      : currentType;
+        ? 'password'
+        : currentType;
 
     if (type === 'radio' || type === 'checkbox') {
       isChecked = (target as HTMLInputElement).checked;
@@ -538,19 +538,21 @@ function initInputObserver({
     'type',
   );
   if (typeDescriptor?.get && typeDescriptor.set) {
-    const getType = typeDescriptor.get;
-    const setType = typeDescriptor.set;
+    const getType = (input: HTMLInputElement) =>
+      typeDescriptor.get?.call(input) as string;
+    const setType = (input: HTMLInputElement, value: string) => {
+      typeDescriptor.set?.call(input, value);
+    };
     currentWindow.Object.defineProperty(inputPrototype, 'type', {
       ...typeDescriptor,
-      set(value: string) {
-        const previousType = toLowerCase(getType.call(this));
-        setType.call(this, value);
-        const currentType = toLowerCase(getType.call(this));
+      set(this: HTMLInputElement, value: string) {
+        const previousType = toLowerCase(getType(this));
+        setType(this, value);
+        const currentType = toLowerCase(getType(this));
         if (previousType === 'password' || currentType === 'password') {
           const input = this as HTMLElement;
           transientPasswordInputs.add(input);
-          const generation =
-            (transientPasswordGenerations.get(input) || 0) + 1;
+          const generation = (transientPasswordGenerations.get(input) || 0) + 1;
           transientPasswordGenerations.set(input, generation);
           currentWindow.setTimeout(() => {
             currentWindow.setTimeout(() => {
