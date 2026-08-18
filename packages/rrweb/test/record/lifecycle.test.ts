@@ -286,6 +286,134 @@ describe('recorder lifecycle', () => {
     expect(result.final).toEqual(result.baseline);
   }, 120_000);
 
+  it('does not carry a stopped transient password classification into the next recorder', async () => {
+    const result = await page.evaluate(
+      ({ incrementalSnapshotType, inputSource }) => {
+        const rrweb = (
+          window as unknown as {
+            rrweb: {
+              record(options: {
+                emit(event: eventWithTime): void;
+                maskInputOptions: { password: boolean };
+              }): (() => void) | undefined;
+            };
+          }
+        ).rrweb;
+        const input = document.createElement('input');
+        input.id = 'restart-transient-password';
+        input.type = 'text';
+        document.body.appendChild(input);
+
+        const firstEvents: eventWithTime[] = [];
+        const firstStop = rrweb.record({
+          emit: (event) => firstEvents.push(event),
+          maskInputOptions: { password: true },
+        });
+        if (!firstStop) throw new Error('first recorder did not start');
+        const firstSecret = 'FIRST_SESSION_TRANSIENT_PASSWORD_SECRET';
+        input.type = 'password';
+        input.type = 'text';
+        input.value = firstSecret;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        firstStop();
+
+        const secondEvents: eventWithTime[] = [];
+        const secondStop = rrweb.record({
+          emit: (event) => secondEvents.push(event),
+          maskInputOptions: { password: true },
+        });
+        if (!secondStop) throw new Error('second recorder did not start');
+        const secondVisible = 'SECOND_SESSION_NORMAL_TEXT_VISIBLE';
+        input.value = secondVisible;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        secondStop();
+
+        const inputs = (events: eventWithTime[]) =>
+          events.filter(
+            (event) =>
+              event.type === incrementalSnapshotType &&
+              event.data.source === inputSource,
+          );
+        return {
+          firstInputs: inputs(firstEvents),
+          secondInputs: inputs(secondEvents),
+          firstSecret,
+          secondVisible,
+        };
+      },
+      {
+        incrementalSnapshotType: EventType.IncrementalSnapshot,
+        inputSource: IncrementalSource.Input,
+      },
+    );
+
+    expect(JSON.stringify(result.firstInputs)).not.toContain(
+      result.firstSecret,
+    );
+    expect(result.firstInputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          data: expect.objectContaining({
+            text: '*'.repeat(result.firstSecret.length),
+          }),
+        }),
+      ]),
+    );
+    expect(result.secondInputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          data: expect.objectContaining({ text: result.secondVisible }),
+        }),
+      ]),
+    );
+  });
+
+  it('emits the same input value once in every recorder session', async () => {
+    const result = await page.evaluate(
+      ({ incrementalSnapshotType, inputSource }) => {
+        const rrweb = (
+          window as unknown as {
+            rrweb: {
+              record(options: {
+                emit(event: eventWithTime): void;
+              }): (() => void) | undefined;
+            };
+          }
+        ).rrweb;
+        const input = document.createElement('input');
+        input.id = 'restart-same-input-value';
+        input.type = 'text';
+        input.value = 'SAME_VALUE_ACROSS_RECORDER_RESTARTS';
+        document.body.appendChild(input);
+        const inputCounts: number[] = [];
+
+        for (let cycle = 0; cycle < 25; cycle++) {
+          const events: eventWithTime[] = [];
+          const stop = rrweb.record({ emit: (event) => events.push(event) });
+          if (!stop)
+            throw new Error(`recorder did not start at cycle ${cycle}`);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          stop();
+          inputCounts.push(
+            events.filter(
+              (event) =>
+                event.type === incrementalSnapshotType &&
+                event.data.source === inputSource,
+            ).length,
+          );
+        }
+
+        return inputCounts;
+      },
+      {
+        incrementalSnapshotType: EventType.IncrementalSnapshot,
+        inputSource: IncrementalSource.Input,
+      },
+    );
+
+    expect(result).toEqual(Array.from({ length: 25 }, () => 1));
+  });
+
   it('releases pending stylesheet load listeners and timers on every stop', async () => {
     const result = await page.evaluate(() => {
       const lifecycle = (

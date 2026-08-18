@@ -409,7 +409,6 @@ function initViewportResizeObserver(
 }
 
 export const INPUT_TAGS = ['INPUT', 'TEXTAREA', 'SELECT'];
-const lastInputValueMap: WeakMap<EventTarget, inputValue> = new WeakMap();
 function initInputObserver({
   inputCb,
   doc,
@@ -423,8 +422,10 @@ function initInputObserver({
   sampling,
   userTriggeredOnInput,
 }: observerParam): listenerHandler {
+  const lastInputValueMap: WeakMap<EventTarget, inputValue> = new WeakMap();
   const knownPasswordInputs = new WeakSet<HTMLElement>();
   const transientPasswordGenerations = new WeakMap<HTMLElement, number>();
+  const ownedTransientPasswordInputs = new Set<HTMLElement>();
   doc.querySelectorAll('input').forEach((input) => {
     if (getInputType(input) === 'password') knownPasswordInputs.add(input);
   });
@@ -589,12 +590,14 @@ function initInputObserver({
     ) => {
       if (previousType !== 'password' && currentType !== 'password') return;
       transientPasswordInputs.add(input);
+      ownedTransientPasswordInputs.add(input);
       const generation = (transientPasswordGenerations.get(input) || 0) + 1;
       transientPasswordGenerations.set(input, generation);
       schedule(() => {
         schedule(() => {
           if (transientPasswordGenerations.get(input) === generation) {
             transientPasswordInputs.delete(input);
+            ownedTransientPasswordInputs.delete(input);
           }
         });
       });
@@ -691,6 +694,10 @@ function initInputObserver({
   return callbackWrapper(() => {
     pendingTimeouts.forEach((timeout) => currentWindow.clearTimeout(timeout));
     pendingTimeouts.clear();
+    ownedTransientPasswordInputs.forEach((input) =>
+      transientPasswordInputs.delete(input),
+    );
+    ownedTransientPasswordInputs.clear();
     handlers.forEach((h) => h());
   });
 }
