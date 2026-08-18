@@ -181,7 +181,10 @@ general attribute-masking callback remains deferred.
   short-lived classification masks both exact Input events and newly added
   node serialization, expires before the same node returns to normal text,
   restores exact method identities across idempotent stop/restart, and does
-  not overwrite a later third-party patch.
+  not overwrite a later third-party patch. Fix round 3 `93ba20d3` makes any
+  retained inner rrweb proxy inactive before cleanup continues. Post-stop
+  set/remove calls delegate only to the captured target, schedule zero timers,
+  and leave no transient classification for a restarted recorder.
 - Textarea: `313fd37b` adds characterization only. Upstream 2.1.1 already
   protects initial, dynamically added, value-attribute, child-text, and Input
   payloads under the explicit masking policy, so no duplicate production patch
@@ -208,7 +211,7 @@ general attribute-masking callback remains deferred.
   wrappers, keeping runtime behavior unchanged and the package lint gate at
   zero errors. Fix round 2 `aee70828` extends the unique persisted fixture with
   four attribute-method sentinels and exact added-node/Input sinks. The final
-  candidate passes rrweb real-Chrome integration 59/59,
+  candidate passes rrweb real-Chrome integration 60/60,
   persisted compatibility 4/4, and the focused snapshot suite 32/32.
 - Upstream plan: submit `PRIV-001`, `PRIV-002`, and `PRIV-003` as focused
   behavior/test proposals based on their cited sources; submit `PRIV-004` as a

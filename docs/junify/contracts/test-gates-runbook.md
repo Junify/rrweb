@@ -194,13 +194,15 @@ hidden, and sensitive-autocomplete sentinels. Task 2 characterizes emitted
 artifacts: placeholder, hidden, and sensitive-autocomplete leak in all four;
 alpha.4 also leaks textarea. Task 6 passes the package-local snapshot,
 real-Chrome recorder, and temporary persisted-JSON portions under Node 20.9.0
-and Chrome 151. The final rrweb integration gate passes 59/59 and the persisted
+and Chrome 151. The final rrweb integration gate passes 60/60 and the persisted
 compatibility gate passes 4/4. They cover FullSnapshot, Mutation, Input, and
 added-node payloads; both same-batch password type orders; post-start assigned
 and unassigned password state reached through the type property or page-realm
 `setAttribute`/`removeAttribute`; synchronous Input before observer flush;
 exact method-hook restoration across idempotent stop/restart without clobbering
-a later third-party patch; hidden-to-text and autocomplete
+a later third-party patch; zero privacy timers or transient state through any
+retained inner rrweb proxy after both stop cycles; fresh-recorder masking after
+restart; hidden-to-text and autocomplete
 removal/value mutations in both orders; all approved sensitive autocomplete
 tokens with compound/mixed-case forms and an identity mask function;
 placeholder/autocomplete removal as `null`; and post-batch visible negative

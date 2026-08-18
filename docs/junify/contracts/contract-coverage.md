@@ -60,7 +60,10 @@ nodes, temporary text-password-text state, both hidden-to-text value orders,
 and both sensitive-autocomplete removal/value orders. Fix round 2 adds page-
 realm `setAttribute` and `removeAttribute` password transitions for assigned
 and newly added nodes, including exact method restoration on stop/restart and
-non-destructive handling of a later third-party patch. Candidate tests scan
+non-destructive handling of a later third-party patch. Fix round 3 proves the
+retained inner rrweb proxy becomes inert on stop: post-stop attribute calls
+schedule no privacy timer, touch no transient classification, and a fresh
+recorder masks only its own active interval. Candidate tests scan
 serialized FullSnapshot, Mutation, Input, and dynamically added-node payloads
 plus a temporary persisted JSON artifact. Every private source has a unique
 mask length and an exact node/source/value assertion, so one field's stars
