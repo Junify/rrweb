@@ -995,6 +995,134 @@ describe('record integration tests', function (this: ISuite) {
     expect(preservesLaterPatch).toBe(true);
   });
 
+  it('keeps preserved third-party attribute wrappers inert after stop and active after restart', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const visibleAfterFirstStop =
+      'attribute-method-visible-after-first-stop-001';
+    const restartSecret = 'attribute-method-restart-secret-0002';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="attribute-method-lifecycle" type="text" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    const result = await page.evaluate(
+      async ({ visibleAfterFirstStop, restartSecret }) => {
+        const pageWindow = window as typeof window & {
+          rrweb: typeof import('../src');
+        };
+        const input = document.querySelector(
+          '#attribute-method-lifecycle',
+        ) as HTMLInputElement;
+        const stopFirst = pageWindow.rrweb.record({ emit: () => undefined });
+        const firstRecorderSetAttribute = Element.prototype.setAttribute;
+        const firstRecorderRemoveAttribute = Element.prototype.removeAttribute;
+        const thirdPartySetAttribute = new Proxy(firstRecorderSetAttribute, {});
+        const thirdPartyRemoveAttribute = new Proxy(
+          firstRecorderRemoveAttribute,
+          {},
+        );
+        Element.prototype.setAttribute = thirdPartySetAttribute;
+        Element.prototype.removeAttribute = thirdPartyRemoveAttribute;
+        stopFirst?.();
+        stopFirst?.();
+        const thirdPartyPreservedAfterFirstStop =
+          Element.prototype.setAttribute === thirdPartySetAttribute &&
+          Element.prototype.removeAttribute === thirdPartyRemoveAttribute;
+
+        const nativeSetTimeout = window.setTimeout;
+        let firstInactiveScheduled = 0;
+        window.setTimeout = new Proxy(nativeSetTimeout, {
+          apply(target, thisArg, argumentsList) {
+            firstInactiveScheduled += 1;
+            return Reflect.apply(target, thisArg, argumentsList);
+          },
+        });
+        input.setAttribute('type', 'password');
+        input.removeAttribute('type');
+        window.setTimeout = nativeSetTimeout;
+
+        const restartEvents: eventWithTime[] = [];
+        const stopRestart = pageWindow.rrweb.record({
+          emit: (event) => restartEvents.push(event),
+          maskInputOptions: { password: true },
+        });
+        input.value = visibleAfterFirstStop;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise((resolve) => nativeSetTimeout(resolve, 40));
+        input.setAttribute('type', 'password');
+        input.setAttribute('type', 'text');
+        input.value = restartSecret;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise((resolve) => nativeSetTimeout(resolve, 40));
+        stopRestart?.();
+        stopRestart?.();
+        const thirdPartyPreservedAfterRestart =
+          Element.prototype.setAttribute === thirdPartySetAttribute &&
+          Element.prototype.removeAttribute === thirdPartyRemoveAttribute;
+
+        let secondInactiveScheduled = 0;
+        window.setTimeout = new Proxy(nativeSetTimeout, {
+          apply(target, thisArg, argumentsList) {
+            secondInactiveScheduled += 1;
+            return Reflect.apply(target, thisArg, argumentsList);
+          },
+        });
+        input.setAttribute('type', 'password');
+        input.setAttribute('type', 'text');
+        window.setTimeout = nativeSetTimeout;
+
+        return {
+          firstInactiveScheduled,
+          secondInactiveScheduled,
+          thirdPartyPreservedAfterFirstStop,
+          thirdPartyPreservedAfterRestart,
+          restartEvents,
+        };
+      },
+      { visibleAfterFirstStop, restartSecret },
+    );
+    await page.close();
+
+    expect.soft(result.firstInactiveScheduled).toBe(0);
+    expect.soft(result.secondInactiveScheduled).toBe(0);
+    expect(result.thirdPartyPreservedAfterFirstStop).toBe(true);
+    expect(result.thirdPartyPreservedAfterRestart).toBe(true);
+    const fullSnapshot = result.restartEvents.find(
+      (event) => event.type === EventType.FullSnapshot,
+    );
+    expect(fullSnapshot?.type).toBe(EventType.FullSnapshot);
+    let inputId = -1;
+    if (fullSnapshot?.type === EventType.FullSnapshot) {
+      visitSnapshot(fullSnapshot.data.node, (node) => {
+        if (
+          node.type === NodeType.Element &&
+          node.attributes.id === 'attribute-method-lifecycle'
+        ) {
+          inputId = node.id;
+        }
+      });
+    }
+    expect(inputId).toBeGreaterThan(0);
+    const restartInputEvents = result.restartEvents.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        event.data.source === IncrementalSource.Input &&
+        event.data.id === inputId,
+    );
+    expect
+      .soft(
+        restartInputEvents.some(
+          (event) => event.data.text === visibleAfterFirstStop,
+        ),
+      )
+      .toBe(true);
+    expect(
+      restartInputEvents.some(
+        (event) => event.data.text === '*'.repeat(restartSecret.length),
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(restartInputEvents)).not.toContain(restartSecret);
+  });
+
   it('keeps configured textarea initial, add, attribute, child, and Input values out of payloads', async () => {
     const page: puppeteer.Page = await browser.newPage();
     const initialSecret = 'textarea-full-secret-001';

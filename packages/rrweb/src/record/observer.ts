@@ -585,12 +585,16 @@ function initInputObserver({
       elementPrototype,
       'removeAttribute',
     )?.value as typeof elementPrototype.removeAttribute;
+    let attributeMethodsActive = true;
     const setAttributeProxy = new Proxy(setAttribute, {
       apply(
         target: typeof setAttribute,
         thisArg: Element,
         argumentsList: [qualifiedName: string, value: string],
       ) {
+        if (!attributeMethodsActive) {
+          return target.apply(thisArg, argumentsList);
+        }
         if (
           !(thisArg instanceof currentWindow.HTMLInputElement) ||
           toLowerCase(String(argumentsList[0])) !== 'type'
@@ -613,6 +617,9 @@ function initInputObserver({
         thisArg: Element,
         argumentsList: [qualifiedName: string],
       ) {
+        if (!attributeMethodsActive) {
+          return target.apply(thisArg, argumentsList);
+        }
         if (
           !(thisArg instanceof currentWindow.HTMLInputElement) ||
           toLowerCase(String(argumentsList[0])) !== 'type'
@@ -631,7 +638,8 @@ function initInputObserver({
     });
     elementPrototype.setAttribute = setAttributeProxy;
     elementPrototype.removeAttribute = removeAttributeProxy;
-    handlers.push(() => {
+    handlers.unshift(() => {
+      attributeMethodsActive = false;
       if (elementPrototype.setAttribute === setAttributeProxy) {
         elementPrototype.setAttribute = setAttribute;
       }
