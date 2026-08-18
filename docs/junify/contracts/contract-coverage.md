@@ -52,6 +52,17 @@ drift. The old `e075ed25...`/`c4bd708d...` set is superseded/quarantined; the
 canonical replacements require browser and Rails consumer revalidation. This
 changes packaging evidence only, not runtime, wire format, or public API.
 
+Task 3 fix round 4 closes two remaining provenance false greens. The canonical
+pipeline now captures a clean HEAD before it creates output or removes build
+artifacts, then verifies that same HEAD, an empty tracked/untracked status, and
+an explicit generated-residue census after each clean, core build, player
+build, shared pack, and immediately before emission. Retained boundary `types`,
+`.svelte.d.ts`, and `tsconfig.tsbuildinfo` paths are rejected rather than
+deleted. Each run invokes one resolved npm process with both absolute boundary
+directories and a shared empty destination; exactly two name/version/filename
+results are required. The round 3 manifest is therefore superseded even though
+its package bytes match, and consumers must revalidate the round 4 manifest.
+
 Task 4 closes `junify.replay.seek-visible-dom`. An unmodified 2.1.1 candidate
 fails both forward and backward cases after casting the target event: public
 time advances past the mutation while the visible iframe stays at

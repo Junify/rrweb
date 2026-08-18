@@ -90,17 +90,25 @@ Run from the rrweb repository root with a new, empty output directory:
 export PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH
 yarn test:junify-packaging
 yarn pack:junify-boundaries \
-  --output ../../verification/rrweb-2.1.1/packages-canonical-fix-round3 \
+  --output ../../verification/rrweb-2.1.1/packages-canonical-fix-round4 \
   --runs 2
 ```
 
-The pipeline rejects any runtime other than Node 20.9, forces
-`NODE_ENV=production` for every targeted dependency/boundary build, clears the
-two boundary output trees before each run, and invokes the same local
-`npm pack --ignore-scripts --json` path for core and player. Two consecutive
-archives must match in SHA-256, SHA-512, integrity, byte size, regular-file
-count, file census, and unpacked-tree digest. Archive bytes are mandatory;
-tree-only equality is not sufficient.
+The pipeline rejects any runtime other than Node 20.9 and captures HEAD plus an
+exact clean tracked/untracked and generated-residue census before creating
+output or clearing build products. It rejects retained boundary `types`,
+`.svelte.d.ts`, and `tsconfig.tsbuildinfo` paths rather than deleting them. The
+same HEAD and clean policy are rechecked after every clean, core build, player
+build, shared pack, and immediately before canonical emission.
+
+Every targeted dependency/boundary build is forced to `NODE_ENV=production`.
+Each run invokes exactly one resolved npm process as `npm pack <absolute-core>
+<absolute-player> --pack-destination <shared-empty-dir> --ignore-scripts
+--json`; exactly two matching package name/version/filename results are
+required. Two consecutive archives must match in SHA-256, SHA-512, integrity,
+byte size, regular-file count, file census, and unpacked-tree digest. Archive
+bytes are mandatory; tree-only equality is not sufficient. No canonical file
+is copied until every source, result-shape, and determinism check passes.
 
 The player CSS mutation gate must fail while leaving the exact live 18-file
 content and metadata tree unchanged, including on the expected Vite failure;
@@ -108,12 +116,14 @@ no generated `.svelte.d.ts`, `types`, nested absolute-path, or
 `tsconfig.tsbuildinfo` artifact may remain. Never run `npm pack` after a
 boundary test as an implicit production step.
 
-The old shared `packages/` set is superseded evidence, not a valid candidate:
-core SHA-256 `e075ed25...` used a different pack path, and player SHA-256
-`c4bd708d...` / tree `6b8aaaf9...` is a production/test hybrid. Install only
-the two tarballs named by the new combined manifest, verify their SHA-256,
-SHA-512, file counts, and tree digests, then rerun browser and Rails gates.
-Publication and registry installation remain separate release actions.
+The old shared `packages/` set remains invalid: core SHA-256 `e075ed25...` used
+a different pack path, and player SHA-256 `c4bd708d...` / tree `6b8aaaf9...`
+is a production/test hybrid. The round 3 manifest `592f305c...` is also
+superseded because it did not fail closed on source state and used one pack
+process per role. Install only the two tarballs named by the round 4 combined
+manifest, verify their SHA-256, SHA-512, file counts, and tree digests, then
+rerun browser and Rails gates. Publication and registry installation remain
+separate release actions.
 
 ## Compatibility And Replay Gates
 

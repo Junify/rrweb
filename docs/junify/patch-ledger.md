@@ -61,12 +61,15 @@ the upstream fixed changeset group. Publication remains release-gated.
   ambient declarations clean.
 - Canonical packaging: `yarn pack:junify-boundaries --output <new-empty-dir>
 --runs 2` requires Node 20.9, forces `NODE_ENV=production`, starts each run
-  from fresh boundary outputs, and uses `npm pack --ignore-scripts --json` for
-  both packages. It fails closed unless consecutive archive SHA-256, SHA-512,
-  integrity, size, regular-file count, census, and unpacked-tree digests are
-  exact. The CSS provenance mutation is isolated in a temporary outDir and its
-  expected failure must leave the live 18-file player content/metadata tree and
-  generated Svelte declaration census unchanged.
+  from fresh boundary outputs, and uses one resolved `npm pack` process per run
+  with both absolute package directories and one shared empty destination. It
+  accepts exactly two matching name/version/filename results and fails closed
+  unless consecutive archive SHA-256, SHA-512, integrity, size, regular-file
+  count, census, and unpacked-tree digests are exact. Before any output or
+  cleanup, and after each clean/build/pack stage, it requires one unchanged HEAD,
+  an empty tracked/untracked status, and zero retained boundary `types`, Svelte
+  declarations, or tsbuildinfo residue. The CSS provenance mutation remains
+  isolated and leaves the live 18-file player tree unchanged.
 - Public privacy type boundary: the exact browser policy literal with
   `password`, `textarea`, and `hidden` compiles from the packed `record()`
   parameter. The public rrweb type intersects official
@@ -80,9 +83,12 @@ the upstream fixed changeset group. Publication remains release-gated.
 - Supersession: Task 11's core `e075ed25...` archive used a noncanonical pack
   path even though its unpacked tree was `b9ff62b0...`; player
   `c4bd708d...`/`6b8aaaf9...` was the production-dependency/test-player hybrid.
-  Neither belongs to the canonical set. Consumer evidence derived from them is
-  stale until browser and Rails reinstall and rerun against the new combined
-  manifest. No publish, registry install, or consumer edit occurs here.
+  Neither belongs to the canonical set. Fix round 3 manifest `592f305c...` is
+  also superseded: its package bytes were deterministic, but source cleanliness
+  was only reported at the end and it used separate core/player npm processes.
+  Consumer evidence derived from any prior set is stale until browser and Rails
+  reinstall and rerun against the round 4 manifest. No publish, registry
+  install, or consumer edit occurs here.
 - Residual upstream declaration blocker: a no-`skipLibCheck` diagnostic pass
   must exactly match pinned upstream 2.1.1 path/code/line/column/message tuples,
   occurrence counts, and fresh declaration digests. Collected same-code and

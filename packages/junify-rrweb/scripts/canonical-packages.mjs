@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -20,6 +21,16 @@ const repositoryRoot = path.resolve(
   '../../..',
 );
 const expectedNodeVersion = 'v20.9.0';
+const gitStatusArguments = [
+  'status',
+  '--porcelain=v1',
+  '--untracked-files=all',
+];
+const generatedResidueRoots = [
+  'packages/junify-rrweb',
+  'packages/junify-rrweb-player',
+  'packages/rrweb-player',
+];
 const packageDefinitions = {
   core: {
     directory: 'packages/junify-rrweb',
@@ -82,7 +93,7 @@ function digest(contents, algorithm) {
 
 function cleanBoundaryOutputs() {
   for (const definition of Object.values(packageDefinitions)) {
-    for (const artifactDirectory of ['dist', 'umd', 'types']) {
+    for (const artifactDirectory of ['dist', 'umd']) {
       rmSync(
         path.join(repositoryRoot, definition.directory, artifactDirectory),
         {
@@ -94,47 +105,97 @@ function cleanBoundaryOutputs() {
   }
 }
 
-function assertNoGeneratedPlayerArtifacts() {
+function generatedBuildResidues() {
   const unexpected = [];
-  const root = path.join(repositoryRoot, 'packages/rrweb-player');
-  const visit = (directory) => {
+  const visit = (root, directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const filename = path.join(directory, entry.name);
-      if (entry.isDirectory()) visit(filename);
-      else if (
+      const relativePath = path.relative(repositoryRoot, filename);
+      const relativeToRoot = path.relative(root, filename);
+      const rootPackageName = path.basename(root);
+      const insideBoundaryTypes =
+        (rootPackageName === 'junify-rrweb' ||
+          rootPackageName === 'junify-rrweb-player') &&
+        (relativeToRoot === 'types' ||
+          relativeToRoot.startsWith(`types${path.sep}`));
+      if (entry.isSymbolicLink()) {
+        if (insideBoundaryTypes) unexpected.push(relativePath);
+      } else if (entry.isDirectory()) {
+        if (insideBoundaryTypes && readdirSync(filename).length === 0) {
+          unexpected.push(`${relativePath}/`);
+        }
+        visit(root, filename);
+      } else if (
         entry.isFile() &&
-        (entry.name.endsWith('.svelte.d.ts') ||
+        (insideBoundaryTypes ||
+          entry.name.endsWith('.svelte.d.ts') ||
           entry.name === 'tsconfig.tsbuildinfo')
       ) {
-        unexpected.push(path.relative(repositoryRoot, filename));
+        unexpected.push(relativePath);
       }
     }
   };
-  visit(root);
-  if (unexpected.length > 0) {
+  for (const relativeRoot of generatedResidueRoots) {
+    const root = path.join(repositoryRoot, relativeRoot);
+    if (existsSync(root)) visit(root, root);
+  }
+  return [...new Set(unexpected)].sort();
+}
+
+function observeCleanSourceState(stage, expectedHead) {
+  const head = run('git', ['rev-parse', 'HEAD']);
+  if (expectedHead && head !== expectedHead) {
     throw new Error(
-      `Generated player build artifacts remain in the source tree:\n${unexpected.join(
+      `Source HEAD changed at ${stage}: expected ${expectedHead}, observed ${head}`,
+    );
+  }
+  const statusOutput = run('git', gitStatusArguments);
+  const statusLines = statusOutput ? statusOutput.split('\n') : [];
+  const generatedResidues = generatedBuildResidues();
+  if (statusLines.length > 0 || generatedResidues.length > 0) {
+    const details = [
+      ...statusLines.map((line) => `git: ${line}`),
+      ...generatedResidues.map((filename) => `residue: ${filename}`),
+    ];
+    throw new Error(
+      `Source state is not clean before build or canonical emission (${stage}):\n${details.join(
         '\n',
       )}`,
     );
   }
+  return { generatedResidues, head, stage, worktreeClean: true };
 }
 
-function buildProductionBoundaries() {
+function createSourceStateGuard() {
+  const preflight = observeCleanSourceState('preflight');
+  const validations = [preflight];
+  return {
+    assert(stage) {
+      const validation = observeCleanSourceState(stage, preflight.head);
+      validations.push(validation);
+      return validation;
+    },
+    expectedHead: preflight.head,
+    validations,
+  };
+}
+
+function buildProductionBoundaries(sourceState, runNumber) {
   cleanBoundaryOutputs();
-  assertNoGeneratedPlayerArtifacts();
+  sourceState.assert(`run-${runNumber}-after-clean`);
   const environment = { ...process.env, NODE_ENV: 'production' };
   run('yarn', ['workspace', '@junify-app/rrweb', 'build'], {
     env: environment,
   });
+  sourceState.assert(`run-${runNumber}-after-core-build`);
   run('yarn', ['workspace', '@junify-app/rrweb-player', 'build'], {
     env: environment,
   });
-  assertNoGeneratedPlayerArtifacts();
+  sourceState.assert(`run-${runNumber}-after-player-build`);
 }
 
 function packageTreeIdentity(artifactPath, extractionDirectory) {
-  mkdirSync(extractionDirectory);
+  mkdirSync(extractionDirectory, { recursive: true });
   run('tar', ['-xzf', artifactPath, '-C', extractionDirectory]);
   const packageDirectory = path.join(extractionDirectory, 'package');
   const relativeFiles = [];
@@ -167,29 +228,12 @@ function packageTreeIdentity(artifactPath, extractionDirectory) {
   };
 }
 
-function packBoundary(role, definition, runDirectory) {
-  const packDirectory = path.join(runDirectory, role, 'pack');
+function packedBoundaryIdentity(role, definition, packDirectory, runDirectory) {
   const extractionDirectory = path.join(runDirectory, role, 'extracted');
-  mkdirSync(packDirectory, { recursive: true });
-  const packResult = JSON.parse(
-    run('npm', [
-      'pack',
-      path.join(repositoryRoot, definition.directory),
-      '--pack-destination',
-      packDirectory,
-      '--ignore-scripts',
-      '--json',
-    ]),
-  );
-  if (
-    packResult.length !== 1 ||
-    packResult[0].filename !== definition.filename
-  ) {
-    throw new Error(
-      `Unexpected npm pack result for ${role}: ${JSON.stringify(packResult)}`,
-    );
-  }
   const artifactPath = path.join(packDirectory, definition.filename);
+  if (!existsSync(artifactPath) || !lstatSync(artifactPath).isFile()) {
+    throw new Error(`Missing packed ${role} artifact: ${artifactPath}`);
+  }
   const contents = readFileSync(artifactPath);
   const tree = packageTreeIdentity(artifactPath, extractionDirectory);
   if (tree.regularFileCount !== definition.regularFileCount) {
@@ -208,6 +252,55 @@ function packBoundary(role, definition, runDirectory) {
     treeDigestSha256: tree.treeDigestSha256,
   };
   return { artifactPath, censusText: tree.censusText, identity };
+}
+
+function packBoundaries(npmExecutable, runDirectory) {
+  const packDirectory = path.join(runDirectory, 'pack');
+  mkdirSync(packDirectory, { recursive: true });
+  const packResult = JSON.parse(
+    run(npmExecutable, [
+      'pack',
+      ...Object.values(packageDefinitions).map(({ directory }) =>
+        path.join(repositoryRoot, directory),
+      ),
+      '--pack-destination',
+      packDirectory,
+      '--ignore-scripts',
+      '--json',
+    ]),
+  );
+  if (!Array.isArray(packResult) || packResult.length !== 2) {
+    throw new Error(
+      `Expected exactly two npm pack results: ${JSON.stringify(packResult)}`,
+    );
+  }
+  const definitionsByRole = {};
+  for (const result of packResult) {
+    const matches = Object.entries(packageDefinitions).filter(
+      ([, definition]) =>
+        result.name === definition.name &&
+        result.version === '2.1.1-junify.0' &&
+        result.filename === definition.filename,
+    );
+    if (matches.length !== 1) {
+      throw new Error(`Unexpected npm pack result: ${JSON.stringify(result)}`);
+    }
+    const [role, definition] = matches[0];
+    if (definitionsByRole[role]) {
+      throw new Error(`Duplicate npm pack result for ${role}`);
+    }
+    definitionsByRole[role] = definition;
+  }
+  for (const role of Object.keys(packageDefinitions)) {
+    if (!definitionsByRole[role])
+      throw new Error(`Missing npm pack result for ${role}`);
+  }
+  return Object.fromEntries(
+    Object.entries(definitionsByRole).map(([role, definition]) => [
+      role,
+      packedBoundaryIdentity(role, definition, packDirectory, runDirectory),
+    ]),
+  );
 }
 
 function assertDeterministicPackageRuns(role, runs) {
@@ -275,6 +368,10 @@ function generateCanonicalPackages(outputDirectory, runCount) {
       `Refusing to overwrite non-empty output: ${resolvedOutputDirectory}`,
     );
   }
+  const sourceState = createSourceStateGuard();
+  const npmExecutable = run('which', ['npm']);
+  const npmVersion = run(npmExecutable, ['--version']);
+  const yarnVersion = run('yarn', ['--version']);
   mkdirSync(resolvedOutputDirectory, { recursive: true });
 
   const temporaryDirectory = mkdtempSync(
@@ -282,13 +379,17 @@ function generateCanonicalPackages(outputDirectory, runCount) {
   );
   const runsByRole = { core: [], player: [] };
   const packedByRole = { core: [], player: [] };
+  const emittedPaths = [];
   try {
     for (let runIndex = 0; runIndex < runCount; runIndex += 1) {
-      buildProductionBoundaries();
+      const runNumber = runIndex + 1;
+      buildProductionBoundaries(sourceState, runNumber);
       const runDirectory = path.join(temporaryDirectory, `run-${runIndex + 1}`);
       mkdirSync(runDirectory);
-      for (const [role, definition] of Object.entries(packageDefinitions)) {
-        const packed = packBoundary(role, definition, runDirectory);
+      const packedRun = packBoundaries(npmExecutable, runDirectory);
+      sourceState.assert(`run-${runNumber}-after-pack`);
+      for (const role of Object.keys(packageDefinitions)) {
+        const packed = packedRun[role];
         runsByRole[role].push(packed.identity);
         packedByRole[role].push(packed);
       }
@@ -296,31 +397,46 @@ function generateCanonicalPackages(outputDirectory, runCount) {
 
     for (const role of Object.keys(packageDefinitions)) {
       assertDeterministicPackageRuns(role, runsByRole[role]);
-      const canonical = packedByRole[role][0];
-      copyFileSync(
-        canonical.artifactPath,
-        path.join(resolvedOutputDirectory, canonical.identity.file),
-      );
-      writeFileSync(
-        path.join(resolvedOutputDirectory, `${role}-file-census.sha256`),
-        canonical.censusText,
-      );
     }
 
-    const sourceCommit = run('git', ['rev-parse', 'HEAD']);
+    const finalSourceState = sourceState.assert('before-canonical-emission');
+    const sourceCommit = sourceState.expectedHead;
     const manifest = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       source: {
         repository: 'rrweb-io/rrweb',
         rrwebCommit: sourceCommit,
-        worktreeClean: run('git', ['status', '--porcelain']).length === 0,
+        startHead: sourceState.expectedHead,
+        endHead: finalSourceState.head,
+        worktreeClean: sourceState.validations.every(
+          ({ worktreeClean }) => worktreeClean,
+        ),
+        validationStages: sourceState.validations,
+        cleanPolicy: {
+          gitStatusArguments,
+          generatedResidueRoots,
+          forbiddenResidues: [
+            'boundary types directories',
+            '*.svelte.d.ts',
+            'tsconfig.tsbuildinfo',
+          ],
+        },
         nodeVersion: process.version,
-        npmVersion: run('npm', ['--version']),
-        yarnVersion: run('yarn', ['--version']),
+        npmVersion,
+        yarnVersion,
       },
       pipeline: {
         nodeEnv: 'production',
-        npmPackArguments: ['--ignore-scripts', '--json'],
+        npmPackArguments: [
+          'pack',
+          '<absolute-core-directory>',
+          '<absolute-player-directory>',
+          '--pack-destination',
+          '<shared-empty-run-directory>',
+          '--ignore-scripts',
+          '--json',
+        ],
+        npmPackInvocationsPerRun: 1,
         runs: runCount,
       },
       packages: Object.fromEntries(
@@ -339,7 +455,7 @@ function generateCanonicalPackages(outputDirectory, runCount) {
       ),
       supersededArtifacts: {
         reason:
-          'The prior set did not come from one declared clean production build and npm pack pipeline.',
+          'Prior sets did not satisfy the complete clean-source and single-process canonical packaging contract.',
         core: {
           sha256:
             'e075ed25b6c90cc5be73a2ba15c47abe72704bd33c82de4806a62e3c5421cef9',
@@ -354,21 +470,48 @@ function generateCanonicalPackages(outputDirectory, runCount) {
             '6b8aaaf9fadbd358360746966e92d40f9ade201852d29ec9eaf7ae9e6d0c9654',
           classification: 'quarantined-hybrid-build',
         },
+        round3CanonicalSet: {
+          manifestSha256:
+            '592f305c30738a3a2f6adc92a3a562ad941f5ea233da109d093b5e5e8cb3be6a',
+          rrwebCommit: 'f0451b2b0a54328eb7f807223f6d2e5d88cc6ada',
+          coreSha256:
+            'cb3d29c6d7552710a5fa377a8e68ba7e7d5930ba80e4df25a24873efe737a7a3',
+          playerSha256:
+            'b317a39f16ce786aeabe70aa107195643c2e4602b094bbc896cc3a658f7f6a23',
+          classification: 'superseded-insufficient-source-and-process-gates',
+        },
       },
       invariants: {
         archiveBytesEqualAcrossRuns: true,
         packageTreesEqualAcrossRuns: true,
-        sameRrwebCommit: true,
+        sameRrwebCommit: sourceState.expectedHead === finalSourceState.head,
         treeDigestAlgorithm:
           'SHA-256 of the byte-for-byte package-specific file-census lines sorted by package-relative path',
       },
       releaseState: 'local-verification-only-consumer-revalidation-required',
       published: false,
     };
-    writeFileSync(
-      path.join(resolvedOutputDirectory, 'combined-manifest.json'),
-      `${JSON.stringify(manifest, null, 2)}\n`,
+    for (const role of Object.keys(packageDefinitions)) {
+      const canonical = packedByRole[role][0];
+      const artifactOutput = path.join(
+        resolvedOutputDirectory,
+        canonical.identity.file,
+      );
+      copyFileSync(canonical.artifactPath, artifactOutput);
+      emittedPaths.push(artifactOutput);
+      const censusOutput = path.join(
+        resolvedOutputDirectory,
+        `${role}-file-census.sha256`,
+      );
+      writeFileSync(censusOutput, canonical.censusText);
+      emittedPaths.push(censusOutput);
+    }
+    const manifestOutput = path.join(
+      resolvedOutputDirectory,
+      'combined-manifest.json',
     );
+    writeFileSync(manifestOutput, `${JSON.stringify(manifest, null, 2)}\n`);
+    emittedPaths.push(manifestOutput);
     process.stdout.write(
       `${JSON.stringify(
         {
@@ -381,6 +524,10 @@ function generateCanonicalPackages(outputDirectory, runCount) {
         2,
       )}\n`,
     );
+  } catch (error) {
+    for (const emittedPath of emittedPaths)
+      rmSync(emittedPath, { force: true });
+    throw error;
   } finally {
     rmSync(temporaryDirectory, { recursive: true, force: true });
   }
