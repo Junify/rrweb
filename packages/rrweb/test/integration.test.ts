@@ -1442,6 +1442,9 @@ describe('record integration tests', function (this: ISuite) {
 
   it('should not record input values if dynamically added and maskAllInputs is true', async () => {
     const page: puppeteer.Page = await browser.newPage();
+    const inputPropertyValue = 'input attribute mutation should also be masked';
+    const textareaPropertyValue =
+      'textarea attribute mutation should also be masked';
     await page.goto('about:blank');
     await page.setContent(
       getHtml.call(this, 'empty.html', { maskAllInputs: true }),
@@ -1468,13 +1471,76 @@ describe('record integration tests', function (this: ISuite) {
     await page.type('#input', 'moo');
     await page.type('#textarea', 'boo');
 
-    await page.evaluate(() => {
-      const el = document.querySelector('input');
-      el.value = 'input attribute mutation should also be masked';
+    await page.evaluate(
+      ({ inputPropertyValue, textareaPropertyValue }) => {
+        const el = document.querySelector('input');
+        el.value = inputPropertyValue;
 
-      const ta = document.querySelector('textarea');
-      ta.value = 'textarea attribute mutation should also be masked';
-    });
+        const ta = document.querySelector('textarea');
+        ta.value = textareaPropertyValue;
+      },
+      { inputPropertyValue, textareaPropertyValue },
+    );
+    await page.waitForFunction(
+      ({
+        inputMask,
+        textareaMask,
+        incrementalType,
+        inputSource,
+        mutationSource,
+      }) => {
+        type RecordedNode = {
+          id: number;
+          attributes?: { id?: string };
+          childNodes?: RecordedNode[];
+        };
+        type RecordedEvent = {
+          type: number;
+          data?: {
+            source?: number;
+            id?: number;
+            text?: string;
+            adds?: Array<{ node: RecordedNode }>;
+          };
+        };
+        const recorded = (
+          window as typeof window & { snapshots?: RecordedEvent[] }
+        ).snapshots;
+        if (!recorded) return false;
+        const ids = new Map<string, number>();
+        const visit = (node: RecordedNode): void => {
+          if (node.attributes?.id) ids.set(node.attributes.id, node.id);
+          node.childNodes?.forEach(visit);
+        };
+        recorded.forEach((event) => {
+          if (
+            event.type === incrementalType &&
+            event.data?.source === mutationSource
+          ) {
+            event.data.adds?.forEach((add) => visit(add.node));
+          }
+        });
+        return ['input', 'textarea'].every((nodeId) => {
+          const id = ids.get(nodeId);
+          const text = nodeId === 'input' ? inputMask : textareaMask;
+          return recorded.some(
+            (event) =>
+              event.type === incrementalType &&
+              event.data?.source === inputSource &&
+              event.data.id === id &&
+              event.data.text === text,
+          );
+        });
+      },
+      {},
+      {
+        inputMask: '*'.repeat(inputPropertyValue.length),
+        textareaMask: '*'.repeat(textareaPropertyValue.length),
+        incrementalType: EventType.IncrementalSnapshot,
+        inputSource: IncrementalSource.Input,
+        mutationSource: IncrementalSource.Mutation,
+      },
+    );
 
     await page.evaluate(() => {
       const el = document.querySelector('input');
