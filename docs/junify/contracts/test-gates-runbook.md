@@ -242,9 +242,9 @@ gzip fixtures are tracked; generation never uses customer data.
 ```sh
 PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace rrweb build
 PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/lifecycle.test.ts
-PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/integration.test.ts
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/integration.test.ts
 PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH BROWSER=webkit yarn workspace rrweb vitest run --config vitest.config.webkit.ts
-PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/canvas-manager.test.ts test/record/canvas.test.ts test/replay/canvas.test.ts test/replayer.test.ts
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/record/image-bitmap-data-url-processor.test.ts test/record/webgl.test.ts test/replay/webgl.test.ts test/replayer.test.ts
 PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace @junify/rrweb-compatibility test -- record-fixtures
 ```
 
