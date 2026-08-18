@@ -35,6 +35,10 @@ import documentReplacementEvents from './events/document-replacement';
 import hoverInIframeShadowDom from './events/iframe-shadowdom-hover';
 import customElementDefineClass from './events/custom-element-define-class';
 import { ReplayerEvents } from '@rrweb/types';
+import {
+  malformedMediaEvents,
+  malformedStyleRuleEvents,
+} from './events/malformed-legacy-replay';
 
 interface ISuite {
   code: string;
@@ -1532,5 +1536,67 @@ describe('replayer', function () {
 `);
     const newColor = 'rgb(255, 255, 0)'; // yellow
     expect(changedColors).toEqual([newColor, newColor]);
+  });
+
+  it('skips a malformed legacy media target and still applies the following valid media event', async () => {
+    await page.evaluate(`events = ${JSON.stringify(malformedMediaEvents)}`);
+
+    const result = await page.evaluate(`
+      const { Replayer } = rrweb;
+      const replayer = new Replayer(events, { showWarning: false });
+      let replayThrew = false;
+      try {
+        replayer.pause(40);
+      } catch (_error) {
+        replayThrew = true;
+      }
+      const video = replayer.iframe.contentDocument.querySelector('video');
+      ({
+        replayThrew,
+        currentTime: video.currentTime,
+        volume: video.volume,
+        muted: video.muted,
+      });
+    `);
+
+    expect(result).toEqual({
+      replayThrew: false,
+      currentTime: 4.25,
+      volume: 0.5,
+      muted: true,
+    });
+  });
+
+  it('skips a malformed legacy style-rule target and still applies the following valid rule', async () => {
+    await page.evaluate(`events = ${JSON.stringify(malformedStyleRuleEvents)}`);
+
+    const result = await page.evaluate(`
+      const { Replayer } = rrweb;
+      const replayer = new Replayer(events, {
+        showWarning: false,
+        useVirtualDom: true,
+      });
+      let replayThrew = false;
+      try {
+        // Exercise the ordinary virtual-DOM catch-up path. The public explicit
+        // seek intentionally disables it for one synchronization (SEEK-001).
+        replayer.service.send({ type: 'PLAY', payload: { timeOffset: 50 } });
+        replayer.service.send({ type: 'PAUSE' });
+      } catch (_error) {
+        replayThrew = true;
+      }
+      const target = replayer.iframe.contentDocument.querySelector(
+        '.valid-style-target',
+      );
+      ({
+        replayThrew,
+        color: replayer.iframe.contentWindow.getComputedStyle(target).color,
+      });
+    `);
+
+    expect(result).toEqual({
+      replayThrew: false,
+      color: 'rgb(17, 34, 51)',
+    });
   });
 });

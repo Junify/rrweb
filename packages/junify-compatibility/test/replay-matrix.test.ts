@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   candidateBundle,
@@ -16,6 +19,147 @@ type ReplayEvent = {
     payload?: { name?: string };
   };
 };
+
+function malformedLegacyArtifacts() {
+  const startTime = 1_700_000_100_000;
+  const baseSnapshot = [
+    {
+      type: 4,
+      data: { href: 'about:blank', width: 800, height: 600 },
+      timestamp: startTime,
+    },
+    {
+      type: 2,
+      data: {
+        node: {
+          id: 1,
+          type: 0,
+          childNodes: [
+            {
+              id: 2,
+              type: 1,
+              name: 'html',
+              publicId: '',
+              systemId: '',
+            },
+            {
+              id: 3,
+              type: 2,
+              tagName: 'html',
+              attributes: {},
+              childNodes: [
+                {
+                  id: 4,
+                  type: 2,
+                  tagName: 'head',
+                  attributes: {},
+                  childNodes: [
+                    {
+                      id: 5,
+                      type: 2,
+                      tagName: 'style',
+                      attributes: {},
+                      childNodes: [],
+                    },
+                  ],
+                },
+                {
+                  id: 6,
+                  type: 2,
+                  tagName: 'body',
+                  attributes: {},
+                  childNodes: [
+                    {
+                      id: 7,
+                      type: 3,
+                      textContent: 'legacy text target',
+                    },
+                    {
+                      id: 8,
+                      type: 2,
+                      tagName: 'video',
+                      attributes: {},
+                      childNodes: [],
+                    },
+                    {
+                      id: 9,
+                      type: 2,
+                      tagName: 'div',
+                      attributes: { class: 'valid-style-target' },
+                      childNodes: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        initialOffset: { top: 0, left: 0 },
+      },
+      timestamp: startTime + 10,
+    },
+  ];
+  return {
+    media: [
+      ...baseSnapshot,
+      {
+        type: 3,
+        data: { source: 7, type: 0, id: 7, currentTime: 1.5 },
+        timestamp: startTime + 20,
+      },
+      {
+        type: 3,
+        data: {
+          source: 7,
+          type: 1,
+          id: 8,
+          currentTime: 4.25,
+          volume: 0.5,
+          muted: true,
+          playbackRate: 1,
+        },
+        timestamp: startTime + 30,
+      },
+    ],
+    style: [
+      ...baseSnapshot,
+      {
+        type: 3,
+        data: {
+          source: 0,
+          adds: [],
+          removes: [],
+          texts: [{ id: 7, value: 'activates virtual DOM' }],
+          attributes: [],
+        },
+        timestamp: startTime + 20,
+      },
+      {
+        type: 3,
+        data: {
+          source: 8,
+          id: 9,
+          adds: [{ rule: '.ignored-malformed-rule { color: red; }', index: 0 }],
+        },
+        timestamp: startTime + 30,
+      },
+      {
+        type: 3,
+        data: {
+          source: 8,
+          id: 5,
+          adds: [
+            {
+              rule: '.valid-style-target { color: rgb(17, 34, 51); }',
+              index: 0,
+            },
+          ],
+        },
+        timestamp: startTime + 40,
+      },
+    ],
+  };
+}
 
 function markerOffset(events: ReplayEvent[], name: string): number {
   const marker = events.find(
@@ -137,6 +281,109 @@ async function seekHistoricalFixturesWithCandidate(
 }
 
 describe('junify.compatibility.historical-replay', () => {
+  it('replays persisted malformed legacy media and style events without dropping following valid events', async () => {
+    const temporaryDirectory = await mkdtemp(
+      path.join(tmpdir(), 'junify-legacy-replay-'),
+    );
+    const artifactPath = path.join(
+      temporaryDirectory,
+      'malformed-legacy.events.json',
+    );
+    const browser = await launchCompatibilityBrowser();
+    try {
+      await writeFile(
+        artifactPath,
+        JSON.stringify(malformedLegacyArtifacts()),
+        'utf8',
+      );
+      const persisted = JSON.parse(
+        await readFile(artifactPath, 'utf8'),
+      ) as ReturnType<typeof malformedLegacyArtifacts>;
+      const page = await browser.newPage();
+      try {
+        await page.setContent('<!doctype html><html><body></body></html>');
+        await page.addScriptTag({ path: candidateBundle });
+        const result = await page.evaluate((artifacts) => {
+          type ReplayerShape = {
+            iframe: HTMLIFrameElement;
+            service: { send(event: unknown): void };
+            pause(offset?: number): void;
+            destroy(): void;
+          };
+          const Replayer = (
+            window as typeof window & {
+              rrweb: {
+                Replayer: new (
+                  events: unknown[],
+                  options: Record<string, unknown>,
+                ) => ReplayerShape;
+              };
+            }
+          ).rrweb.Replayer;
+
+          let mediaThrew = false;
+          const media = new Replayer(artifacts.media, {
+            showWarning: false,
+          });
+          try {
+            media.pause(40);
+          } catch {
+            mediaThrew = true;
+          }
+          const video = media.iframe.contentDocument?.querySelector('video');
+          const mediaSink = {
+            mediaThrew,
+            currentTime: video?.currentTime,
+            volume: video?.volume,
+            muted: video?.muted,
+          };
+          media.destroy();
+
+          let styleThrew = false;
+          const style = new Replayer(artifacts.style, {
+            showWarning: false,
+            useVirtualDom: true,
+          });
+          try {
+            style.service.send({ type: 'PLAY', payload: { timeOffset: 50 } });
+            style.service.send({ type: 'PAUSE' });
+          } catch {
+            styleThrew = true;
+          }
+          const target = style.iframe.contentDocument?.querySelector(
+            '.valid-style-target',
+          );
+          const styleSink = {
+            styleThrew,
+            color: target
+              ? style.iframe.contentWindow?.getComputedStyle(target).color
+              : null,
+          };
+          style.destroy();
+          return { mediaSink, styleSink };
+        }, persisted);
+
+        expect(result).toEqual({
+          mediaSink: {
+            mediaThrew: false,
+            currentTime: 4.25,
+            volume: 0.5,
+            muted: true,
+          },
+          styleSink: {
+            styleThrew: false,
+            color: 'rgb(17, 34, 51)',
+          },
+        });
+      } finally {
+        await page.close();
+      }
+    } finally {
+      await browser.close();
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  });
+
   it('replays every accepted historical artifact under official rrweb 2.1.1 in a real browser without skips', async () => {
     const manifest = await loadRequiredManifest();
     const accepted = manifest.fixtures.filter(

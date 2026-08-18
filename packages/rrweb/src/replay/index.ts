@@ -1446,6 +1446,9 @@ export class Replayer {
         if (!target) {
           return this.debugNodeNotFound(d, d.id);
         }
+        if (!this.mediaManager.isSupportedMediaElement(target)) {
+          return this.debugNodeNotFound(d, d.id);
+        }
         const mediaEl = target as HTMLMediaElement | RRMediaElement;
         const { events } = this.service.state.context;
 
@@ -1464,7 +1467,7 @@ export class Replayer {
           else if (d.id)
             (
               this.virtualDom.mirror.getNode(d.id) as RRStyleElement | null
-            )?.rules.push(d);
+            )?.rules?.push(d);
         } else this.applyStyleSheetMutation(d);
         break;
       }
