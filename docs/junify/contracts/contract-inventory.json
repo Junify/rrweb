@@ -4,102 +4,103 @@
   "baseline_commit": "3deb6e7da4528ddb33b5b7ff6a3e805d4ed14930",
   "generated_from": [
     "docs/superpowers/specs/2026-08-17-junify-upstream-2.1.1-design.md",
-    "rrweb worktree census",
-    "browser_extension worktree census at 1d8b3345ec9aee8d0c6c5d56d74c805a623b2a1a",
-    "junify_rails worktree census at 2c1377da10f4db737e36be2cb59c663056132aee",
-    "read-only session_recording_service census"
+    "rrweb worktree evidence at f35dc648f942361e4bbf00d2e4f1a7f36c94107b",
+    "browser_extension worktree evidence at dd860378a1120a028a18aed3d885a6d08adb468a",
+    "junify_rails worktree evidence at a49a1c90320d971fb4fa95e610c43456bd22818d",
+    "read-only session_recording_service census",
+    "Task 11 cross-repository matrix and sensitivity evidence"
   ],
   "contracts": [
     {
       "id": "junify.canvas.mv3-processor",
       "title": "MV3-compatible injectable Canvas bitmap processor",
       "source": ["external-boundary", "observed-code", "explicit-doc"],
-      "status": "red-known-risk",
+      "status": "covered",
       "recommended_layers": ["integration", "e2e"],
       "entrypoints": ["packages/rrweb/src/record/index.ts:record", "../browser-extension-rrweb-2.1.1/src/injected/sessionRecordingClient/imageBitmapProcessor.ts:createCanvasBitmapProcessor"],
       "observable_effects": ["packaged MV3 worker execution", "inline fallback output", "serialized Canvas mutations"],
       "expected_current_behavior": "The Junify package accepts an injected ImageBitmap processor, transfers bitmaps through a packaged worker under MV3 strict CSP, and falls back inline without changing the event schema.",
       "risk_if_broken": "The production extension loses Canvas recording, violates MV3 CSP, or emits incompatible events.",
       "gate_id": "G-CANVAS-PROCESSOR",
-      "test_notes": "Task 5 adds the injectable API, real-browser inline/CSP fallback, worker transfer/error/messageerror/timeout/dispose tests, and unchanged-schema Canvas mutations. The production-packaged browser_extension worker under real MV3 strict CSP remains release-blocking Task 9 evidence, so this cross-repository contract is not promoted."
+      "test_notes": "Tasks 5, 9, and 11 close the boundary. The loaded MV3 extension uses the packaged worker under strict CSP, proves the natural SecurityError inline fallback, persists/replays exact Canvas2D and compositor-visible WebGL/ImageBitmap pixels, and completes 5/5 focused browser cases with no skips. Task 11 replays every applicable producer through the candidate and Rails sinks."
     },
     {
       "id": "junify.canvas.non-destructive-capture",
       "title": "Canvas capture is non-destructive and closes bitmap resources",
       "source": ["explicit-doc", "external-boundary", "observed-code"],
-      "status": "red-known-risk",
+      "status": "covered",
       "recommended_layers": ["integration", "e2e"],
       "entrypoints": ["packages/rrweb/src/record/observers/canvas/canvas-manager.ts", "../browser-extension-rrweb-2.1.1/src/injected/sessionRecordingClient/canvasBitmapWorker.ts"],
       "observable_effects": ["application Canvas pixels", "replayed Canvas pixels", "ImageBitmap lifetime", "worker lifetime"],
       "expected_current_behavior": "Recording leaves application Canvas 2D/WebGL pixels unchanged, reproduces pixels on replay, closes transferred bitmaps, and stops worker/RAF activity when recording stops.",
       "risk_if_broken": "Recording mutates customer pages or leaks GPU/bitmap resources during long sessions.",
       "gate_id": "G-CANVAS-PIXELS",
-      "test_notes": "Task 5 proves application WebGL screenshots remain unchanged, ImageBitmaps close on all locally owned paths, stop cancels late results and disposes the processor even with recordDOM disabled, and a JSON-persisted candidate artifact replays exact Canvas2D/WebGL pixels in Chrome 151. Production MV3 worker/URL lifetime and repeated long-session cleanup remain Task 9/Task 7 blockers, so this cross-repository contract is not promoted."
+      "test_notes": "Tasks 5, 7, 9, and 11 prove source pixels are unchanged, persisted and replayed Canvas2D/WebGL pixels are exact, locally owned ImageBitmaps close, pagehide/stop disposes worker and RAF ownership, and corrupt output fails visibly. The loaded-MV3 suite passes 5/5 with no skips and the cross-repository matrix retains the visible sinks."
     },
     {
       "id": "junify.compatibility.candidate-recorder",
       "title": "Candidate recorder replays in both candidate Junify surfaces",
       "source": ["explicit-doc", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["e2e", "golden/replay"],
       "entrypoints": ["packages/junify-compatibility/test/record-fixtures.test.ts", "../junify-rails-rrweb-2.1.1/frontend_v2/src/pages/monitors/sessionRecording/player.tsx", "../junify-rails-rrweb-2.1.1/frontend_rrweb_replayer/replay.js"],
       "observable_effects": ["main-player replayed DOM and Canvas", "legacy-static-player replayed DOM and Canvas"],
       "expected_current_behavior": "Artifacts from @junify-app/rrweb@2.1.1-junify.0 replay in the upgraded Rails main player and the explicitly retained static-player surface.",
       "risk_if_broken": "Deploying the recorder after the replayers creates recordings that Junify cannot inspect.",
       "gate_id": "G-COMPAT-CANDIDATE",
-      "test_notes": "Task 2 adds an official rrweb@2.1.1 real-browser baseline, not the future @junify-app/rrweb@2.1.1-junify.0 candidate. The candidate producer and both cross-repository browser specs remain required."
+      "test_notes": "Task 11 binds candidate-recordings-dd86037 to manifest SHA-256 bed8c2a02b4ad140274e481f4dc9c88559a25b709cd914f3b31ebc4781d397f7 and follows committed loaded-MV3 raw IDB through V1/V2 transport, Rails loaders/routes, scoped player, direct player, and legacy static visible sinks. Applicable DOM, Shadow DOM, Canvas2D, WebGL/ImageBitmap, seek, and lifecycle assertions pass with no skips."
     },
     {
       "id": "junify.compatibility.historical-replay",
       "title": "Historical alpha.4, alpha.19, and alpha.20 artifacts remain replayable",
       "source": ["explicit-doc", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["e2e", "golden/replay"],
       "entrypoints": ["packages/junify-compatibility/test/replay-matrix.test.ts", "../junify-rails-rrweb-2.1.1/frontend_v2/src/lib/react-rrweb-player/index.tsx", "../junify-rails-rrweb-2.1.1/frontend_v2/src/lib/react-rrweb-player/PlayerFrame.tsx", "../junify-rails-rrweb-2.1.1/frontend_rrweb_replayer/replay.js"],
       "observable_effects": ["visible replay DOM", "Canvas pixels", "seek result", "player completion"],
       "expected_current_behavior": "The candidate replayers consume provenance-locked fixtures produced by rrweb@2.0.0-alpha.4, @junify-app/rrweb@2.0.0-alpha.19, and @junify-app/rrweb@2.0.0-alpha.20.",
       "risk_if_broken": "Existing stored customer sessions become unreadable after the player upgrade.",
       "gate_id": "G-COMPAT-HISTORICAL",
-      "test_notes": "Task 2 binds alpha.4, Junify alpha.19, and Junify alpha.20 loaded UMD bytes to registry-tarball integrity in yarn.lock, regenerates normalized real-browser artifacts into temporary storage, and replays marker-terminated slices plus full artifacts under official rrweb@2.1.1 in Chrome 151 with no skips. SPA/seek-ready evidence requires target-ID type-3 mutations; stylesheet stages assert computed styles. Task 4 seeks all four accepted artifacts forward and backward with the candidate bundle. Both candidate Rails player surfaces remain required before promotion."
+      "test_notes": "Tasks 2, 4, 10, and 11 authenticate alpha.4, Junify alpha.19, and Junify alpha.20 independently, replay them through the candidate core and every applicable Rails V1/V2/legacy surface, and assert visible DOM, Shadow DOM, Canvas2D, compositor-visible WebGL/ImageBitmap, forward/backward seek, and lifecycle behavior with explicit applicability and no guarded assertions or skips."
     },
     {
       "id": "junify.compatibility.large-snapshot",
       "title": "Approximately 13.6 MB CSS FullSnapshot survives transport and replay",
       "source": ["explicit-doc", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["integration", "golden/replay"],
       "entrypoints": ["packages/junify-compatibility/test/large-snapshot.test.ts", "../browser-extension-rrweb-2.1.1/src/background/command/sessionRecording/v2SessionRecordingFlusher.ts"],
       "observable_effects": ["event count", "FullSnapshot indexes", "fragment reassembly", "payload digest", "gzip round trip"],
       "expected_current_behavior": "A deterministic roughly 13.6 MB CSS FullSnapshot preserves decoded event count, indexes, bytes, fragment ordering, and gzip digest.",
       "risk_if_broken": "Large real pages produce truncated, reordered, or unreplayable sessions.",
       "gate_id": "G-LARGE-SNAPSHOT",
-      "test_notes": "Task 2 records a deterministic 13,600,000-byte CSS FullSnapshot with official rrweb@2.1.1 and locks event count, FullSnapshot index/payload digest, raw/gzip digests, and gzip round trip. Extension UTF-8 fragmentation/reassembly remains required before promotion."
+      "test_notes": "Tasks 2, 9, 10, and 11 prove the exact 13,600,000-byte UTF-8 CSS source, 22 persisted events, FullSnapshot source index 1 and transport index 2, 13,613,603-byte body SHA-256 2939eaf61d7e5d50067eee0a076f3a9654d51beb9af55e9e31d4b7711310a0e9, 137 contiguous V2 fragments, exact reassembly, gzip round trip, and visible replay. Fragment and payload mutations fail closed."
     },
     {
       "id": "junify.compatibility.wire-format",
       "title": "Serialized rrweb event format remains unchanged",
       "source": ["explicit-doc", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["integration", "golden/replay"],
       "entrypoints": ["packages/rrweb/src/record/index.ts:record", "packages/junify-compatibility/test/record-fixtures.test.ts"],
       "observable_effects": ["decoded event sequence", "event count", "FullSnapshot payload", "event JSON schema"],
       "expected_current_behavior": "For fixed scenarios, decoded events remain wire-compatible; only documented upstream correctness changes may alter payload values.",
       "risk_if_broken": "The service and existing replayers reject or misinterpret newly recorded sessions.",
       "gate_id": "G-WIRE-FORMAT",
-      "test_notes": "Task 2 authenticates each loaded bundle against its integrity-locked registry tarball, regenerates four comprehensive producers into temporary storage for timestamp-normalized event comparison, and locks browser provenance, event count, FullSnapshot indexes/payload digests, raw/gzip hashes, target-ID mutations, and replayed stage sinks. The future Junify candidate differential and both consumer surfaces remain required before promotion."
+      "test_notes": "Task 11 combines the independent producer ledger with exact candidate raw/decoded/reassembled event counts, indexes, payload bytes, and SHA-256 values across IDB, V1, V2, Rails parsers/loaders/routes, and visible players. The accepted schema is unchanged; package, census, privacy, fragmentation, and visible-sink rollback probes reach RED and return to GREEN."
     },
     {
       "id": "junify.extension.persistence",
       "title": "Extension events reach real Chrome storage before ingest",
       "source": ["observed-code", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["integration", "e2e", "workflow-contract"],
       "entrypoints": ["../browser-extension-rrweb-2.1.1/src/injected/sessionRecordingClient/index.ts:post", "../browser-extension-rrweb-2.1.1/src/foreground/service/sso/sessionRecorder.ts:SessionRecorder", "../browser-extension-rrweb-2.1.1/src/background/repository/SessionRecordingEventRepository.ts:SessionRecordingEventRepositoryImpl"],
       "observable_effects": ["per-recorder CustomEvent", "runtime port payload", "Chrome storage keys and values", "delete/retry behavior"],
       "expected_current_behavior": "Monotonic indexed events cross the isolated-world bridge, runtime port, and real Chrome storage without loss, duplication, or reordering before V1/V2 flushing.",
       "risk_if_broken": "Unit-green recording silently loses or reorders persisted production events.",
       "gate_id": "G-EXT-PERSISTENCE",
-      "test_notes": "Existing integration coverage reaches injection/overlay/mutations but does not observe worker execution, real Chrome storage, or ingest payload."
+      "test_notes": "Task 9's committed loaded-MV3 suite and Task 11 evidence exercise the real isolated-world bridge, runtime port, IndexedDB repository, retry/delete lifecycle, V1/V2 flushing, and visible downstream players. Candidate raw storage preserves monotonic event identity/order and exact parity; 5/5 loaded-MV3 tests pass with no skips."
     },
     {
       "id": "junify.lifecycle.recorder-stop",
@@ -157,53 +158,53 @@
       "id": "junify.privacy.persisted-sentinels",
       "title": "Sensitive input values never reach persisted event payloads",
       "source": ["explicit-doc", "observed-code", "external-boundary"],
-      "status": "red-known-risk",
+      "status": "covered",
       "recommended_layers": ["integration", "e2e"],
       "entrypoints": ["packages/rrweb-snapshot/src/snapshot.ts", "packages/rrweb/src/record/mutation.ts", "../browser-extension-rrweb-2.1.1/src/injected/sessionRecordingClient/index.ts"],
       "observable_effects": ["FullSnapshot JSON", "IncrementalSnapshot JSON", "Chrome storage value", "V1/V2 ingest body"],
       "expected_current_behavior": "Distinct synthetic secrets from password, textarea, placeholder, dynamic type=password, hidden, and sensitive autocomplete cases are absent from initial and mutated persisted payloads.",
       "risk_if_broken": "Credentials or sensitive form values are stored and transmitted despite rendered masking.",
       "gate_id": "G-PRIVACY",
-      "test_notes": "Task 6 and fix rounds 1-3 add authentic stable REDs and candidate GREENs for hidden, placeholder, sensitive-autocomplete, and same-batch/synchronous dynamic-password gaps, including post-start assigned and unassigned nodes, temporary password state reached through the type property or setAttribute/removeAttribute, hidden-to-text transitions, and sensitive-autocomplete removal in either mutation order. Snapshot tests, real-Chrome FullSnapshot/Mutation/Input/add tests, and a temporary JSON persisted-artifact scan use unique-length synthetic sentinels with exact node/source/value assertions; missing-event probes reject substitution by a different masked value. Attribute-method hooks restore their exact page-realm prototype identities across idempotent stop/restart and preserve a later third-party patch while making any retained inner rrweb proxy inert before stop returns. Textarea remains protected under the explicit policy, placeholder and autocomplete removal stay null, post-batch normal text stays visible, and no wire schema changes. The contract remains red-known-risk until Task 9 proves absence from real extension Chrome storage and decoded V1/V2 request bodies."
+      "test_notes": "Tasks 6, 9, and 11 prove all 16 distinct candidate privacy sentinels absent from committed raw IDB, decoded V1, V2 raw/reassembled payloads, and gzip round trips, with exact node/source/value and missing-event sensitivity probes. Historical leak fixtures remain compatibility-only and are not counted as privacy success."
     },
     {
       "id": "junify.rails.legacy-static-player",
       "title": "Legacy static player remains a browser compatibility surface",
       "source": ["observed-code", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["e2e"],
       "entrypoints": ["../junify-rails-rrweb-2.1.1/frontend_rrweb_replayer/index.html", "../junify-rails-rrweb-2.1.1/frontend_rrweb_replayer/replay.js"],
       "observable_effects": ["EVENTS postMessage", "visible replay DOM/Canvas", "META and TIME/SKIP postMessages"],
       "expected_current_behavior": "The alpha.4 static bridge accepts the retained message protocol and replays accepted fixtures with UNSAFE_replayCanvas enabled.",
       "risk_if_broken": "An explicitly retained compatibility surface becomes unusable or diverges silently.",
       "gate_id": "G-RAILS-STATIC",
-      "test_notes": "README claims are not coverage; no current browser spec exists and no source reference proves the S3 deployment path is active."
+      "test_notes": "Tasks 10 and 11 prove the retained static surface with 15/15 focused unit cases and 1/1 fresh Chromium browser case, using the canonical core artifact. Every applicable accepted producer reaches visible DOM/Canvas/seek/lifecycle sinks; the static surface is explicitly N/A for V2 route semantics."
     },
     {
       "id": "junify.rails.monitors-v1-player",
       "title": "Rails Monitors V1 fetch/decode/replay path renders persisted events",
       "source": ["observed-code", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["e2e"],
       "entrypoints": ["../junify-rails-rrweb-2.1.1/frontend_v2/src/api/v2/sessionRecordingAPI.ts:getEvents", "../junify-rails-rrweb-2.1.1/frontend_v2/src/pages/monitors/sessionRecording/useSessionRecordingPlayerEvents.ts", "../junify-rails-rrweb-2.1.1/frontend_v2/src/lib/react-rrweb-player/index.tsx"],
       "observable_effects": ["production-shaped V1 request", "deflate/base64 decode", "visible DOM/Canvas", "seek/play controls"],
       "expected_current_behavior": "The /monitors/session_recordings/:id route fetches V1 pages, decodes every stored event, and renders the expected DOM and Canvas with the candidate player.",
       "risk_if_broken": "Legacy stored sessions fail only in the real Monitors route despite unit tests passing.",
       "gate_id": "G-RAILS-MONITORS-V1",
-      "test_notes": "Current parser/loader and player Jest tests mock network or player; no route-level browser gate exists."
+      "test_notes": "Tasks 10 and 11 prove the production-shaped V1 parser/loader/route and direct/scoped visible player with a fresh dedicated local-only VM. The V1/V2 matrix passes 2/2 with zero skipped, unexpected, flaky, or retried tests, and all four accepted producers have an explicit V1 row."
     },
     {
       "id": "junify.rails.monitors-v2-player",
       "title": "Rails Monitors V2 replay-plan path renders hot and chunk events",
       "source": ["observed-code", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["e2e", "workflow-contract"],
       "entrypoints": ["../junify-rails-rrweb-2.1.1/frontend_v2/src/api/v3/sessionRecordingAPIV3.ts", "../junify-rails-rrweb-2.1.1/frontend_v2/src/pages/monitors/sessionRecording/playerEventLoader.ts", "../junify-rails-rrweb-2.1.1/frontend_v2/src/pages/monitors/sessionRecording/useSessionRecordingPlayerEvents.ts"],
       "observable_effects": ["replay-plan segment order", "hot-event pagination", "NDJSON chunk decode", "visible DOM/Canvas", "incremental addEvents"],
       "expected_current_behavior": "The Monitors route streams ordered chunk and hot segments, parses raw or compatibility-wrapped rrweb events, and renders the persisted session without gaps or duplicate events.",
       "risk_if_broken": "V2 recordings appear truncated, reordered, stuck, or blank in the production route.",
       "gate_id": "G-RAILS-MONITORS-V2",
-      "test_notes": "Current Jest coverage is local/mocked and does not cross the Rails browser route and persisted read boundary."
+      "test_notes": "Tasks 10 and 11 prove V2 fragment parsing, exact reassembly, route loading, and visible scoped/direct player behavior in a fresh dedicated local-only VM. The V1/V2 matrix passes 2/2 with zero skipped, unexpected, flaky, or retried tests; candidate and 13.6 MB artifacts retain exact count/index/payload parity."
     },
     {
       "id": "junify.rails.password-rotation-artifact",
@@ -287,40 +288,40 @@
       "id": "junify.transport.v1",
       "title": "V1 event transport preserves per-event deflate/base64 JSON",
       "source": ["observed-code", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["integration"],
       "entrypoints": ["../browser-extension-rrweb-2.1.1/src/background/command/sessionRecording/flushSesssionRecordingEventsToServer.ts:transformSessionEventForRequestV1", "../browser-extension-rrweb-2.1.1/src/background/service/junifyAPIClient.ts:postSessionRecordingEventsV1"],
       "observable_effects": ["eventString deflate/base64 round trip", "timestamp/index", "firstEvent", "V1 bulk request"],
       "expected_current_behavior": "Each V1 event is JSON-stringified, fflate-compressed, base64-encoded, and sent with its original timestamp/index and first-event metadata.",
       "risk_if_broken": "Legacy ingest or Rails V1 playback receives corrupt or misindexed events.",
       "gate_id": "G-TRANSPORT-V1",
-      "test_notes": "Unit coverage exists, but the required production-shaped persisted round trip remains open."
+      "test_notes": "Tasks 9-11 exercise real committed MV3 IDB to decoded V1 request bodies and the Rails V1 parser/loader/route. Candidate V1 retains 33 events and exact 19,695-byte SHA-256 83e02fa12d8c65f32eb541438f33a283b4e2261f4fd5f8b058090038d585f788; privacy and payload mutations fail."
     },
     {
       "id": "junify.transport.v1-v2-parity",
       "title": "V1 and V2 transports preserve the same logical event stream",
       "source": ["explicit-doc", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["integration", "golden/replay", "workflow-contract"],
       "entrypoints": ["../browser-extension-rrweb-2.1.1/src/background/command/sessionRecording/flushSesssionRecordingEventsToServer.ts", "../browser-extension-rrweb-2.1.1/src/background/command/sessionRecording/v2SessionRecordingFlusher.ts"],
       "observable_effects": ["decoded event order/count", "FullSnapshot classification", "chunk/fragment reassembly", "gzip digest"],
       "expected_current_behavior": "After decoding/reassembly, V1 and V2 represent the same fixed-scenario rrweb events apart from V2 transport metadata and its synthetic recording_end event.",
       "risk_if_broken": "Feature-flag selection changes what users can replay instead of only how events are transported.",
       "gate_id": "G-TRANSPORT-PARITY",
-      "test_notes": "There is no current real artifact parity gate across both pipelines."
+      "test_notes": "Tasks 9-11 compare canonical event identity/order and exact payload/index semantics across real IDB, V1, V2 raw fragments, reassembly, gzip, Rails loaders, and visible sinks. Intended transport-envelope differences have explicit applicability; payload drift, producer omission, and sink substitution fail the sensitivity gates."
     },
     {
       "id": "junify.transport.v2",
       "title": "V2 raw-event transport preserves ordering, classification, and fragments",
       "source": ["observed-code", "external-boundary"],
-      "status": "must-cover",
+      "status": "covered",
       "recommended_layers": ["integration"],
       "entrypoints": ["../browser-extension-rrweb-2.1.1/src/background/command/sessionRecording/v2SessionRecordingFlusher.ts", "../browser-extension-rrweb-2.1.1/src/background/service/junifyAPIClient.ts:postSessionRecordingEventsV2"],
       "observable_effects": ["monotonic assigned indexes", "full_snapshot/incremental classification", "plain eventString", "UTF-8-safe fragment hashes and reassembly", "recording_end"],
       "expected_current_behavior": "V2 sorts source events, assigns monotonic 1-based indexes, stores raw JSON eventString, classifies snapshots, fragments oversized UTF-8 bodies without splitting surrogate pairs, and finalizes with recording_end.",
       "risk_if_broken": "V2 replay plans contain gaps, duplicate indexes, bad hashes, or unreconstructable snapshots.",
       "gate_id": "G-TRANSPORT-V2",
-      "test_notes": "Unit tests do not by themselves close the browser-to-persisted-artifact contract."
+      "test_notes": "Tasks 9-11 exercise real committed MV3 IDB to V2 fragments and Rails V2 reassembly/loading. Candidate V2 retains 31 reassembled events and exact 19,249-byte SHA-256 e431806c284e9a94142434484ca8f9e6bf87a603038c1e025d5168d05177727c; the large artifact is exactly 137 contiguous fragments and reassembles byte-for-byte."
     }
   ]
 }

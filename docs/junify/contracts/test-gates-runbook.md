@@ -90,7 +90,7 @@ Run from the rrweb repository root with a new, empty output directory:
 export PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH
 yarn test:junify-packaging
 yarn pack:junify-boundaries \
-  --output ../../verification/rrweb-2.1.1/packages-canonical-fix-round5 \
+  --output ../../verification/rrweb-2.1.1/packages-task11-f35dc648 \
   --runs 2
 ```
 
@@ -130,6 +130,15 @@ round 5 combined manifest, verify their SHA-256, SHA-512, file counts, and tree
 digests, then rerun browser and Rails gates. Publication and registry
 installation remain separate release actions.
 
+Task 11 reproduced the round-5 identity from committed HEAD `f35dc648` in a
+new output directory. The combined manifest SHA-256 is
+`b76c77938c8cafec8214bdc78c76644ad95c63825e9255e636b50a9d71221948`.
+Core archive/tree SHA-256 are `cb3d29c6...`/`b9ff62b0...`; player archive/tree
+SHA-256 are `b317a39f...`/`c9929b76...`. Both consumers' lock integrity and
+installed-tree policy matched this one content set. The scoped versions remain
+unpublished, so a frozen registry/CDN install is still a release blocker and
+was not claimed successful.
+
 ## Compatibility And Replay Gates
 
 ### `G-COMPAT-HISTORICAL`
@@ -146,8 +155,8 @@ for all three historical artifacts under official rrweb@2.1.1 in Google Chrome
 integrity-locked registry tarball, recollects normalized events in temporary
 storage, and asserts marker-terminated SPA and stylesheet replay sinks. Task 3
 builds and packs the candidate package boundaries. Task 4 closes explicit
-candidate seek for all four accepted artifacts. Both Monitors browser specs
-remain the cross-repository blockers.
+candidate seek for all four accepted artifacts. Tasks 10 and 11 close both
+Monitors browser surfaces and the retained legacy static surface.
 
 ### `G-COMPAT-CANDIDATE`
 
@@ -158,8 +167,8 @@ cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recor
 
 Assert candidate recorder output in both candidate replayers. Task 2's official
 2.1.1 baseline is not a substitute. Task 3 creates and package-tests the
-candidate boundaries; candidate-produced fixtures and both cross-repository
-browser surfaces remain the blocker.
+candidate boundaries; Tasks 9-11 prove the committed candidate from raw IDB
+through V1/V2 and every applicable visible consumer surface.
 
 ### `G-WIRE-FORMAT`
 
@@ -170,8 +179,8 @@ PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLES
 Compare decoded order, count, FullSnapshot indexes/payloads, and deterministic
 digests. Permit only an explicitly documented upstream correctness delta.
 Task 2 passes the package-local fixture integrity and official 2.1.1 replay
-checks. Current blocker: the future Junify candidate differential and both
-consumer surfaces remain untested.
+checks. Tasks 9-11 add the Junify candidate differential and both consumer
+surfaces with exact count/index/payload/hash parity.
 
 ### `G-LARGE-SNAPSHOT`
 
@@ -182,8 +191,8 @@ cd ../browser-extension-rrweb-2.1.1 && yarn test src/background/command/sessionR
 
 Assert roughly 13.6 MB deterministic CSS, event count/index/payload digest,
 UTF-8 fragmentation and reassembly, and gzip round trip. Task 2 passes the
-13,600,000-byte CSS event/index/payload/raw/gzip checks. Current blocker:
-extension UTF-8 fragmentation and reassembly remain untested.
+13,600,000-byte CSS event/index/payload/raw/gzip checks. Tasks 9-11 add 137
+contiguous UTF-8-safe fragments, exact reassembly, Rails loading, and replay.
 
 ### `G-SEEK`
 
@@ -220,8 +229,8 @@ behavior, and absent OffscreenCanvas/WebGL constructors. A real-Chrome
 throwing-disposer sentinel verifies non-throwing idempotent stop, inactive
 recording state, restart/stop, and no late emit. The compatibility test
 serializes a candidate artifact to JSON and visibly replays exact
-Canvas2D/WebGL pixels. Current blocker: Task 9 must exercise
-browser_extension's packaged worker under production MV3.
+Canvas2D/WebGL pixels. Tasks 9 and 11 exercise the packaged worker, natural
+strict-CSP fallback, real IDB/transport, replay pixels, and lifecycle under MV3.
 
 ### `G-CANVAS-PIXELS`
 
@@ -235,9 +244,9 @@ cd ../browser-extension-rrweb-2.1.1 && yarn test:integration integration-tests/s
 Task 5's package-local portion proves byte-identical application WebGL
 screenshots before/after numeric sampling, exact replayed Canvas2D/WebGL pixels,
 locally owned bitmap closure, worker termination/listener removal, and no late
-Canvas event after stop. Load the production-packed extension in Chrome and
-record Canvas 2D/WebGL to close the remaining boundary: real packaged-worker
-execution, replay pixels, bridge/Blob URL cleanup, and worker/RAF shutdown.
+Canvas event after stop. Tasks 9 and 11 close the remaining boundary in the
+production-packed extension: real worker execution, replay pixels, bridge/Blob
+URL cleanup, and worker/RAF shutdown.
 
 ## Privacy And Lifecycle Gates
 
@@ -272,8 +281,8 @@ placeholder/autocomplete removal as `null`; and post-batch visible negative
 controls. The persisted fixture assigns a unique mask length to every private
 source and asserts the exact FullSnapshot/add/attribute/Input source and node;
 missing-event probes prevent an unrelated field's stars from satisfying a
-case. Current blocker: Task 9 must scan real extension Chrome storage and
-decoded V1/V2 request bodies with the same policy and sentinels.
+case. Tasks 9 and 11 scan real extension Chrome storage, decoded V1, V2 raw and
+reassembled bodies, and gzip with the same policy and sentinels.
 
 ### Task 2 Fixture Regeneration
 
@@ -376,8 +385,8 @@ cd ../browser-extension-rrweb-2.1.1 && yarn test:integration integration-tests/s
 ```
 
 Assert the per-recorder bridge, runtime port, real Chrome storage ordering,
-delete-on-pop, and retry/requeue behavior. Current blocker: storage-boundary
-integration assertions and the repository test named above are added in Task 9.
+delete-on-pop, and retry/requeue behavior. Tasks 9 and 11 close this gate with
+the committed loaded-MV3 5/5 suite and exact candidate raw-IDB-to-V1/V2 parity.
 
 ### `G-TRANSPORT-V1`
 
@@ -388,7 +397,8 @@ cd ../browser-extension-rrweb-2.1.1 && yarn test:integration integration-tests/s
 
 Assert event-by-event JSON → fflate level-6 deflate → base64 round trip plus
 timestamp, index, `firstEvent`, and request metadata at the persisted boundary.
-Current blocker: the existing unit suite does not close the real artifact path.
+Tasks 9-11 close the real-artifact path through raw IDB, V1 request decoding,
+Rails V1 parsing/loading/routing, and a visible browser sink.
 
 ### `G-TRANSPORT-V2`
 
@@ -399,8 +409,8 @@ cd ../browser-extension-rrweb-2.1.1 && yarn test:integration integration-tests/s
 
 Assert sort/order, monotonic 1-based index assignment, event classification,
 plain eventString, UTF-8-safe fragment/hash/reassembly, rotation, and
-recording_end. Current blocker: a production-shaped persisted-artifact check is
-still missing.
+recording_end. Tasks 9-11 close the production-shaped path, including exact
+candidate hashes and the 137-fragment large-artifact reassembly.
 
 ### `G-TRANSPORT-PARITY`
 
@@ -410,8 +420,8 @@ yarn workspace @junify/rrweb-compatibility test -- large-snapshot replay-matrix
 ```
 
 Decode both pipelines and compare the logical stream, excluding only V2
-transport metadata and its synthetic recording_end. Current blocker: no real
-V1/V2 artifact differential gate exists.
+transport metadata and its synthetic recording_end. Tasks 9-11 close this with
+an independent producer ledger and exact count/index/payload parity.
 
 ### `G-NO-CROSS-ORIGIN`
 
@@ -419,8 +429,8 @@ V1/V2 artifact differential gate exists.
 cd ../browser-extension-rrweb-2.1.1 && yarn test src/injected/sessionRecordingClient/index.test.ts
 ```
 
-Assert `recordCrossOriginIframes` remains `false`. Current blocker: focused
-recorder-option test is added in Task 9; scope expansion remains forbidden.
+Assert `recordCrossOriginIframes` remains `false`. Task 9 adds and passes the
+focused recorder-option case; scope expansion remains forbidden.
 
 ## Rails Player Gates
 
@@ -431,7 +441,8 @@ cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recor
 ```
 
 Assert production-shaped fetch, deflate/base64 decode, visible DOM/Canvas,
-seek, play, and teardown. Current blocker: no Monitors browser spec exists.
+seek, play, and teardown. Tasks 10 and 11 pass the fresh V1/V2 browser matrix
+2/2 with no skipped, unexpected, flaky, or retried tests.
 
 ### `G-RAILS-MONITORS-V2`
 
@@ -440,8 +451,8 @@ cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recor
 ```
 
 Assert replay-plan segment order, hot pagination, NDJSON chunk parsing,
-incremental `addEvents`, visible DOM/Canvas, and no duplicate/gap. Current
-blocker: no Monitors browser spec exists.
+incremental `addEvents`, visible DOM/Canvas, and no duplicate/gap. Tasks 10 and
+11 pass the same fresh dedicated local-only VM matrix 2/2 with no skips.
 
 ### `G-RAILS-PASSWORD-ARTIFACT`
 
@@ -461,9 +472,9 @@ cd ../junify-rails-rrweb-2.1.1/e2e && yarn test scenarios/monitors/session-recor
 ```
 
 Assert `EVENTS` input plus META/TIME/SKIP output and visible replay for accepted
-fixtures. Current blockers: browser spec absent; no source reference proves the
-documented S3 deployment is active. Do not convert that uncertainty into a
-“dead code” claim.
+fixtures. Tasks 10 and 11 pass 15/15 unit and 1/1 actual-Chromium cases with the
+canonical core artifact. No source reference proves the documented S3
+deployment is active; do not convert that uncertainty into a “dead code” claim.
 
 ## Read-Only Service Census Gate
 
@@ -494,6 +505,63 @@ Publishing, release creation, pushing, PR creation, deployment, and staging
 require separate explicit authorization after local tarball hashes and the
 full compatibility matrix are reviewed. No command in this runbook performs
 those actions.
+
+## Task 11 Final Cross-Repository Order
+
+Use Node 20.9 where the repository contract requires it. Run the browser
+focused command with `NODE_ENV` unset; strict export mode is a separate command
+that must receive the canonical manifest and tarball explicitly. The focused
+set must include `candidatePackageTypes`:
+
+```sh
+env -u NODE_ENV yarn test --runInBand \
+  src/injected/sessionRecordingClient/imageBitmapProcessor.test.ts \
+  src/injected/sessionRecordingClient/index.test.ts \
+  src/background/repository/SessionRecordingEventRepository.test.ts \
+  src/background/command/sessionRecording/flushSesssionRecordingEventsToServer.test.ts \
+  src/background/command/sessionRecording/v2SessionRecordingFlusher.test.ts \
+  src/junify/candidatePackageTypes.test.ts \
+  src/foreground/service/sso/sessionRecorder.test.ts
+yarn test:integration
+```
+
+The exact final-head results were 7 suites/22 tests and 11 suites/70 tests,
+both with zero failures and skips. The rrweb actual-browser compatibility set
+passed 4 files/11 tests and the target recorder/replayer Chrome set passed
+6 files/88 tests, also with zero skips. The fresh Rails local-only VM passed
+69/69 RSpec, 122/122 E2E unit, V1/V2 2/2, password rotation 2/2, legacy unit
+15/15, and legacy Chromium 1/1. Stop exact process groups, remove the four
+Docker services/networks, restore `.bundle/config`, remove generated runtime
+files, and delete the dedicated VM after the report gates pass.
+
+Run `yarn build:all` before the focused boundaries, but account for its six
+Git-ignored Svelte declaration outputs:
+
+```text
+packages/rrweb-player/src/Controller.svelte.d.ts
+packages/rrweb-player/src/Player.svelte.d.ts
+packages/rrweb-player/src/components/Switch.svelte.d.ts
+packages/rrweb-player/types/Controller.svelte.d.ts
+packages/rrweb-player/types/Player.svelte.d.ts
+packages/rrweb-player/types/components/Switch.svelte.d.ts
+```
+
+The standard build generates all six; the unchanged canonical package
+preflight rejects them. Remove only these resolved files after recording their
+census and before `yarn test:junify-packaging` or canonical pack. `yarn
+check-types` may regenerate the three `types/` paths, so repeat the exact census
+and cleanup after type checking. Final residue count must be zero. Do not hide
+the ordering requirement by reporting only the later 9/9 packed-boundary pass;
+whether the standard-build interaction is merge/release blocking is left to
+independent review.
+
+Repository-wide `yarn lint` is not green at the final head: the 4 GiB concurrent
+run reaches an ESLint OOM alongside existing non-Junify markdownlint findings;
+an isolated 8 GiB ESLint run completes with 3 errors and 44 warnings, including
+the focused Svelte parser-service failure at
+`packages/rrweb-player/src/Controller.svelte:18`. Record that baseline openly.
+The required evidence-doc gate is focused `markdownlint docs/junify`, contract
+reconciliation, Prettier check, sensitivity probes, and `git diff --check`.
 
 ## Blocker Recording Template
 

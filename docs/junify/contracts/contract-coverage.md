@@ -113,9 +113,9 @@ mask length and an exact node/source/value assertion, so one field's stars
 cannot substitute for another field or for a missing event. Textarea protection
 remains inherited from upstream 2.1.1; removal remains `null`; same-node and
 unrelated normal controls remain visible after classification expires.
-`junify.privacy.persisted-sentinels`
-stays `red-known-risk` until Task 9 observes real extension Chrome storage and
-decoded V1/V2 request bodies.
+Tasks 9 and 11 extend this exact policy through real extension storage and
+decoded/reassembled V1/V2/gzip request bodies; the persisted-sentinel contract
+is now `covered`.
 
 Task 7 closes `junify.lifecycle.recorder-stop` with a real-Chrome source-to-
 sink gate, not WeakRef-only evidence. Unmodified stable grows by two listeners
@@ -156,13 +156,32 @@ survive a temporary persisted-JSON candidate replay while following valid
 events reach the video and computed-style sinks. Cross-origin attached-iframe
 expansion and schema changes remain excluded.
 
+Tasks 9 and 10 close the production consumer boundaries. The committed loaded-
+MV3 extension proves packaged-worker execution, the natural strict-CSP fallback,
+real IndexedDB persistence, V1/V2 transport, exact Canvas pixels, privacy
+sentinel absence, UTF-8 fragmentation, and lifecycle cleanup. Rails consumes
+the same package bytes and candidate recordings through V1/V2 parsers, loaders,
+routes, scoped/direct players, and the retained static player in actual Chromium.
+
+Task 11 closes the fourteen remaining feasible P0/P1 rows with an independent
+producer ledger and a source-to-visible-sink matrix. Alpha.4, Junify alpha.19,
+Junify alpha.20, and the committed candidate each run through every applicable
+candidate/Rails surface with explicit N/A reasons. The exact large contract
+preserves 13,600,000 UTF-8 CSS bytes, 22 persisted events, FullSnapshot source
+index 1/transport index 2, a 13,613,603-byte body, 137 contiguous fragments,
+reassembly, and gzip equality. Package identity, producer census, privacy,
+fragment, and visible-player mutations reach RED before restored GREEN. The
+registry/CDN install remains a separate, unexecuted release gate because these
+scoped package versions are unpublished; it is not counted as compatibility
+failure or success.
+
 ## Status Summary
 
 | Status                      | Count | Meaning here                                                                                                 |
 | --------------------------- | ----: | ------------------------------------------------------------------------------------------------------------ |
-| `covered`                   |     6 | executable boundary evidence exists and its exact gate is recorded                                           |
-| `must-cover`                |    11 | important, feasible contract lacks adequate boundary evidence                                                |
-| `red-known-risk`            |     3 | P0/P1 behavior is known to require a fix or stronger proof and is not accepted                               |
+| `covered`                   |    20 | executable boundary evidence exists and its exact gate is recorded                                           |
+| `must-cover`                |     0 | no inventoried feasible contract remains without its boundary evidence                                       |
+| `red-known-risk`            |     0 | no inventoried P0/P1 behavior remains at known RED after the Task 11 matrix                                  |
 | `out-of-scope`              |     4 | explicit boundary with reason; not silently omitted                                                          |
 | `accepted-current-behavior` |     0 | no surprising behavior was accepted as a permanent contract                                                  |
 | `not-testable-yet`          |     0 | missing future harnesses are feasible work, so they remain `must-cover`/`red-known-risk` with exact blockers |
@@ -174,24 +193,24 @@ Layer counts are non-exclusive.
 | Recommended layer | Total contracts | `covered` | `must-cover` | `red-known-risk` | `out-of-scope` |
 | ----------------- | --------------: | --------: | -----------: | ---------------: | -------------: |
 | static analysis   |               3 |         2 |            0 |                0 |              1 |
-| integration       |              14 |         5 |            6 |                3 |              0 |
-| E2E               |              12 |         3 |            6 |                3 |              0 |
-| workflow-contract |               4 |         1 |            3 |                0 |              0 |
-| golden/replay     |               6 |         1 |            5 |                0 |              0 |
+| integration       |              14 |        14 |            0 |                0 |              0 |
+| E2E               |              12 |        12 |            0 |                0 |              0 |
+| workflow-contract |               4 |         4 |            0 |                0 |              0 |
+| golden/replay     |               6 |         6 |            0 |                0 |              0 |
 
 ## Risk-First Closure Order
 
-| Priority                       | Contract IDs                                                                                                            | Required evidence before status changes                                                                                                    |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| P0 privacy                     | `junify.privacy.persisted-sentinels`                                                                                    | failing-first initial/mutation sentinels plus absence from extension storage and V1/V2 request bodies                                      |
-| P0 compatibility               | `junify.compatibility.wire-format`, `junify.compatibility.historical-replay`, `junify.compatibility.candidate-recorder` | provenance-locked real-browser fixtures replayed across both candidate surfaces                                                            |
-| P1 seek (closed)               | `junify.replay.seek-visible-dom`                                                                                        | Task 4 authentic RED/GREEN, eight historical candidate seeks, public time/visible DOM, and 13.6 MB CSSOM/timing evidence                   |
-| P1 Canvas                      | both `junify.canvas.*` IDs                                                                                              | Task 5 closes local API/fallback/transfer/pixel behavior; packaged MV3 worker and long-session cleanup evidence remain                     |
-| P1 recorder lifecycle (closed) | `junify.lifecycle.recorder-stop`                                                                                        | Task 7 real-Chrome 50-cycle source-to-sink churn, generation/retention sinks, WebKit restart, and cleanup-throw containment                |
-| P1 replayer lifecycle (closed) | `junify.lifecycle.replayer-destroy`                                                                                     | Task 8 real-Chrome 50-cycle ownership census, no-post-destroy sinks, cleanup-throw containment, and persisted malformed legacy replay      |
-| P1 transport                   | `junify.extension.persistence` and all `junify.transport.*` IDs                                                         | real storage plus decoded V1/V2 parity including oversized UTF-8 fragmentation                                                             |
-| P1 Rails                       | Monitors V1/V2 and legacy static IDs                                                                                    | production-shaped browser routes; mocks and README do not qualify                                                                          |
-| build boundary                 | both `junify.package-boundary.*` IDs                                                                                    | closed by Task 3 packed-artifact imports/exports, observed local-source provenance, strict declaration gates, and upstream namespace proof |
+| Priority                       | Contract IDs                                                                                                            | Required evidence before status changes                                                                                                              |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 privacy (closed)            | `junify.privacy.persisted-sentinels`                                                                                    | Task 11 proves all 16 candidate sentinels absent from raw IDB, V1, V2 raw/reassembled, and gzip sinks; historical leaks remain characterization only |
+| P0 compatibility (closed)      | `junify.compatibility.wire-format`, `junify.compatibility.historical-replay`, `junify.compatibility.candidate-recorder` | independent producer ledger plus exact real-browser source-to-visible-sink rows for every applicable surface                                         |
+| P1 seek (closed)               | `junify.replay.seek-visible-dom`                                                                                        | Task 4 authentic RED/GREEN, eight historical candidate seeks, public time/visible DOM, and 13.6 MB CSSOM/timing evidence                             |
+| P1 Canvas (closed)             | both `junify.canvas.*` IDs                                                                                              | Task 9 loaded-MV3 packaged worker/fallback/pixel/lifecycle evidence plus Task 11 cross-repository visible sinks                                      |
+| P1 recorder lifecycle (closed) | `junify.lifecycle.recorder-stop`                                                                                        | Task 7 real-Chrome 50-cycle source-to-sink churn, generation/retention sinks, WebKit restart, and cleanup-throw containment                          |
+| P1 replayer lifecycle (closed) | `junify.lifecycle.replayer-destroy`                                                                                     | Task 8 real-Chrome 50-cycle ownership census, no-post-destroy sinks, cleanup-throw containment, and persisted malformed legacy replay                |
+| P1 transport (closed)          | `junify.extension.persistence` and all `junify.transport.*` IDs                                                         | real IDB, decoded V1, V2 raw/reassembled, gzip, and exact 137-fragment large-artifact evidence                                                       |
+| P1 Rails (closed)              | Monitors V1/V2 and legacy static IDs                                                                                    | fresh dedicated local-only VM plus production-shaped routes and actual Chromium visible players                                                      |
+| build boundary                 | both `junify.package-boundary.*` IDs                                                                                    | closed by Task 3 packed-artifact imports/exports, observed local-source provenance, strict declaration gates, and upstream namespace proof           |
 
 ## Existing Evidence That Is Useful But Insufficient
 
@@ -208,17 +227,20 @@ Layer counts are non-exclusive.
 | Task 2 authenticated fixtures         | loaded UMD-to-registry-tarball integrity, temporary real-browser regeneration, target-ID mutation evidence, marker-terminated SPA/seek-ready/stylesheet sinks, full official 2.1.1 replay, hashes, and 13.6 MB CSS | future Junify candidate recording output, Rails main/static consumers, extension storage/transport/fragmentation, or privacy acceptance |
 | Task 5 local Canvas gates             | injectable factories, worker failure/timeout/dispose, strict fallback, application/replay pixels, temporary JSON persistence, and post-stop silence                                                                | browser_extension packaged-worker execution under real MV3 or bridge/Blob URL cleanup                                                   |
 | Task 7 recorder lifecycle gate        | 50-cycle post-stop silence and exact listener/MO/RAF/timer counts; iframe/shadow/stylesheet/mirror generation release; WebKit stop/restart; throwing cleanup containment                                           | production MV3 packaged-worker execution, extension persistence/transport, or replayer teardown                                         |
+| Task 9 loaded-MV3 and transport gates | packaged worker/fallback, real IDB, V1/V2 transport, Canvas pixels, privacy absence, lifecycle, and 137-fragment reassembly                                                                                        | Rails parser/loader/route and visible-player acceptance by itself                                                                       |
+| Tasks 10/11 cross-repository gates    | Rails V1/V2/static actual-browser sinks plus independent producer, hash, applicability, parity, and mutation ledgers                                                                                               | registry/CDN installation of unpublished package versions; that remains an explicit release gate                                        |
 
 ## Privacy Characterization And Local Fixes
 
 The fixtures contain only distinct synthetic values. Scans are assertions of
 observed historical behavior, not privacy acceptance: password and dynamic
 password sentinels are absent; placeholder, hidden, and sensitive-autocomplete
-sentinels occur in all four comprehensive artifacts; alpha.4 additionally
-contains the textarea sentinel. `junify.privacy.persisted-sentinels` remains
-`red-known-risk`. Task 6 proves candidate absence through snapshot,
-real-recorder, and temporary persisted-JSON sinks; Task 9 must still prove real
-Chrome storage and both ingest request bodies.
+sentinels occur in all four comprehensive historical artifacts; alpha.4
+additionally contains the textarea sentinel. Those historical leaks are
+compatibility characterization only and never privacy success. Tasks 6, 9,
+and 11 prove all 16 distinct candidate sentinels absent through snapshot,
+real-recorder, committed raw IndexedDB, decoded V1, V2 raw/reassembled, and
+gzip sinks. `junify.privacy.persisted-sentinels` is therefore `covered`.
 
 ## Status Transition Rules
 
