@@ -336,13 +336,9 @@ describe('junify.privacy candidate persisted artifact', () => {
     const chromeExecutable =
       process.env.PUPPETEER_EXECUTABLE_PATH ||
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-    const candidateBundle = path.join(
-      packageRoot,
-      '..',
-      'rrweb',
-      'dist',
-      'rrweb.umd.cjs',
-    );
+    const candidateBundle =
+      process.env.JUNIFY_RRWEB_CANDIDATE_BUNDLE ||
+      path.join(packageRoot, '..', 'rrweb', 'dist', 'rrweb.umd.cjs');
     const browser = await chromium.launch({
       executablePath: chromeExecutable,
       headless: true,
@@ -352,28 +348,53 @@ describe('junify.privacy candidate persisted artifact', () => {
     );
     const artifactPath = path.join(temporaryDirectory, 'events.json');
     const nonce = randomUUID();
-    const sentinels = {
-      initial: `hidden-initial-${nonce}-1`,
-      attribute: `hidden-attribute-${nonce}-22`,
-      input: `hidden-input-${nonce}-333`,
-      added: `hidden-added-${nonce}-4444`,
-      placeholderInitial: `placeholder-initial-${nonce}-55555`,
-      placeholderMutation: `placeholder-mutation-${nonce}-666666`,
-      placeholderAdded: `placeholder-added-${nonce}-7777777`,
-      autocompleteInitial: `autocomplete-initial-${nonce}-88888888`,
-      autocompleteAttribute: `autocomplete-attribute-${nonce}-999999999`,
-      autocompleteInput: `autocomplete-input-${nonce}-aaaaaaaaaa`,
-      autocompleteAdded: `autocomplete-added-${nonce}-bbbbbbbbbbb`,
-      passwordInitial: `password-initial-${nonce}-cccccccccccc`,
-      passwordValueBeforeType: `password-value-before-type-${nonce}-ddddddddddddd`,
-      passwordTypeBeforeValue: `password-type-before-value-${nonce}-eeeeeeeeeeeeee`,
-      passwordSyncInput: `password-sync-input-${nonce}-fffffffffffffff`,
-      textareaInitial: `textarea-initial-${nonce}-gggggggggggggggg`,
-      textareaAdded: `textarea-added-${nonce}-hhhhhhhhhhhhhhhhh`,
-      textareaAttribute: `textarea-attribute-${nonce}-iiiiiiiiiiiiiiiiii`,
-      textareaChild: `textarea-child-${nonce}-jjjjjjjjjjjjjjjjjjj`,
-      textareaInput: `textarea-input-${nonce}-kkkkkkkkkkkkkkkkkkkk`,
+    const sentinelLengths = {
+      initial: 101,
+      attribute: 103,
+      input: 107,
+      added: 109,
+      placeholderInitial: 113,
+      placeholderMutation: 127,
+      placeholderAdded: 131,
+      autocompleteInitial: 137,
+      autocompleteAttribute: 139,
+      autocompleteInput: 149,
+      autocompleteAdded: 151,
+      passwordInitial: 157,
+      passwordValueBeforeType: 163,
+      passwordTypeBeforeValue: 167,
+      passwordAddedBeforeFlush: 173,
+      passwordAddedAfterFlush: 179,
+      passwordTemporaryBeforeFlush: 181,
+      textareaInitial: 191,
+      textareaAdded: 193,
+      textareaAttribute: 197,
+      textareaChild: 199,
+      textareaInput: 211,
+      hiddenValueBeforeType: 223,
+      hiddenTypeBeforeValue: 227,
+      autocompleteValueBeforeRemoval: 229,
+      autocompleteRemovalBeforeValue: 233,
+    } as const;
+    const makeSentinel = (name: string, length: number) => {
+      const prefix = `${name}-${nonce}-`;
+      if (prefix.length >= length) throw new Error(`${name} is too long`);
+      return prefix + 'x'.repeat(length - prefix.length);
     };
+    const sentinels = Object.fromEntries(
+      Object.entries(sentinelLengths).map(([name, length]) => [
+        name,
+        makeSentinel(name, length),
+      ]),
+    ) as { [K in keyof typeof sentinelLengths]: string };
+    const visibleValues = {
+      passwordTemporaryAfterBatch:
+        'temporary-password-normal-after-batch-visible',
+      normalText: 'ordinary-normal-text-control-visible',
+    };
+    expect(
+      new Set(Object.values(sentinels).map((value) => value.length)).size,
+    ).toBe(Object.keys(sentinels).length);
 
     try {
       const page = await browser.newPage();
@@ -384,127 +405,417 @@ describe('junify.privacy candidate persisted artifact', () => {
         <input id="password-initial" type="password" value="${sentinels.passwordInitial}">
         <input id="password-value-before-type" type="password" value="">
         <input id="password-type-before-value" type="password" value="">
-        <input id="password-sync-input" type="password" value="">
+        <input id="password-temporary" type="text" value="">
+        <input id="hidden-value-before-type" type="hidden" value="">
+        <input id="hidden-type-before-value" type="hidden" value="">
+        <input id="autocomplete-value-before-removal" type="text" autocomplete="current-password" value="">
+        <input id="autocomplete-removal-before-value" type="text" autocomplete="cc-number" value="">
+        <input id="normal-text-control" type="text" value="">
         <textarea id="textarea-private">${sentinels.textareaInitial}</textarea>
       </body></html>`);
       await page.addScriptTag({ path: candidateBundle });
-      const events = await page.evaluate(async (values) => {
-        const pageWindow = window as typeof window & {
-          rrweb: {
-            record: (
-              options: Record<string, unknown>,
-            ) => (() => void) | undefined;
+      const events = await page.evaluate(
+        async ({ values, visibleValues }) => {
+          const pageWindow = window as typeof window & {
+            rrweb: {
+              record: (
+                options: Record<string, unknown>,
+              ) => (() => void) | undefined;
+            };
           };
-        };
-        const recorded: unknown[] = [];
-        const stop = pageWindow.rrweb.record({
-          emit: (event: unknown) => recorded.push(event),
-          maskInputOptions: {
-            hidden: true,
-            password: true,
-            textarea: true,
-          },
-          maskInputFn: (value: string, element: HTMLElement) =>
-            element.id.startsWith('autocomplete')
-              ? value
-              : '*'.repeat(value.length),
-        });
-        await new Promise((resolve) => setTimeout(resolve, 40));
+          const recorded: unknown[] = [];
+          const stop = pageWindow.rrweb.record({
+            emit: (event: unknown) => recorded.push(event),
+            maskInputOptions: {
+              hidden: true,
+              password: true,
+              textarea: true,
+            },
+            maskInputFn: (value: string, element: HTMLElement) =>
+              element.id.startsWith('autocomplete')
+                ? value
+                : '*'.repeat(value.length),
+          });
+          await new Promise((resolve) => setTimeout(resolve, 40));
 
-        const hidden = document.querySelector(
-          '#hidden-private',
-        ) as HTMLInputElement;
-        hidden.setAttribute('value', values.attribute);
-        document
-          .querySelector('#placeholder-private')
-          ?.setAttribute('placeholder', values.placeholderMutation);
-        document
-          .querySelector('#autocomplete-private')
-          ?.setAttribute('value', values.autocompleteAttribute);
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        hidden.value = values.input;
-        hidden.dispatchEvent(new Event('input', { bubbles: true }));
-        const autocomplete = document.querySelector(
-          '#autocomplete-private',
-        ) as HTMLInputElement;
-        autocomplete.value = values.autocompleteInput;
-        autocomplete.dispatchEvent(new Event('input', { bubbles: true }));
+          const hidden = document.querySelector(
+            '#hidden-private',
+          ) as HTMLInputElement;
+          hidden.setAttribute('value', values.attribute);
+          document
+            .querySelector('#placeholder-private')
+            ?.setAttribute('placeholder', values.placeholderMutation);
+          document
+            .querySelector('#autocomplete-private')
+            ?.setAttribute('value', values.autocompleteAttribute);
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          hidden.value = values.input;
+          hidden.dispatchEvent(new Event('input', { bubbles: true }));
+          const autocomplete = document.querySelector(
+            '#autocomplete-private',
+          ) as HTMLInputElement;
+          autocomplete.value = values.autocompleteInput;
+          autocomplete.dispatchEvent(new Event('input', { bubbles: true }));
 
-        const added = document.createElement('input');
-        added.id = 'hidden-added';
-        added.type = 'hidden';
-        added.value = values.added;
-        document.body.append(added);
-        const addedTextarea = document.createElement('textarea');
-        addedTextarea.id = 'placeholder-added';
-        addedTextarea.placeholder = values.placeholderAdded;
-        document.body.append(addedTextarea);
-        const addedAutocomplete = document.createElement('input');
-        addedAutocomplete.id = 'autocomplete-added';
-        addedAutocomplete.setAttribute(
-          'autocomplete',
-          'section-payment CC-NUMBER',
-        );
-        addedAutocomplete.value = values.autocompleteAdded;
-        document.body.append(addedAutocomplete);
+          const added = document.createElement('input');
+          added.id = 'hidden-added';
+          added.type = 'hidden';
+          added.value = values.added;
+          document.body.append(added);
+          const addedTextarea = document.createElement('textarea');
+          addedTextarea.id = 'placeholder-added';
+          addedTextarea.placeholder = values.placeholderAdded;
+          document.body.append(addedTextarea);
+          const addedAutocomplete = document.createElement('input');
+          addedAutocomplete.id = 'autocomplete-added';
+          addedAutocomplete.setAttribute(
+            'autocomplete',
+            'section-payment CC-NUMBER',
+          );
+          addedAutocomplete.value = values.autocompleteAdded;
+          document.body.append(addedAutocomplete);
 
-        const valueBeforeType = document.querySelector(
-          '#password-value-before-type',
-        ) as HTMLInputElement;
-        valueBeforeType.setAttribute('value', values.passwordValueBeforeType);
-        valueBeforeType.setAttribute('type', 'text');
-        const typeBeforeValue = document.querySelector(
-          '#password-type-before-value',
-        ) as HTMLInputElement;
-        typeBeforeValue.setAttribute('type', 'text');
-        typeBeforeValue.setAttribute('value', values.passwordTypeBeforeValue);
-        const syncInput = document.querySelector(
-          '#password-sync-input',
-        ) as HTMLInputElement;
-        syncInput.type = 'text';
-        syncInput.value = values.passwordSyncInput;
-        syncInput.dispatchEvent(new Event('input', { bubbles: true }));
-        await new Promise((resolve) => setTimeout(resolve, 40));
+          const valueBeforeType = document.querySelector(
+            '#password-value-before-type',
+          ) as HTMLInputElement;
+          valueBeforeType.setAttribute('value', values.passwordValueBeforeType);
+          valueBeforeType.setAttribute('type', 'text');
+          const typeBeforeValue = document.querySelector(
+            '#password-type-before-value',
+          ) as HTMLInputElement;
+          typeBeforeValue.setAttribute('type', 'text');
+          typeBeforeValue.setAttribute('value', values.passwordTypeBeforeValue);
+          const addedPassword = document.createElement('input');
+          addedPassword.id = 'password-added';
+          addedPassword.type = 'password';
+          document.body.append(addedPassword);
+          addedPassword.type = 'text';
+          addedPassword.value = values.passwordAddedBeforeFlush;
+          addedPassword.dispatchEvent(new Event('input', { bubbles: true }));
+          const temporaryPassword = document.querySelector(
+            '#password-temporary',
+          ) as HTMLInputElement;
+          temporaryPassword.type = 'password';
+          temporaryPassword.type = 'text';
+          temporaryPassword.value = values.passwordTemporaryBeforeFlush;
+          temporaryPassword.dispatchEvent(
+            new Event('input', { bubbles: true }),
+          );
 
-        const addedPrivateTextarea = document.createElement('textarea');
-        addedPrivateTextarea.id = 'textarea-private-added';
-        addedPrivateTextarea.textContent = values.textareaAdded;
-        document.body.append(addedPrivateTextarea);
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        const privateTextarea = document.querySelector(
-          '#textarea-private',
-        ) as HTMLTextAreaElement;
-        privateTextarea.setAttribute('value', values.textareaAttribute);
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        privateTextarea.textContent = values.textareaChild;
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        privateTextarea.value = values.textareaInput;
-        privateTextarea.dispatchEvent(new Event('input', { bubbles: true }));
-        await new Promise((resolve) => setTimeout(resolve, 40));
-        stop?.();
-        return recorded;
-      }, sentinels);
+          const hiddenValueFirst = document.querySelector(
+            '#hidden-value-before-type',
+          ) as HTMLInputElement;
+          hiddenValueFirst.setAttribute('value', values.hiddenValueBeforeType);
+          hiddenValueFirst.setAttribute('type', 'text');
+          const hiddenTypeFirst = document.querySelector(
+            '#hidden-type-before-value',
+          ) as HTMLInputElement;
+          hiddenTypeFirst.setAttribute('type', 'text');
+          hiddenTypeFirst.setAttribute('value', values.hiddenTypeBeforeValue);
+          const autocompleteValueFirst = document.querySelector(
+            '#autocomplete-value-before-removal',
+          ) as HTMLInputElement;
+          autocompleteValueFirst.setAttribute(
+            'value',
+            values.autocompleteValueBeforeRemoval,
+          );
+          autocompleteValueFirst.removeAttribute('autocomplete');
+          const autocompleteRemovalFirst = document.querySelector(
+            '#autocomplete-removal-before-value',
+          ) as HTMLInputElement;
+          autocompleteRemovalFirst.removeAttribute('autocomplete');
+          autocompleteRemovalFirst.setAttribute(
+            'value',
+            values.autocompleteRemovalBeforeValue,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 40));
+
+          addedPassword.value = values.passwordAddedAfterFlush;
+          addedPassword.dispatchEvent(new Event('input', { bubbles: true }));
+          temporaryPassword.value = visibleValues.passwordTemporaryAfterBatch;
+          temporaryPassword.dispatchEvent(
+            new Event('input', { bubbles: true }),
+          );
+          const normalText = document.querySelector(
+            '#normal-text-control',
+          ) as HTMLInputElement;
+          normalText.value = visibleValues.normalText;
+          normalText.dispatchEvent(new Event('input', { bubbles: true }));
+          await new Promise((resolve) => setTimeout(resolve, 40));
+
+          const addedPrivateTextarea = document.createElement('textarea');
+          addedPrivateTextarea.id = 'textarea-private-added';
+          addedPrivateTextarea.textContent = values.textareaAdded;
+          document.body.append(addedPrivateTextarea);
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          const privateTextarea = document.querySelector(
+            '#textarea-private',
+          ) as HTMLTextAreaElement;
+          privateTextarea.setAttribute('value', values.textareaAttribute);
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          privateTextarea.textContent = values.textareaChild;
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          privateTextarea.value = values.textareaInput;
+          privateTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+          await new Promise((resolve) => setTimeout(resolve, 40));
+          stop?.();
+          return recorded;
+        },
+        { values: sentinels, visibleValues },
+      );
       await page.close();
 
       await writeFile(artifactPath, JSON.stringify(events), 'utf8');
       const persistedPayload = await readFile(artifactPath, 'utf8');
+      type SerializedNode = {
+        type: number;
+        id: number;
+        attributes?: Record<string, string | boolean | null>;
+        childNodes?: SerializedNode[];
+      };
+      type CandidateEvent = {
+        type?: number;
+        data?: {
+          source?: number;
+          node?: SerializedNode;
+          adds?: Array<{ node: SerializedNode }>;
+          attributes?: Array<{
+            id: number;
+            attributes: Record<string, string | boolean | null>;
+          }>;
+          id?: number;
+          text?: string;
+        };
+      };
+      const recorded = events as CandidateEvent[];
+      const visitNode = (
+        node: SerializedNode,
+        visit: (candidate: SerializedNode) => void,
+      ): void => {
+        visit(node);
+        node.childNodes?.forEach((child) => visitNode(child, visit));
+      };
+      const fullSnapshot = recorded.find((event) => event.type === 2);
+      expect(fullSnapshot?.data?.node).toBeDefined();
+      const fullNodes = new Map<string, SerializedNode>();
+      visitNode(fullSnapshot?.data?.node as SerializedNode, (node) => {
+        const id = node.attributes?.id;
+        if (typeof id === 'string') fullNodes.set(id, node);
+      });
+      const addedNodes = new Map<string, SerializedNode>();
+      for (const event of recorded) {
+        if (event.type !== 3 || event.data?.source !== 0) continue;
+        for (const add of event.data.adds || []) {
+          visitNode(add.node, (node) => {
+            const id = node.attributes?.id;
+            if (typeof id === 'string') addedNodes.set(id, node);
+          });
+        }
+      }
+      const attributeMutations = recorded.flatMap((event) =>
+        event.type === 3 && event.data?.source === 0
+          ? event.data.attributes || []
+          : [],
+      );
+      const inputEvents = recorded.flatMap((event) =>
+        event.type === 3 &&
+        event.data?.source === 5 &&
+        event.data.id !== undefined
+          ? [{ id: event.data.id, text: event.data.text }]
+          : [],
+      );
+      const mask = (name: keyof typeof sentinels) =>
+        '*'.repeat(sentinelLengths[name]);
+      const fullId = (id: string) => {
+        const value = fullNodes.get(id)?.id;
+        expect(value, `FullSnapshot node ${id}`).toBeGreaterThan(0);
+        return value as number;
+      };
+      const addedId = (id: string) => {
+        const value = addedNodes.get(id)?.id;
+        expect(value, `added node ${id}`).toBeGreaterThan(0);
+        return value as number;
+      };
+      const hasMutation = (
+        id: number,
+        expected: Record<string, string | null>,
+        mutations = attributeMutations,
+      ) =>
+        mutations.some(
+          (mutation) =>
+            mutation.id === id &&
+            Object.entries(expected).every(
+              ([name, value]) => mutation.attributes[name] === value,
+            ),
+        );
+      const hasInput = (id: number, text: string, candidates = inputEvents) =>
+        candidates.some((event) => event.id === id && event.text === text);
+
+      expect(fullNodes.get('hidden-private')?.attributes?.value).toBe(
+        mask('initial'),
+      );
       expect(
-        events.some((event) => (event as { type?: number }).type === 2),
+        fullNodes.get('placeholder-private')?.attributes?.placeholder,
+      ).toBe(mask('placeholderInitial'));
+      expect(fullNodes.get('autocomplete-private')?.attributes?.value).toBe(
+        mask('autocompleteInitial'),
+      );
+      expect(fullNodes.get('password-initial')?.attributes?.value).toBe(
+        mask('passwordInitial'),
+      );
+      expect(fullNodes.get('textarea-private')?.attributes?.value).toBe(
+        mask('textareaInitial'),
+      );
+
+      expect(addedNodes.get('hidden-added')?.attributes?.value).toBe(
+        mask('added'),
+      );
+      expect(addedNodes.get('placeholder-added')?.attributes?.placeholder).toBe(
+        mask('placeholderAdded'),
+      );
+      expect(addedNodes.get('autocomplete-added')?.attributes?.value).toBe(
+        mask('autocompleteAdded'),
+      );
+      expect(addedNodes.get('password-added')?.attributes?.value).toBe(
+        mask('passwordAddedBeforeFlush'),
+      );
+      expect(addedNodes.get('textarea-private-added')?.attributes?.value).toBe(
+        mask('textareaAdded'),
+      );
+
+      const hiddenId = fullId('hidden-private');
+      const autocompleteId = fullId('autocomplete-private');
+      const temporaryPasswordId = fullId('password-temporary');
+      const normalTextId = fullId('normal-text-control');
+      const addedPasswordId = addedId('password-added');
+      expect(hasMutation(hiddenId, { value: mask('attribute') })).toBe(true);
+      expect(
+        hasMutation(fullId('placeholder-private'), {
+          placeholder: mask('placeholderMutation'),
+        }),
       ).toBe(true);
       expect(
-        events.some(
-          (event) =>
-            (event as { type?: number; data?: { source?: number } }).type ===
-              3 &&
-            [0, 5].includes(
-              (event as { data?: { source?: number } }).data?.source ?? -1,
-            ),
+        hasMutation(autocompleteId, {
+          value: mask('autocompleteAttribute'),
+        }),
+      ).toBe(true);
+      expect(
+        hasMutation(fullId('password-value-before-type'), {
+          value: mask('passwordValueBeforeType'),
+          type: 'text',
+        }),
+      ).toBe(true);
+      expect(
+        hasMutation(fullId('password-type-before-value'), {
+          value: mask('passwordTypeBeforeValue'),
+          type: 'text',
+        }),
+      ).toBe(true);
+      expect(
+        hasMutation(fullId('hidden-value-before-type'), {
+          value: mask('hiddenValueBeforeType'),
+          type: 'text',
+        }),
+      ).toBe(true);
+      expect(
+        hasMutation(fullId('hidden-type-before-value'), {
+          value: mask('hiddenTypeBeforeValue'),
+          type: 'text',
+        }),
+      ).toBe(true);
+      expect(
+        hasMutation(fullId('autocomplete-value-before-removal'), {
+          value: mask('autocompleteValueBeforeRemoval'),
+          autocomplete: null,
+        }),
+      ).toBe(true);
+      expect(
+        hasMutation(fullId('autocomplete-removal-before-value'), {
+          value: mask('autocompleteRemovalBeforeValue'),
+          autocomplete: null,
+        }),
+      ).toBe(true);
+      expect(
+        hasMutation(fullId('textarea-private'), {
+          value: mask('textareaAttribute'),
+        }),
+      ).toBe(true);
+      expect(
+        hasMutation(fullId('textarea-private'), {
+          value: mask('textareaChild'),
+        }),
+      ).toBe(true);
+
+      expect(hasInput(hiddenId, mask('input'))).toBe(true);
+      expect(hasInput(autocompleteId, mask('autocompleteInput'))).toBe(true);
+      expect(hasInput(-1, mask('passwordAddedBeforeFlush'))).toBe(true);
+      expect(hasInput(addedPasswordId, mask('passwordAddedAfterFlush'))).toBe(
+        true,
+      );
+      expect(
+        hasInput(temporaryPasswordId, mask('passwordTemporaryBeforeFlush')),
+      ).toBe(true);
+      expect(
+        hasInput(
+          temporaryPasswordId,
+          visibleValues.passwordTemporaryAfterBatch,
         ),
       ).toBe(true);
+      expect(hasInput(normalTextId, visibleValues.normalText)).toBe(true);
+      expect(hasInput(fullId('textarea-private'), mask('textareaInput'))).toBe(
+        true,
+      );
+
+      const withoutAddedPasswordAfterFlush = inputEvents.filter(
+        (event) =>
+          event.id !== addedPasswordId ||
+          event.text !== mask('passwordAddedAfterFlush'),
+      );
+      expect(
+        hasInput(
+          addedPasswordId,
+          mask('passwordAddedAfterFlush'),
+          withoutAddedPasswordAfterFlush,
+        ),
+      ).toBe(false);
+      const hiddenBatchId = fullId('hidden-value-before-type');
+      const withoutHiddenBatchValue = attributeMutations.filter(
+        (mutation) =>
+          mutation.id !== hiddenBatchId ||
+          mutation.attributes.value !== mask('hiddenValueBeforeType'),
+      );
+      expect(
+        hasMutation(
+          hiddenBatchId,
+          { value: mask('hiddenValueBeforeType'), type: 'text' },
+          withoutHiddenBatchValue,
+        ),
+      ).toBe(false);
+      const autocompleteRemovalId = fullId('autocomplete-value-before-removal');
+      const withoutAutocompleteRemovalValue = attributeMutations.filter(
+        (mutation) =>
+          mutation.id !== autocompleteRemovalId ||
+          mutation.attributes.value !== mask('autocompleteValueBeforeRemoval'),
+      );
+      expect(
+        hasMutation(
+          autocompleteRemovalId,
+          {
+            value: mask('autocompleteValueBeforeRemoval'),
+            autocomplete: null,
+          },
+          withoutAutocompleteRemovalValue,
+        ),
+      ).toBe(false);
+
       for (const secret of Object.values(sentinels)) {
         expect(persistedPayload).not.toContain(secret);
         expect(persistedPayload).toContain('*'.repeat(secret.length));
       }
+      expect(persistedPayload).toContain(
+        visibleValues.passwordTemporaryAfterBatch,
+      );
+      expect(persistedPayload).toContain(visibleValues.normalText);
     } finally {
       await browser.close();
       await rm(temporaryDirectory, { recursive: true, force: true });
