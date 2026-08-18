@@ -384,11 +384,10 @@ function onceStylesheetLoaded(
   if (styleSheetLoaded) return;
 
   let active = true;
-  let timer: ReturnType<typeof setTimeout> | undefined;
   const cleanup = () => {
     if (!active) return;
     active = false;
-    if (timer !== undefined) clearTimeout(timer);
+    clearTimeout(timer);
     link.removeEventListener('load', onLoad);
   };
   const onLoad = () => {
@@ -397,7 +396,7 @@ function onceStylesheetLoaded(
     cleanup();
     listener();
   };
-  timer = setTimeout(onLoad, styleSheetLoadTimeout);
+  const timer = setTimeout(onLoad, styleSheetLoadTimeout);
   link.addEventListener('load', onLoad);
   return cleanup;
 }
