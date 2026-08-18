@@ -269,14 +269,37 @@ unit-spy evidence alone does not close this gate.
 ### `G-REPLAYER-LIFECYCLE`
 
 ```sh
-yarn workspace rrweb build
-PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/replay/lifecycle.test.ts test/replayer.test.ts
-yarn workspace @junify/rrweb-compatibility test -- replay-matrix
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH yarn workspace rrweb build
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace rrweb vitest run test/replay/lifecycle.test.ts test/replayer.test.ts
+PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH PUPPETEER_HEADLESS=true yarn workspace @junify/rrweb-compatibility test -- replay-matrix
 ```
 
 Assert repeated create/play/seek/destroy clears timers, subscriptions, pending
 image/stylesheet/addEvent callbacks, iframe maps, and DOM roots. Current
-blocker: `test/replay/lifecycle.test.ts` is created in Task 8.
+Task 8 evidence is GREEN: lifecycle plus replayer passes 51/51 and the
+candidate replay matrix passes 3/3, including all four historical producers,
+eight seek direction/producer combinations, and the temporary persisted
+malformed-legacy artifact.
+
+The lifecycle fixture performs 50 real-Chrome cycles with four nested iframes,
+explicit forward and backward seek, an owned pending Timer action/RAF,
+stylesheet `load`, media `loadedmetadata`, live mode, image/canvas/new-document/
+legacy maps, and idempotent destroy. Before destroy the ownership sinks are
+nonzero. After destroy, both state machines are stopped; all handlers, maps,
+queues, mirror IDs, listeners, RAFs, timeouts, intervals, and DOM roots are
+zero. Late link/media events, service sends, speed changes, `addEvent`, and a
+second destroy produce no callback, event-count, or DOM-mutation change. A
+separate case injects throwing Pause/Destroy consumers and media cleanup and
+still observes complete finalization.
+
+The unmodified 2.1.1 RED retained the Running player/speed services, fifteen
+emitter handlers, image/canvas/new-document maps, media metadata and stylesheet
+listeners, 77 timeouts by cycle 49, and a live RAF. Late traffic grew
+StateChange from 22 to 28 and EventCast from 16 to 19; double destroy threw.
+WeakRef or GC-only evidence does not close this gate. The malformed-media and
+absent-style-rules cases must retain their following valid-event sinks: video
+`currentTime` 4.25, volume 0.5, muted true, and computed color
+`rgb(17, 34, 51)`.
 
 ## Browser Extension Persistence And Transport Gates
 

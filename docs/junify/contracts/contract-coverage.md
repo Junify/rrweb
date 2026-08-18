@@ -96,13 +96,29 @@ rule events after re-adoption; and the runbook executes the actual WebKit
 configuration. A collected no-op `releaseHost` mutation fails the strengthened
 stylesheet gate.
 
+Task 8 closes `junify.lifecycle.replayer-destroy` with real-Chrome ownership
+and visible-sink evidence. Unmodified stable retains both player services,
+fifteen emitter handlers, live and replay RAFs, 77 timeouts by cycle 49,
+stylesheet/media listeners, and image/canvas/document queues; late service
+traffic grows StateChange and EventCast counts, and double destroy throws. The
+candidate runs 50 iframe-heavy create/play/forward-seek/backward-seek/live/
+destroy cycles with an explicit pending Timer action, stylesheet load handler,
+media metadata handler, and populated ownership maps. Every post-destroy count
+returns to the zero baseline, both services stop, the wrapper detaches, and
+late callbacks, events, DOM mutations, and a second destroy stay silent. A
+separate cleanup-throw case proves one consumer or media failure cannot prevent
+global teardown. Exact malformed media-node and absent style-rules events also
+survive a temporary persisted-JSON candidate replay while following valid
+events reach the video and computed-style sinks. Cross-origin attached-iframe
+expansion and schema changes remain excluded.
+
 ## Status Summary
 
 | Status                      | Count | Meaning here                                                                                                 |
 | --------------------------- | ----: | ------------------------------------------------------------------------------------------------------------ |
-| `covered`                   |     5 | executable boundary evidence exists and its exact gate is recorded                                           |
+| `covered`                   |     6 | executable boundary evidence exists and its exact gate is recorded                                           |
 | `must-cover`                |    11 | important, feasible contract lacks adequate boundary evidence                                                |
-| `red-known-risk`            |     4 | P0/P1 behavior is known to require a fix or stronger proof and is not accepted                               |
+| `red-known-risk`            |     3 | P0/P1 behavior is known to require a fix or stronger proof and is not accepted                               |
 | `out-of-scope`              |     4 | explicit boundary with reason; not silently omitted                                                          |
 | `accepted-current-behavior` |     0 | no surprising behavior was accepted as a permanent contract                                                  |
 | `not-testable-yet`          |     0 | missing future harnesses are feasible work, so they remain `must-cover`/`red-known-risk` with exact blockers |
@@ -114,24 +130,24 @@ Layer counts are non-exclusive.
 | Recommended layer | Total contracts | `covered` | `must-cover` | `red-known-risk` | `out-of-scope` |
 | ----------------- | --------------: | --------: | -----------: | ---------------: | -------------: |
 | static analysis   |               3 |         2 |            0 |                0 |              1 |
-| integration       |              14 |         4 |            6 |                4 |              0 |
-| E2E               |              12 |         2 |            6 |                4 |              0 |
+| integration       |              14 |         5 |            6 |                3 |              0 |
+| E2E               |              12 |         3 |            6 |                3 |              0 |
 | workflow-contract |               4 |         1 |            3 |                0 |              0 |
 | golden/replay     |               6 |         1 |            5 |                0 |              0 |
 
 ## Risk-First Closure Order
 
-| Priority         | Contract IDs                                                                                                            | Required evidence before status changes                                                                                                    |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| P0 privacy       | `junify.privacy.persisted-sentinels`                                                                                    | failing-first initial/mutation sentinels plus absence from extension storage and V1/V2 request bodies                                      |
-| P0 compatibility | `junify.compatibility.wire-format`, `junify.compatibility.historical-replay`, `junify.compatibility.candidate-recorder` | provenance-locked real-browser fixtures replayed across both candidate surfaces                                                            |
-| P1 seek (closed) | `junify.replay.seek-visible-dom`                                                                                        | Task 4 authentic RED/GREEN, eight historical candidate seeks, public time/visible DOM, and 13.6 MB CSSOM/timing evidence                   |
-| P1 Canvas        | both `junify.canvas.*` IDs                                                                                              | Task 5 closes local API/fallback/transfer/pixel behavior; packaged MV3 worker and long-session cleanup evidence remain                     |
-| P1 recorder lifecycle (closed) | `junify.lifecycle.recorder-stop`                                                                                | Task 7 real-Chrome 50-cycle source-to-sink churn, generation/retention sinks, WebKit restart, and cleanup-throw containment                |
-| P1 replayer lifecycle | `junify.lifecycle.replayer-destroy`                                                                                  | repeated real-browser create/play/seek/destroy churn with retained-resource and no-post-destroy assertions                                |
-| P1 transport     | `junify.extension.persistence` and all `junify.transport.*` IDs                                                         | real storage plus decoded V1/V2 parity including oversized UTF-8 fragmentation                                                             |
-| P1 Rails         | Monitors V1/V2 and legacy static IDs                                                                                    | production-shaped browser routes; mocks and README do not qualify                                                                          |
-| build boundary   | both `junify.package-boundary.*` IDs                                                                                    | closed by Task 3 packed-artifact imports/exports, observed local-source provenance, strict declaration gates, and upstream namespace proof |
+| Priority                       | Contract IDs                                                                                                            | Required evidence before status changes                                                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| P0 privacy                     | `junify.privacy.persisted-sentinels`                                                                                    | failing-first initial/mutation sentinels plus absence from extension storage and V1/V2 request bodies                                      |
+| P0 compatibility               | `junify.compatibility.wire-format`, `junify.compatibility.historical-replay`, `junify.compatibility.candidate-recorder` | provenance-locked real-browser fixtures replayed across both candidate surfaces                                                            |
+| P1 seek (closed)               | `junify.replay.seek-visible-dom`                                                                                        | Task 4 authentic RED/GREEN, eight historical candidate seeks, public time/visible DOM, and 13.6 MB CSSOM/timing evidence                   |
+| P1 Canvas                      | both `junify.canvas.*` IDs                                                                                              | Task 5 closes local API/fallback/transfer/pixel behavior; packaged MV3 worker and long-session cleanup evidence remain                     |
+| P1 recorder lifecycle (closed) | `junify.lifecycle.recorder-stop`                                                                                        | Task 7 real-Chrome 50-cycle source-to-sink churn, generation/retention sinks, WebKit restart, and cleanup-throw containment                |
+| P1 replayer lifecycle (closed) | `junify.lifecycle.replayer-destroy`                                                                                     | Task 8 real-Chrome 50-cycle ownership census, no-post-destroy sinks, cleanup-throw containment, and persisted malformed legacy replay      |
+| P1 transport                   | `junify.extension.persistence` and all `junify.transport.*` IDs                                                         | real storage plus decoded V1/V2 parity including oversized UTF-8 fragmentation                                                             |
+| P1 Rails                       | Monitors V1/V2 and legacy static IDs                                                                                    | production-shaped browser routes; mocks and README do not qualify                                                                          |
+| build boundary                 | both `junify.package-boundary.*` IDs                                                                                    | closed by Task 3 packed-artifact imports/exports, observed local-source provenance, strict declaration gates, and upstream namespace proof |
 
 ## Existing Evidence That Is Useful But Insufficient
 
@@ -139,15 +155,15 @@ Layer counts are non-exclusive.
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
 | upstream rrweb snapshot/input tests   | local masking and serialization branches                                                                                                                                                                           | Junify recorder configuration or final persisted payloads                                                                               |
 | upstream replay/seek tests            | broad synthetic seek behavior                                                                                                                                                                                      | Junify legacy-sibling trace by itself; Task 4 adds that focused public-time/visible-DOM gate                                            |
-| upstream destroy test                 | visible wrapper removal                                                                                                                                                                                            | pending timers, image/stylesheet callbacks, iframe maps, retained roots                                                                 |
+| upstream destroy test                 | visible wrapper removal; Task 8 adds the complete owned-resource and silence gate                                                                                                                                  | cross-origin attached-iframe support excluded from this upgrade                                                                         |
 | upstream cross-origin stop test       | stop does not throw in one iframe transition                                                                                                                                                                       | no post-stop events, repeated churn, Canvas worker/RAF cleanup                                                                          |
 | browser-extension Jest tests          | local queue/flusher branches                                                                                                                                                                                       | real MV3 worker, Chrome storage, and ingest artifact                                                                                    |
 | Rails parser/loader/player Jest tests | local compatibility parsing and component wiring                                                                                                                                                                   | Monitors V1/V2 browser route through persisted reads                                                                                    |
 | static-player README/build            | intended message protocol and packaging                                                                                                                                                                            | any accepted fixture rendered in a browser                                                                                              |
 | service real recordings               | service pipeline scale and varied rrweb markers                                                                                                                                                                    | producer version, privacy provenance, 13.6 MB CSS, Rails playback                                                                       |
 | Task 2 authenticated fixtures         | loaded UMD-to-registry-tarball integrity, temporary real-browser regeneration, target-ID mutation evidence, marker-terminated SPA/seek-ready/stylesheet sinks, full official 2.1.1 replay, hashes, and 13.6 MB CSS | future Junify candidate recording output, Rails main/static consumers, extension storage/transport/fragmentation, or privacy acceptance |
-| Task 5 local Canvas gates             | injectable factories, worker failure/timeout/dispose, strict fallback, application/replay pixels, temporary JSON persistence, and post-stop silence                                                                | browser_extension packaged-worker execution under real MV3 or bridge/Blob URL cleanup                                                    |
-| Task 7 recorder lifecycle gate        | 50-cycle post-stop silence and exact listener/MO/RAF/timer counts; iframe/shadow/stylesheet/mirror generation release; WebKit stop/restart; throwing cleanup containment                                             | production MV3 packaged-worker execution, extension persistence/transport, or replayer teardown                                          |
+| Task 5 local Canvas gates             | injectable factories, worker failure/timeout/dispose, strict fallback, application/replay pixels, temporary JSON persistence, and post-stop silence                                                                | browser_extension packaged-worker execution under real MV3 or bridge/Blob URL cleanup                                                   |
+| Task 7 recorder lifecycle gate        | 50-cycle post-stop silence and exact listener/MO/RAF/timer counts; iframe/shadow/stylesheet/mirror generation release; WebKit stop/restart; throwing cleanup containment                                           | production MV3 packaged-worker execution, extension persistence/transport, or replayer teardown                                         |
 
 ## Privacy Characterization And Local Fixes
 
