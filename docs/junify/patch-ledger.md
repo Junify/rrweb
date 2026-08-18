@@ -81,8 +81,9 @@ the upstream fixed changeset group. Publication remains release-gated.
   `rrweb-snapshot@2.1.1` with `hidden?: boolean`; no internal package is renamed
   or duplicated, and runtime/wire behavior is unchanged.
 - Current artifact census after the retained patch stack: core has 19 files,
-  1,422,347 packed bytes, SHA-256
-  `cb3d29c6d7552710a5fa377a8e68ba7e7d5930ba80e4df25a24873efe737a7a3`;
+  1,422,939 packed bytes, SHA-256
+  `3ec683a2ab2c8d79b7b17c903ddacaa84b7de0f1c26a05520f05fad74fb58ab0`
+  and tree `f83acf63...`;
   player has 18 files, 1,454,910 packed bytes, SHA-256
   `b317a39f16ce786aeabe70aa107195643c2e4602b094bbc896cc3a658f7f6a23`.
 - Supersession: Task 11's core `e075ed25...` archive used a noncanonical pack
@@ -325,9 +326,9 @@ production MV3 worker boundary.
   SHA-256 `3ec683a2ab2c8d79b7b17c903ddacaa84b7de0f1c26a05520f05fad74fb58ab0`
   and tree SHA-256
   `f83acf63b4b42642475491080c0ab0dca34f0dc9a1c15cb0eca0fc9322ad5188`.
-  Player bytes/tree remain `b317a39f...`/`c9929b76...`. Consumer locks still
-  name the preceding core and require a separately scoped repin/revalidation;
-  no browser or Rails repository was changed in this correction.
+  Player bytes/tree remain `b317a39f...`/`c9929b76...`. Final browser
+  `d696e841` and Rails `459b4341` locks now name this core, their installed
+  trees match, and their scoped repin/revalidation reviews report P0/P1 zero.
 
 ## Task 8 Replayer Lifecycle And Defensive Evidence
 
@@ -385,21 +386,28 @@ iframe behavior.
 
 ## Task 11 Cross-Repository Evidence
 
-- Source heads: rrweb `f35dc648`, browser `dd860378`, Rails `a49a1c9`.
-- Package provenance: combined manifest SHA-256 `b76c7793...`; core
-  archive/tree `cb3d29c6...`/`b9ff62b0...`; player archive/tree
+- Source heads: rrweb `22f4dea0` (package source `9f575f92`), browser
+  `d696e841`, Rails `459b4341`.
+- Package provenance: combined manifest SHA-256 `7efe3c54...`; core
+  archive/tree `3ec683a2...`/`f83acf63...`; player archive/tree
   `b317a39f...`/`c9929b76...`. Two fresh runs are byte/tree identical and both
   consumer policies resolve this same content set.
-- Candidate lineage: `candidate-recordings-dd86037` manifest SHA-256
-  `bed8c2a0...`; committed raw IDB reaches decoded V1 and V2 raw/reassembled
+- Candidate lineage:
+  `candidate-recordings-d696e84-canonical-9f575f92-attempt2` manifest SHA-256
+  `1ebe9f63...`; committed raw IDB reaches decoded V1 and V2 raw/reassembled
   artifacts, Rails parsers/loaders/routes, and scoped/direct/legacy visible
-  players with exact count/index/payload parity.
+  players with exact count/index/payload parity. V1/V2 have 44/43 events and
+  four FullSnapshots each; large has 22 events and one FullSnapshot.
 - Privacy: all 16 candidate sentinels are absent from raw IDB, V1, V2 raw and
   reassembled bodies, and gzip. Historical leaks remain compatibility-only
   characterization and are not accepted as privacy evidence.
 - Large contract: exactly 13,600,000 UTF-8 CSS bytes, 22 persisted events,
-  FullSnapshot source index 1/transport index 2, 13,613,603 body bytes, and 137
+  FullSnapshot source index 1/transport index 2, 13,613,688 body bytes, and 137
   contiguous V2 fragments reassemble and gzip round-trip exactly.
+- Shutdown: four loaded-MV3 V1/V2 pagehide/explicit-stop rows require the
+  pre-shutdown DOM/Canvas marker, reject the post-shutdown marker, freeze real
+  IDB and transport counts, and emit the end marker exactly once only for V2
+  explicit stop.
 - Sensitivity: package identity, independent producer census, privacy,
   fragment/index/hash, and visible-player sink mutations each reach expected
   RED before restored GREEN. No guarded assertion or skip is accepted.

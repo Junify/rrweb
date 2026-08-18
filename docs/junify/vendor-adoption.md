@@ -126,6 +126,14 @@ observer and is guarded by real-Chrome restart plus rollback-mutation evidence.
 Deletion criteria stay behavior-based: an upstream stable replacement must
 pass the same immediate-stop privacy partition and 25-session same-value gate.
 
+Final consumer closure also adds no vendor patch. Browser `d696e841` and Rails
+`459b4341` consume the corrected package-source `9f575f92` through canonical
+manifest `7efe3c54...` and candidate manifest `1ebe9f63...`; exact installed
+trees, V1/V2 FullSnapshot counts 4/4, the one-snapshot large stream, and four
+pagehide/explicit-stop shutdown rows pass. Prior package/candidate bytes remain
+negative provenance only. This evidence closes local adoption, not publication:
+the registry/CDN gate remains blocked until separately authorized release.
+
 ## Documented Non-Candidate Boundaries
 
 - WebGPU fallback has no approved source patch and no failing Junify fixture.

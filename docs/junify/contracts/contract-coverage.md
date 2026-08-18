@@ -178,12 +178,19 @@ producer ledger and a source-to-visible-sink matrix. Alpha.4, Junify alpha.19,
 Junify alpha.20, and the committed candidate each run through every applicable
 candidate/Rails surface with explicit N/A reasons. The exact large contract
 preserves 13,600,000 UTF-8 CSS bytes, 22 persisted events, FullSnapshot source
-index 1/transport index 2, a 13,613,603-byte body, 137 contiguous fragments,
+index 1/transport index 2, a 13,613,688-byte body, 137 contiguous fragments,
 reassembly, and gzip equality. Package identity, producer census, privacy,
 fragment, and visible-player mutations reach RED before restored GREEN. The
 registry/CDN install remains a separate, unexecuted release gate because these
 scoped package versions are unpublished; it is not counted as compatibility
 failure or success.
+
+The final refresh binds that evidence to rrweb `22f4dea0` (package source
+`9f575f92`), browser `d696e841`, Rails `459b4341`, canonical manifest
+`7efe3c54...`, and candidate manifest `1ebe9f63...`. Candidate V1/V2 now contain
+44/43 events and four FullSnapshots each; the large stream contains one. Four
+loaded-MV3 shutdown rows additionally prove V1/V2 pagehide and explicit-stop
+freeze IDB/transport sinks after their required pre-shutdown markers.
 
 ## Status Summary
 

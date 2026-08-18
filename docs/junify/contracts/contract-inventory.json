@@ -4,9 +4,9 @@
   "baseline_commit": "3deb6e7da4528ddb33b5b7ff6a3e805d4ed14930",
   "generated_from": [
     "docs/superpowers/specs/2026-08-17-junify-upstream-2.1.1-design.md",
-    "rrweb worktree evidence at f35dc648f942361e4bbf00d2e4f1a7f36c94107b",
-    "browser_extension worktree evidence at dd860378a1120a028a18aed3d885a6d08adb468a",
-    "junify_rails worktree evidence at a49a1c90320d971fb4fa95e610c43456bd22818d",
+    "rrweb final evidence at 22f4dea0ca864150754c8c38304f3c4c1800c647, package source 9f575f92060049ce9a553427129af30197d787f5",
+    "browser_extension final evidence at d696e841088ceeac96511ace124d1079c0f674ba",
+    "junify_rails final evidence at 459b43416ab80105995656c972514bc93b2ff7d2",
     "read-only session_recording_service census",
     "Task 11 cross-repository matrix and sensitivity evidence"
   ],
@@ -48,7 +48,7 @@
       "expected_current_behavior": "Artifacts from @junify-app/rrweb@2.1.1-junify.0 replay in the upgraded Rails main player and the explicitly retained static-player surface.",
       "risk_if_broken": "Deploying the recorder after the replayers creates recordings that Junify cannot inspect.",
       "gate_id": "G-COMPAT-CANDIDATE",
-      "test_notes": "Task 11 binds candidate-recordings-dd86037 to manifest SHA-256 bed8c2a02b4ad140274e481f4dc9c88559a25b709cd914f3b31ebc4781d397f7 and follows committed loaded-MV3 raw IDB through V1/V2 transport, Rails loaders/routes, scoped player, direct player, and legacy static visible sinks. Applicable DOM, Shadow DOM, Canvas2D, WebGL/ImageBitmap, seek, and lifecycle assertions pass with no skips."
+      "test_notes": "Task 11 binds candidate-recordings-d696e84-canonical-9f575f92-attempt2 to manifest SHA-256 1ebe9f6399743f91be9878328f7e2304a5be2bf01bd157222aba4680f2ff0357 and follows committed loaded-MV3 raw IDB through V1/V2 transport, Rails loaders/routes, scoped player, direct player, and legacy static visible sinks. V1/V2 have 44/43 events and four FullSnapshots each; the large row has one. Four V1/V2 pagehide/explicit-stop rows freeze IDB and transport sinks after the required pre-shutdown marker. Applicable DOM, Shadow DOM, Canvas2D, WebGL/ImageBitmap, seek, and lifecycle assertions pass with no skips."
     },
     {
       "id": "junify.compatibility.historical-replay",
@@ -74,7 +74,7 @@
       "expected_current_behavior": "A deterministic roughly 13.6 MB CSS FullSnapshot preserves decoded event count, indexes, bytes, fragment ordering, and gzip digest.",
       "risk_if_broken": "Large real pages produce truncated, reordered, or unreplayable sessions.",
       "gate_id": "G-LARGE-SNAPSHOT",
-      "test_notes": "Tasks 2, 9, 10, and 11 prove the exact 13,600,000-byte UTF-8 CSS source, 22 persisted events, FullSnapshot source index 1 and transport index 2, 13,613,603-byte body SHA-256 2939eaf61d7e5d50067eee0a076f3a9654d51beb9af55e9e31d4b7711310a0e9, 137 contiguous V2 fragments, exact reassembly, gzip round trip, and visible replay. Fragment and payload mutations fail closed."
+      "test_notes": "Tasks 2, 9, 10, and 11 prove the exact 13,600,000-byte UTF-8 CSS source, 22 persisted events, FullSnapshot source index 1 and transport index 2, 13,613,688-byte body SHA-256 725fc2763c37c10c9fe3a712f0b170ecc52ee67884eb3458b89285a5b44a6694, 137 contiguous V2 fragments, exact reassembly, gzip round trip, and visible replay. Fragment and payload mutations fail closed."
     },
     {
       "id": "junify.compatibility.wire-format",
@@ -295,7 +295,7 @@
       "expected_current_behavior": "Each V1 event is JSON-stringified, fflate-compressed, base64-encoded, and sent with its original timestamp/index and first-event metadata.",
       "risk_if_broken": "Legacy ingest or Rails V1 playback receives corrupt or misindexed events.",
       "gate_id": "G-TRANSPORT-V1",
-      "test_notes": "Tasks 9-11 exercise real committed MV3 IDB to decoded V1 request bodies and the Rails V1 parser/loader/route. Candidate V1 retains 33 events and exact 19,695-byte SHA-256 83e02fa12d8c65f32eb541438f33a283b4e2261f4fd5f8b058090038d585f788; privacy and payload mutations fail."
+      "test_notes": "Tasks 9-11 exercise real committed MV3 IDB to decoded V1 request bodies and the Rails V1 parser/loader/route. Candidate V1 retains 44 events, FullSnapshot indexes 1/16/18/21, and exact 50,016-byte SHA-256 96f50179895713b99066b9cba64bb5d5f7c704e0a15d2655eca6c1cf1217e718; privacy and payload mutations fail."
     },
     {
       "id": "junify.transport.v1-v2-parity",
@@ -321,7 +321,7 @@
       "expected_current_behavior": "V2 sorts source events, assigns monotonic 1-based indexes, stores raw JSON eventString, classifies snapshots, fragments oversized UTF-8 bodies without splitting surrogate pairs, and finalizes with recording_end.",
       "risk_if_broken": "V2 replay plans contain gaps, duplicate indexes, bad hashes, or unreconstructable snapshots.",
       "gate_id": "G-TRANSPORT-V2",
-      "test_notes": "Tasks 9-11 exercise real committed MV3 IDB to V2 fragments and Rails V2 reassembly/loading. Candidate V2 retains 31 reassembled events and exact 19,249-byte SHA-256 e431806c284e9a94142434484ca8f9e6bf87a603038c1e025d5168d05177727c; the large artifact is exactly 137 contiguous fragments and reassembles byte-for-byte."
+      "test_notes": "Tasks 9-11 exercise real committed MV3 IDB to V2 fragments and Rails V2 reassembly/loading. Candidate V2 retains 43 reassembled events, FullSnapshot indexes 1/16/19/21, and exact 49,644-byte SHA-256 23880484caf23dbbf13debdb75ce643561964f3b4b22709c90745f1a2c778d50; the large artifact is exactly 137 contiguous fragments and reassembles byte-for-byte."
     }
   ]
 }

@@ -90,7 +90,7 @@ Run from the rrweb repository root with a new, empty output directory:
 export PATH=/Users/takashihamada/.nvm/versions/node/v20.9.0/bin:$PATH
 yarn test:junify-packaging
 yarn pack:junify-boundaries \
-  --output ../../verification/rrweb-2.1.1/packages-task11-f35dc648 \
+  --output <new-empty-output-dir> \
   --runs 2
 ```
 
@@ -130,14 +130,16 @@ round 5 combined manifest, verify their SHA-256, SHA-512, file counts, and tree
 digests, then rerun browser and Rails gates. Publication and registry
 installation remain separate release actions.
 
-Task 11 reproduced the round-5 identity from committed HEAD `f35dc648` in a
-new output directory. The combined manifest SHA-256 is
-`b76c77938c8cafec8214bdc78c76644ad95c63825e9255e636b50a9d71221948`.
-Core archive/tree SHA-256 are `cb3d29c6...`/`b9ff62b0...`; player archive/tree
+The final canonical output is `packages-final-fix-9f575f92`, tied to clean
+package-source HEAD `9f575f92`; never overwrite it during verification. The
+combined manifest SHA-256 is `7efe3c54...`. Core archive/tree SHA-256 are
+`3ec683a2...`/`f83acf63...`; player archive/tree
 SHA-256 are `b317a39f...`/`c9929b76...`. Both consumers' lock integrity and
-installed-tree policy matched this one content set. The scoped versions remain
-unpublished, so a frozen registry/CDN install is still a release blocker and
-was not claimed successful.
+installed-tree policy at browser `d696e841` and Rails `459b4341` match this one
+content set. The prior round-5 `b76c7793...`/`cb3d29c6...`/`b9ff62b0...` set is
+an explicit negative/superseded input. The scoped versions remain unpublished,
+so a frozen registry/CDN install is still a release blocker and was not claimed
+successful.
 
 ## Compatibility And Replay Gates
 
@@ -527,24 +529,30 @@ set must include `candidatePackageTypes`:
 
 ```sh
 env -u NODE_ENV yarn test --runInBand \
-  src/injected/sessionRecordingClient/imageBitmapProcessor.test.ts \
   src/injected/sessionRecordingClient/index.test.ts \
-  src/background/repository/SessionRecordingEventRepository.test.ts \
-  src/background/command/sessionRecording/flushSesssionRecordingEventsToServer.test.ts \
-  src/background/command/sessionRecording/v2SessionRecordingFlusher.test.ts \
-  src/junify/candidatePackageTypes.test.ts \
-  src/foreground/service/sso/sessionRecorder.test.ts
+  src/injected/sessionRecordingClient/imageBitmapProcessor.test.ts \
+  src/injected/sessionRecordingClient/workerSource.test.ts \
+  src/injected/sessionRecordingClient/candidatePackageTypes.test.ts \
+  src/foreground/service/sso/sessionRecorder.test.ts \
+  src/background/command/integrationTestSessionRecordingCommand.test.ts \
+  src/background/repository/SessionRecordingEventRepository.test.ts
 yarn test:integration
 ```
 
-The exact final-head results were 7 suites/22 tests and 11 suites/70 tests,
-both with zero failures and skips. The rrweb actual-browser compatibility set
-passed 4 files/11 tests and the target recorder/replayer Chrome set passed
-6 files/88 tests, also with zero skips. The fresh Rails local-only VM passed
-69/69 RSpec, 122/122 E2E unit, V1/V2 2/2, password rotation 2/2, legacy unit
-15/15, and legacy Chromium 1/1. Stop exact process groups, remove the four
-Docker services/networks, restore `.bundle/config`, remove generated runtime
-files, and delete the dedicated VM after the report gates pass.
+The final-refresh focused result was 7 suites/29 tests with zero failures and
+skips. The exact-final-head loaded-MV3 export binds browser `d696e841`, final
+manifest `1ebe9f63...`, V1/V2 FullSnapshots 4/4, large FullSnapshots 1, and all
+four V1/V2 pagehide/explicit-stop rows. The rrweb actual-browser compatibility
+set passed 4 files/11 tests and the target recorder/replayer Chrome set passed
+6 files/88 tests, also with zero skips; package-source restart correction adds
+lifecycle 8/8 and privacy 60/60.
+
+The final Rails local-only VM evidence at `459b4341` passed 89/89 RSpec,
+122/122 E2E unit, V1/V2 2/2, password rotation 2/2, legacy unit 15/15, and
+legacy Chromium 1/1. Final-refresh safe host gates independently pass provenance
+34/34, artifact parser 8/8, and producer ledger 7/7. Stop exact process groups,
+remove the dedicated Docker services/networks, restore `.bundle/config`, remove
+generated runtime files, and delete the dedicated VM after report gates pass.
 
 Run `yarn build:all` before the focused boundaries, but account for its six
 Git-ignored Svelte declaration outputs:
