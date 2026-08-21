@@ -1,6 +1,6 @@
 {
   "name": "@junify-app/rrweb",
-  "version": "2.0.0-alpha.20",
+  "version": "2.0.0-alpha.21",
   "description": "record and replay the web",
   "scripts": {
     "prepare": "npm run prepack",
@@ -80,10 +80,10 @@
     "vite-plugin-dts": "^3.9.1"
   },
   "dependencies": {
-    "@junify-app/rrdom": "^2.0.0-alpha.20",
-    "@junify-app/rrweb-snapshot": "^2.0.0-alpha.20",
-    "@junify-app/types": "^2.0.0-alpha.20",
-    "@junify-app/utils": "^2.0.0-alpha.20",
+    "@junify-app/rrdom": "^2.0.0-alpha.21",
+    "@junify-app/rrweb-snapshot": "^2.0.0-alpha.21",
+    "@junify-app/types": "^2.0.0-alpha.21",
+    "@junify-app/utils": "^2.0.0-alpha.21",
     "@types/css-font-loading-module": "0.0.7",
     "@xstate/fsm": "^1.4.0",
     "base64-arraybuffer": "^1.0.1",
