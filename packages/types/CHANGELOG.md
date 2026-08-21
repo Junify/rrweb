@@ -1,5 +1,7 @@
 # @junify-app/types
 
+## 2.0.0-alpha.21
+
 ## 2.0.0-alpha.18
 
 ## 2.0.0-alpha.17
