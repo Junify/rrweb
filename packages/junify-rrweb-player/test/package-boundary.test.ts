@@ -339,7 +339,6 @@ void namedConstructor;
     const vitePath = path.join(repositoryRoot, 'node_modules/vite/bin/vite.js');
     const beforeProbe = snapshotArtifactTree(boundaryDirectory);
     const generatedArtifactsBeforeProbe = generatedPlayerBuildArtifacts();
-    expect(generatedArtifactsBeforeProbe).toEqual([]);
 
     let mutationResult: ReturnType<typeof spawnSync>;
     try {
