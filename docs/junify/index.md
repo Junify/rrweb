@@ -15,16 +15,16 @@ change.
 
 ## Read First
 
-| Document | Purpose |
-| --- | --- |
-| [Contract inventory](contracts/contract-inventory.md) | Human-readable compatibility contracts and consumer/fixture census |
-| [Machine inventory](contracts/contract-inventory.json) | Deterministic contract records with stable IDs |
-| [Coverage matrix](contracts/contract-coverage.md) | Current status by risk and recommended test layer |
-| [Test gates runbook](contracts/test-gates-runbook.md) | Exact commands, environments, and blockers |
-| [Audit loop](contracts/audit-loop.md) | Fresh-context review prompts and verdict history |
-| [Patch ledger](patch-ledger.md) | One row per retained or planned Junify patch |
-| [Vendor adoption](vendor-adoption.md) | Upstream/fork candidate decisions and deletion plans |
-| [Upstream sync](upstream-sync.md) | Tag-bump and patch-replay procedure |
+| Document                                               | Purpose                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------ |
+| [Contract inventory](contracts/contract-inventory.md)  | Human-readable compatibility contracts and consumer/fixture census |
+| [Machine inventory](contracts/contract-inventory.json) | Deterministic contract records with stable IDs                     |
+| [Coverage matrix](contracts/contract-coverage.md)      | Current status by risk and recommended test layer                  |
+| [Test gates runbook](contracts/test-gates-runbook.md)  | Exact commands, environments, and blockers                         |
+| [Audit loop](contracts/audit-loop.md)                  | Fresh-context review prompts and verdict history                   |
+| [Patch ledger](patch-ledger.md)                        | One row per retained or planned Junify patch                       |
+| [Vendor adoption](vendor-adoption.md)                  | Upstream/fork candidate decisions and deletion plans               |
+| [Upstream sync](upstream-sync.md)                      | Tag-bump and patch-replay procedure                                |
 
 ## Status Vocabulary
 
