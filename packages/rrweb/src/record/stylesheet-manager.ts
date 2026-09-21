@@ -1,4 +1,4 @@
-import { stringifyRule } from '@junify-app/rrweb-snapshot';
+import { stringifyRule } from 'rrweb-snapshot';
 import type {
   elementNode,
   serializedNodeWithId,
@@ -6,7 +6,7 @@ import type {
   adoptedStyleSheetParam,
   attributeMutation,
   mutationCallBack,
-} from '@junify-app/types';
+} from '@rrweb/types';
 import { StyleSheetMirror } from '../utils';
 
 export class StylesheetManager {
@@ -14,6 +14,9 @@ export class StylesheetManager {
   private mutationCb: mutationCallBack;
   private adoptedStyleSheetCb: adoptedStyleSheetCallback;
   public styleMirror = new StyleSheetMirror();
+  private hostSheets = new Map<Document | ShadowRoot, Set<CSSStyleSheet>>();
+  private sheetOwners = new Map<CSSStyleSheet, number>();
+  private linkLoadCleanups = new Map<HTMLLinkElement, () => void>();
 
   constructor(options: {
     mutationCb: mutationCallBack;
@@ -27,6 +30,7 @@ export class StylesheetManager {
     linkEl: HTMLLinkElement,
     childSn: serializedNodeWithId,
   ) {
+    this.releaseLinkLoadObserver(linkEl);
     if ('_cssText' in (childSn as elementNode).attributes)
       this.mutationCb({
         adds: [],
@@ -51,11 +55,40 @@ export class StylesheetManager {
     this.trackStylesheetInLinkElement(linkEl);
   }
 
+  public setLinkLoadCleanup(linkEl: HTMLLinkElement, cleanup: () => void) {
+    this.releaseLinkLoadObserver(linkEl);
+    this.linkLoadCleanups.set(linkEl, cleanup);
+  }
+
+  public releaseLinkLoadObserver(linkEl: HTMLLinkElement) {
+    const cleanup = this.linkLoadCleanups.get(linkEl);
+    this.linkLoadCleanups.delete(linkEl);
+    if (!cleanup) return;
+    try {
+      cleanup();
+    } catch (error) {
+      console.warn('[rrweb] Failed to dispose stylesheet load observer', error);
+    }
+  }
+
   public adoptStyleSheets(
     sheets: CSSStyleSheet[] | readonly CSSStyleSheet[],
     hostId: number,
+    host: Document | ShadowRoot,
   ) {
-    if (sheets.length === 0) return;
+    const previousSheets = this.hostSheets.get(host) || new Set();
+    const nextSheets = new Set(sheets);
+    previousSheets.forEach((sheet) => {
+      if (!nextSheets.has(sheet)) this.releaseSheet(sheet);
+    });
+    nextSheets.forEach((sheet) => {
+      if (!previousSheets.has(sheet)) {
+        this.sheetOwners.set(sheet, (this.sheetOwners.get(sheet) || 0) + 1);
+      }
+    });
+    if (nextSheets.size) this.hostSheets.set(host, nextSheets);
+    else this.hostSheets.delete(host);
+
     const adoptedStyleSheetData: adoptedStyleSheetParam = {
       id: hostId,
       styleIds: [] as number[],
@@ -79,9 +112,32 @@ export class StylesheetManager {
     this.adoptedStyleSheetCb(adoptedStyleSheetData);
   }
 
+  public releaseHost(host: Document | ShadowRoot | null | undefined) {
+    if (!host) return;
+    const sheets = this.hostSheets.get(host);
+    this.hostSheets.delete(host);
+    sheets?.forEach((sheet) => this.releaseSheet(sheet));
+  }
+
+  private releaseSheet(sheet: CSSStyleSheet) {
+    const owners = this.sheetOwners.get(sheet) || 0;
+    if (owners > 1) {
+      this.sheetOwners.set(sheet, owners - 1);
+      return;
+    }
+    this.sheetOwners.delete(sheet);
+    this.styleMirror.remove(sheet);
+  }
+
   public reset() {
+    Array.from(this.linkLoadCleanups.keys()).forEach((linkEl) => {
+      this.releaseLinkLoadObserver(linkEl);
+    });
+    this.linkLoadCleanups.clear();
     this.styleMirror.reset();
     this.trackedLinkElements = new WeakSet();
+    this.hostSheets.clear();
+    this.sheetOwners.clear();
   }
 
   // TODO: take snapshot on stylesheet reload by applying event listener

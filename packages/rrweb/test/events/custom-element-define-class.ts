@@ -1,5 +1,5 @@
-import { EventType } from '@junify-app/types';
-import type { eventWithTime } from '@junify-app/types';
+import { EventType } from '@rrweb/types';
+import type { eventWithTime } from '@rrweb/types';
 
 const now = Date.now();
 const events: eventWithTime[] = [

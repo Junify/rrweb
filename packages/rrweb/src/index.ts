@@ -15,12 +15,22 @@ export {
   MouseInteractions,
   ReplayerEvents,
   type eventWithTime,
-} from '@junify-app/types';
+} from '@rrweb/types';
 
 // exports style.css from replay
 import './replay/styles/style.css';
 
-export type { recordOptions, ReplayPlugin } from './types';
+export type {
+  recordOptions,
+  ReplayPlugin,
+  ImageBitmapDataURLProcessor,
+  MaskInputOptions,
+} from './types';
+export {
+  createInlineImageBitmapProcessor,
+  createWorkerImageBitmapProcessor,
+  createWorkerMessageHandler,
+} from './record/workers/image-bitmap-data-url-processor';
 
 const { addCustomEvent } = record;
 const { freezePage } = record;
@@ -39,8 +49,3 @@ export {
   _mirror as mirror,
   utils,
 };
-export {
-  createInlineImageBitmapProcessor,
-  createWorkerImageBitmapProcessor,
-  createWorkerMessageHandler,
-} from './record/workers/image-bitmap-data-url-processor';

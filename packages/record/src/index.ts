@@ -1,3 +1,3 @@
-import { record } from '@junify-app/rrweb';
+import { record } from 'rrweb';
 
 export { record };

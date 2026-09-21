@@ -1,12 +1,15 @@
 {
-  "name": "@junify-app/packer",
-  "version": "2.0.0-alpha.20",
+  "name": "@rrweb/packer",
+  "version": "2.1.1",
   "publishConfig": {
     "access": "public"
   },
   "keywords": [
+    "devtools",
+    "product-analytics",
+    "real-user-monitoring",
     "rrweb",
-    "@junify-app/packer"
+    "@rrweb/packer"
   ],
   "scripts": {
     "dev": "vite build --watch",
@@ -17,7 +20,7 @@
     "prepublish": "tsc -noEmit && vite build",
     "lint": "yarn eslint src/**/*.ts"
   },
-  "homepage": "https://github.com/rrweb-io/rrweb/tree/main/packages/packer#readme",
+  "homepage": "https://github.com/rrweb-io/rrweb/tree/main/packages/@rrweb/packer#readme",
   "bugs": {
     "url": "https://github.com/rrweb-io/rrweb/issues"
   },
@@ -71,14 +74,14 @@
     "package.json"
   ],
   "devDependencies": {
-    "vite": "^5.3.1",
+    "vite": "^6.0.1",
     "vite-plugin-dts": "^3.9.1",
     "vitest": "^1.4.0",
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "@junify-app/types": "^2.0.0-alpha.20",
-    "fflate": "^0.4.4"
+    "fflate": "^0.4.4",
+    "@rrweb/types": "^2.1.1"
   },
   "browserslist": [
     "supports es6-class"

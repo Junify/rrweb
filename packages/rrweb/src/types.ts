@@ -1,14 +1,14 @@
 import type {
   Mirror,
-  MaskInputOptions,
+  MaskInputOptions as SnapshotMaskInputOptions,
   SlimDOMOptions,
   MaskInputFn,
   MaskTextFn,
-} from '@junify-app/rrweb-snapshot';
+} from 'rrweb-snapshot';
 import type { IframeManager } from './record/iframe-manager';
 import type { ShadowDomManager } from './record/shadow-dom-manager';
 import type { Replayer } from './replay';
-import type { RRNode } from '@junify-app/rrdom';
+import type { RRNode } from 'rrdom';
 import type { CanvasManager } from './record/observers/canvas/canvas-manager';
 import type { StylesheetManager } from './record/stylesheet-manager';
 import type {
@@ -38,9 +38,20 @@ import type {
   viewportResizeCallback,
   PackFn,
   UnpackFn,
-  ImageBitmapDataURLProcessor,
-} from '@junify-app/types';
+  ImageBitmapDataURLWorkerParams,
+  ImageBitmapDataURLWorkerResponse,
+} from '@rrweb/types';
 import type ProcessedNodeManager from './record/processed-node-manager';
+
+export type ImageBitmapDataURLProcessor = ((
+  params: ImageBitmapDataURLWorkerParams,
+) => Promise<ImageBitmapDataURLWorkerResponse>) & {
+  dispose?: () => void;
+};
+
+export type MaskInputOptions = SnapshotMaskInputOptions & {
+  hidden?: boolean;
+};
 
 export type recordOptions<T> = {
   emit?: (e: T, isCheckout?: boolean) => void;
@@ -58,6 +69,10 @@ export type recordOptions<T> = {
   maskTextFn?: MaskTextFn;
   slimDOMOptions?: SlimDOMOptions | 'all' | true;
   ignoreCSSAttributes?: Set<string>;
+  /**
+   * @deprecated Since 2.0.0. This option is still supported, but is planned to
+   * be superseded by future captureAssets asset recording APIs.
+   */
   inlineStylesheet?: boolean;
   hooks?: hooksParam;
   packFn?: PackFn;
@@ -69,6 +84,10 @@ export type recordOptions<T> = {
   recordAfter?: 'DOMContentLoaded' | 'load';
   userTriggeredOnInput?: boolean;
   collectFonts?: boolean;
+  /**
+   * @deprecated Since 2.0.0. This option is still supported, but is planned to
+   * be superseded by future captureAssets asset recording APIs.
+   */
   inlineImages?: boolean;
   plugins?: RecordPlugin[];
   // departed, please use sampling options
@@ -216,7 +235,7 @@ declare global {
 }
 
 export type CrossOriginIframeMessageEventContent<T = eventWithTime> = {
-  type: '@junify-app/rrweb';
+  type: 'rrweb';
   event: T;
   // The origin of the iframe which originally emits this message. It is used to check the integrity of message and to filter out the rrweb messages which are forwarded by some sites.
   origin: string;

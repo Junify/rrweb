@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { EventType } from '@junify-app/types';
-  import type { playerMetaData } from '@junify-app/types';
+  import { EventType } from '@rrweb/types';
+  import type { playerMetaData } from '@rrweb/types';
   import type {
     Replayer,
     PlayerMachineState,
     SpeedMachineState,
-  } from '@junify-app/replay';
+  } from '@rrweb/replay';
   import {
     onMount,
     onDestroy,

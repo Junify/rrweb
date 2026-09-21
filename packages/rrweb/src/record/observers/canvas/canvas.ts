@@ -1,7 +1,7 @@
-import type { ICanvas } from '@junify-app/rrweb-snapshot';
-import type { blockClass, IWindow, listenerHandler } from '@junify-app/types';
+import type { ICanvas } from 'rrweb-snapshot';
+import type { blockClass, IWindow, listenerHandler } from '@rrweb/types';
 import { isBlocked } from '../../../utils';
-import { patch } from '@junify-app/utils';
+import { patch } from '@rrweb/utils';
 
 function getNormalizedContextName(contextType: string) {
   return contextType === 'experimental-webgl' ? 'webgl' : contextType;

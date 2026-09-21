@@ -1,10 +1,14 @@
 import {
   snapshot,
+  slimDOMDefaults,
   type MaskInputOptions,
-  type SlimDOMOptions,
   createMirror,
-} from '@junify-app/rrweb-snapshot';
-import { initObservers, mutationBuffers } from './observer';
+} from 'rrweb-snapshot';
+import {
+  firstMutationBuffer,
+  initObservers,
+  mutationBuffers,
+} from './observer';
 import {
   on,
   getWindowWidth,
@@ -27,7 +31,7 @@ import {
   type scrollCallback,
   type canvasMutationParam,
   type adoptedStyleSheetParam,
-} from '@junify-app/types';
+} from '@rrweb/types';
 import type { CrossOriginIframeMessageEventContent } from '../types';
 import { IframeManager } from './iframe-manager';
 import { ShadowDomManager } from './shadow-dom-manager';
@@ -39,7 +43,7 @@ import {
   registerErrorHandler,
   unregisterErrorHandler,
 } from './error-handler';
-import dom from '@junify-app/utils';
+import dom from '@rrweb/utils';
 
 let wrappedEmit!: (e: eventWithoutTime, isCheckout?: boolean) => void;
 
@@ -156,31 +160,13 @@ function record<T = eventWithTime>(
           textarea: true,
           select: true,
           password: true,
+          hidden: true,
         }
       : _maskInputOptions !== undefined
       ? _maskInputOptions
       : { password: true };
 
-  const slimDOMOptions: SlimDOMOptions =
-    _slimDOMOptions === true || _slimDOMOptions === 'all'
-      ? {
-          script: true,
-          comment: true,
-          headFavicon: true,
-          headWhitespace: true,
-          headMetaSocial: true,
-          headMetaRobots: true,
-          headMetaHttpEquiv: true,
-          headMetaVerification: true,
-          // the following are off for slimDOMOptions === true,
-          // as they destroy some (hidden) info:
-          headMetaAuthorship: _slimDOMOptions === 'all',
-          headMetaDescKeywords: _slimDOMOptions === 'all',
-          headTitleMutations: _slimDOMOptions === 'all',
-        }
-      : _slimDOMOptions
-      ? _slimDOMOptions
-      : {};
+  const slimDOMOptions = slimDOMDefaults(_slimDOMOptions);
 
   polyfill();
 
@@ -202,11 +188,13 @@ function record<T = eventWithTime>(
     }
     return e as unknown as T;
   };
-  wrappedEmit = (r: eventWithoutTime, isCheckout?: boolean) => {
+  let sessionActive = true;
+  const sessionEmit = (r: eventWithoutTime, isCheckout?: boolean) => {
+    if (!sessionActive) return;
     const e = r as eventWithTime;
     e.timestamp = nowTimestamp();
     if (
-      mutationBuffers[0]?.isFrozen() &&
+      firstMutationBuffer()?.isFrozen() &&
       e.type !== EventType.FullSnapshot &&
       !(
         e.type === EventType.IncrementalSnapshot &&
@@ -222,7 +210,7 @@ function record<T = eventWithTime>(
       emit?.(eventProcessor(e), isCheckout);
     } else if (passEmitsToParent) {
       const message: CrossOriginIframeMessageEventContent<T> = {
-        type: '@junify-app/rrweb',
+        type: 'rrweb',
         event: eventProcessor(e),
         origin: window.location.origin,
         isCheckout,
@@ -253,9 +241,10 @@ function record<T = eventWithTime>(
       }
     }
   };
+  wrappedEmit = sessionEmit;
 
   const wrappedMutationEmit = (m: mutationCallbackParam) => {
-    wrappedEmit({
+    sessionEmit({
       type: EventType.IncrementalSnapshot,
       data: {
         source: IncrementalSource.Mutation,
@@ -264,7 +253,7 @@ function record<T = eventWithTime>(
     });
   };
   const wrappedScrollEmit: scrollCallback = (p) =>
-    wrappedEmit({
+    sessionEmit({
       type: EventType.IncrementalSnapshot,
       data: {
         source: IncrementalSource.Scroll,
@@ -272,7 +261,7 @@ function record<T = eventWithTime>(
       },
     });
   const wrappedCanvasMutationEmit = (p: canvasMutationParam) =>
-    wrappedEmit({
+    sessionEmit({
       type: EventType.IncrementalSnapshot,
       data: {
         source: IncrementalSource.CanvasMutation,
@@ -281,7 +270,7 @@ function record<T = eventWithTime>(
     });
 
   const wrappedAdoptedStyleSheetEmit = (a: adoptedStyleSheetParam) =>
-    wrappedEmit({
+    sessionEmit({
       type: EventType.IncrementalSnapshot,
       data: {
         source: IncrementalSource.AdoptedStyleSheet,
@@ -299,7 +288,7 @@ function record<T = eventWithTime>(
     mutationCb: wrappedMutationEmit,
     stylesheetManager: stylesheetManager,
     recordCrossOriginIframes,
-    wrappedEmit,
+    wrappedEmit: sessionEmit,
   });
 
   /**
@@ -355,11 +344,34 @@ function record<T = eventWithTime>(
     mirror,
   });
 
+  iframeManager.addDocumentCleanup((iframeDocument) => {
+    mirror.removeNodeFromMap(iframeDocument, {
+      removeMeta: true,
+      onVisit: (node: Node) => {
+        if ((node as Element).tagName === 'LINK') {
+          stylesheetManager.releaseLinkLoadObserver(node as HTMLLinkElement);
+        }
+        if ((node as Element).tagName === 'IFRAME') {
+          return iframeManager.cleanupIframe(node as HTMLIFrameElement);
+        }
+        if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+          const shadowRoot = node as ShadowRoot;
+          if (dom.host(shadowRoot)) {
+            shadowDomManager.removeShadowRoot(shadowRoot);
+            stylesheetManager.releaseHost(shadowRoot);
+          }
+        } else if (node.nodeType === Node.DOCUMENT_NODE) {
+          stylesheetManager.releaseHost(node as Document);
+        }
+      },
+    });
+  });
+
   takeFullSnapshot = (isCheckout = false) => {
     if (!recordDOM) {
       return;
     }
-    wrappedEmit(
+    sessionEmit(
       {
         type: EventType.Meta,
         data: {
@@ -405,10 +417,19 @@ function record<T = eventWithTime>(
       },
       onIframeLoad: (iframe, childSn) => {
         iframeManager.attachIframe(iframe, childSn);
-        shadowDomManager.observeAttachShadow(iframe);
+        iframeManager.addIframeCleanup(
+          iframe,
+          shadowDomManager.observeAttachShadow(iframe),
+        );
+      },
+      onIframeLoadObserver: (iframe, cleanup) => {
+        iframeManager.setIframeLoadCleanup(iframe, cleanup);
       },
       onStylesheetLoad: (linkEl, childSn) => {
         stylesheetManager.attachLinkElement(linkEl, childSn);
+      },
+      onStylesheetLoadObserver: (linkEl, cleanup) => {
+        stylesheetManager.setLinkLoadCleanup(linkEl, cleanup);
       },
       keepIframeSrcFn,
     });
@@ -417,7 +438,7 @@ function record<T = eventWithTime>(
       return console.warn('Failed to snapshot the document');
     }
 
-    wrappedEmit(
+    sessionEmit(
       {
         type: EventType.FullSnapshot,
         data: {
@@ -434,6 +455,7 @@ function record<T = eventWithTime>(
       stylesheetManager.adoptStyleSheets(
         document.adoptedStyleSheets,
         mirror.getId(document),
+        document,
       );
   };
 
@@ -445,7 +467,7 @@ function record<T = eventWithTime>(
         {
           mutationCb: wrappedMutationEmit,
           mousemoveCb: (positions, source) =>
-            wrappedEmit({
+            sessionEmit({
               type: EventType.IncrementalSnapshot,
               data: {
                 source,
@@ -453,7 +475,7 @@ function record<T = eventWithTime>(
               },
             }),
           mouseInteractionCb: (d) =>
-            wrappedEmit({
+            sessionEmit({
               type: EventType.IncrementalSnapshot,
               data: {
                 source: IncrementalSource.MouseInteraction,
@@ -462,7 +484,7 @@ function record<T = eventWithTime>(
             }),
           scrollCb: wrappedScrollEmit,
           viewportResizeCb: (d) =>
-            wrappedEmit({
+            sessionEmit({
               type: EventType.IncrementalSnapshot,
               data: {
                 source: IncrementalSource.ViewportResize,
@@ -470,7 +492,7 @@ function record<T = eventWithTime>(
               },
             }),
           inputCb: (v) =>
-            wrappedEmit({
+            sessionEmit({
               type: EventType.IncrementalSnapshot,
               data: {
                 source: IncrementalSource.Input,
@@ -478,7 +500,7 @@ function record<T = eventWithTime>(
               },
             }),
           mediaInteractionCb: (p) =>
-            wrappedEmit({
+            sessionEmit({
               type: EventType.IncrementalSnapshot,
               data: {
                 source: IncrementalSource.MediaInteraction,
@@ -486,7 +508,7 @@ function record<T = eventWithTime>(
               },
             }),
           styleSheetRuleCb: (r) =>
-            wrappedEmit({
+            sessionEmit({
               type: EventType.IncrementalSnapshot,
               data: {
                 source: IncrementalSource.StyleSheetRule,
@@ -494,7 +516,7 @@ function record<T = eventWithTime>(
               },
             }),
           styleDeclarationCb: (r) =>
-            wrappedEmit({
+            sessionEmit({
               type: EventType.IncrementalSnapshot,
               data: {
                 source: IncrementalSource.StyleDeclaration,
@@ -503,7 +525,7 @@ function record<T = eventWithTime>(
             }),
           canvasMutationCb: wrappedCanvasMutationEmit,
           fontCb: (p) =>
-            wrappedEmit({
+            sessionEmit({
               type: EventType.IncrementalSnapshot,
               data: {
                 source: IncrementalSource.Font,
@@ -511,7 +533,7 @@ function record<T = eventWithTime>(
               },
             }),
           selectionCb: (p) => {
-            wrappedEmit({
+            sessionEmit({
               type: EventType.IncrementalSnapshot,
               data: {
                 source: IncrementalSource.Selection,
@@ -520,7 +542,7 @@ function record<T = eventWithTime>(
             });
           },
           customElementCb: (c) => {
-            wrappedEmit({
+            sessionEmit({
               type: EventType.IncrementalSnapshot,
               data: {
                 source: IncrementalSource.CustomElement,
@@ -562,7 +584,7 @@ function record<T = eventWithTime>(
                 observer: p.observer!,
                 options: p.options,
                 callback: (payload: object) =>
-                  wrappedEmit({
+                  sessionEmit({
                     type: EventType.Plugin,
                     data: {
                       plugin: p.name,
@@ -577,7 +599,13 @@ function record<T = eventWithTime>(
 
     iframeManager.addLoadListener((iframeEl) => {
       try {
-        handlers.push(observe(iframeEl.contentDocument!));
+        const iframeDocument = iframeEl.contentDocument;
+        if (!iframeDocument) return;
+        const cleanup = observe(iframeDocument);
+        return () => {
+          cleanup();
+          stylesheetManager.releaseHost(iframeDocument);
+        };
       } catch (error) {
         // TODO: handle internal error
         console.warn(error);
@@ -589,15 +617,12 @@ function record<T = eventWithTime>(
       handlers.push(observe(document));
       recording = true;
     };
-    if (
-      document.readyState === 'interactive' ||
-      document.readyState === 'complete'
-    ) {
+    if (['interactive', 'complete'].includes(document.readyState)) {
       init();
     } else {
       handlers.push(
         on('DOMContentLoaded', () => {
-          wrappedEmit({
+          sessionEmit({
             type: EventType.DomContentLoaded,
             data: {},
           });
@@ -608,7 +633,7 @@ function record<T = eventWithTime>(
         on(
           'load',
           () => {
-            wrappedEmit({
+            sessionEmit({
               type: EventType.Load,
               data: {},
             });
@@ -618,10 +643,17 @@ function record<T = eventWithTime>(
         ),
       );
     }
+    let stopped = false;
     return () => {
-      handlers.forEach((handler) => {
+      if (stopped) return;
+      stopped = true;
+      sessionActive = false;
+      const runCleanup = (
+        cleanup: () => void,
+        ignoreCrossOriginError = false,
+      ) => {
         try {
-          handler();
+          cleanup();
         } catch (error) {
           const msg = String(error).toLowerCase();
           /**
@@ -633,15 +665,25 @@ function record<T = eventWithTime>(
            throw a "cannot access cross-origin frame" error.
            * This error is expected and can be safely ignored.
            */
-          if (!msg.includes('cross-origin')) {
+          if (!ignoreCrossOriginError || !msg.includes('cross-origin')) {
             console.warn(error);
           }
         }
-      });
-      mutationBuffers.splice(0);
-      processedNodeManager.destroy();
-      recording = false;
-      unregisterErrorHandler();
+      };
+      try {
+        handlers.forEach((handler) => runCleanup(handler, true));
+        [
+          () => iframeManager.destroy(),
+          () => shadowDomManager.reset(),
+          () => canvasManager.reset(),
+          () => stylesheetManager.reset(),
+          () => processedNodeManager.destroy(),
+          () => mirror.reset(),
+        ].forEach((cleanup) => runCleanup(cleanup));
+      } finally {
+        recording = false;
+        runCleanup(unregisterErrorHandler);
+      }
     };
   } catch (error) {
     // TODO: handle internal error

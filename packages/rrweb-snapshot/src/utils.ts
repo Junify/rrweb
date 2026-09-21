@@ -1,3 +1,15 @@
+/**
+ * Legacy shared utility module.
+ *
+ * This file currently contains helpers used by both snapshot and rebuild paths
+ * and is also part of the public API surface, re-exported from index.ts.
+ *
+ * Migration intent:
+ * - snapshot.ts should consume snapshot-domain helpers via snapshot-utils.ts
+ * - rebuild.ts should consume rebuild-domain helpers via rebuild-utils.ts
+ * - when safe, split internals into snapshot-only / rebuild-only / shared
+ *   modules while keeping this module as a compatibility shim for external users
+ */
 import type {
   idNodeMap,
   MaskInputFn,
@@ -5,7 +17,7 @@ import type {
   nodeMetaMap,
 } from './types';
 
-import { NodeType } from '@junify-app/types';
+import { NodeType } from '@rrweb/types';
 import type {
   IMirror,
   serializedNodeWithId,
@@ -14,8 +26,8 @@ import type {
   documentTypeNode,
   textNode,
   elementNode,
-} from '@junify-app/types';
-import dom from '@junify-app/utils';
+} from '@rrweb/types';
+import dom from '@rrweb/utils';
 
 export function isElement(n: Node): n is Element {
   return n.nodeType === n.ELEMENT_NODE;
@@ -202,16 +214,41 @@ export class Mirror implements IMirror<Node> {
     return this.nodeMetaMap.get(n) || null;
   }
 
-  // removes the node from idNodeMap
-  // doesn't remove the node from nodeMetaMap
-  removeNodeFromMap(n: Node) {
-    const id = this.getId(n);
-    this.idNodeMap.delete(id);
+  // Removes a subtree in one pass. Metadata is preserved for DOM moves unless
+  // the caller has established that the subtree was permanently detached.
+  removeNodeFromMap(
+    n: Node,
+    options: {
+      removeMeta?: boolean;
+      onVisit?: (node: Node) => Node | Node[] | void;
+    } = {},
+  ) {
+    const queue = [n];
+    const visited = new Set<Node>();
+    while (queue.length) {
+      const node = queue.pop()!;
+      if (visited.has(node)) continue;
+      visited.add(node);
+      this.idNodeMap.delete(this.getId(node));
+      if (options.removeMeta) this.nodeMetaMap.delete(node);
+      const additionalNodes = options.onVisit?.(node);
+      if (additionalNodes) {
+        if (Array.isArray(additionalNodes)) queue.push(...additionalNodes);
+        else queue.push(additionalNodes);
+      }
 
-    if (n.childNodes) {
-      n.childNodes.forEach((childNode) =>
-        this.removeNodeFromMap(childNode as unknown as Node),
-      );
+      try {
+        node.childNodes?.forEach((childNode) => queue.push(childNode));
+        const shadowRoot = (node as Element).shadowRoot;
+        if (shadowRoot) queue.push(shadowRoot);
+        if ((node as Element).tagName === 'IFRAME') {
+          const iframeDocument = (node as HTMLIFrameElement).contentDocument;
+          if (iframeDocument) queue.push(iframeDocument);
+        }
+      } catch {
+        // A removed iframe may have navigated cross-origin. Its visible root is
+        // still released; inaccessible descendants cannot be referenced here.
+      }
     }
   }
   has(id: number): boolean {
@@ -247,6 +284,25 @@ export function createMirror(): Mirror {
   return new Mirror();
 }
 
+const SENSITIVE_AUTOCOMPLETE_TOKENS = new Set([
+  'current-password',
+  'new-password',
+  'cc-number',
+  'cc-exp',
+  'cc-exp-month',
+  'cc-exp-year',
+  'cc-csc',
+]);
+
+function hasSensitiveAutocompleteToken(element: HTMLElement): boolean {
+  if (toLowerCase(element.tagName) !== 'input') return false;
+  const autocomplete = element.getAttribute('autocomplete');
+  if (!autocomplete) return false;
+  return autocomplete
+    .split(/[\t\n\f\r ]+/)
+    .some((token) => SENSITIVE_AUTOCOMPLETE_TOKENS.has(toLowerCase(token)));
+}
+
 export function maskInputValue({
   element,
   maskInputOptions,
@@ -264,12 +320,14 @@ export function maskInputValue({
 }): string {
   let text = value || '';
   const actualType = type && toLowerCase(type);
+  const forceMask = hasSensitiveAutocompleteToken(element);
 
   if (
+    forceMask ||
     maskInputOptions[tagName.toLowerCase() as keyof MaskInputOptions] ||
     (actualType && maskInputOptions[actualType as keyof MaskInputOptions])
   ) {
-    if (maskInputFn) {
+    if (maskInputFn && !forceMask) {
       text = maskInputFn(text, element);
     } else {
       text = '*'.repeat(text.length);
@@ -429,8 +487,10 @@ export function absolutifyURLs(cssText: string | null, href: string): string {
           extractOrigin(href) + filePath
         }${maybeQuote})`;
       }
-      const stack = href.split('/');
-      const parts = filePath.split('/');
+      const filePathNoHash = filePath.split('#')[0];
+      const maybeHash = filePath.substring(filePathNoHash.length);
+      const stack = href.split('#')[0].split('/');
+      const parts = filePathNoHash.split('/');
       stack.pop();
       for (const part of parts) {
         if (part === '.') {
@@ -441,7 +501,7 @@ export function absolutifyURLs(cssText: string | null, href: string): string {
           stack.push(part);
         }
       }
-      return `url(${maybeQuote}${stack.join('/')}${maybeQuote})`;
+      return `url(${maybeQuote}${stack.join('/')}${maybeHash}${maybeQuote})`;
     },
   );
 }

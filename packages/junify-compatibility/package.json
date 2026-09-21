@@ -1,0 +1,28 @@
+{
+  "name": "@junify/rrweb-compatibility",
+  "version": "0.0.0-private",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "fixtures:generate": "vite-node src/provenance.ts",
+    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "junify-rrweb-alpha19": "https://registry.npmjs.org/@junify-app/rrweb/-/rrweb-2.0.0-alpha.19.tgz",
+    "junify-rrweb-alpha20": "https://registry.npmjs.org/@junify-app/rrweb/-/rrweb-2.0.0-alpha.20.tgz",
+    "rrweb-alpha4": "https://registry.npmjs.org/rrweb/-/rrweb-2.0.0-alpha.4.tgz",
+    "rrweb-stable211": "https://registry.npmjs.org/rrweb/-/rrweb-2.1.1.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "^18.15.11",
+    "@types/pngjs": "^6.0.5",
+    "pngjs": "^3.4.0",
+    "playwright": "^1.60.0",
+    "prettier": "2.8.4",
+    "typescript": "^5.4.5",
+    "vite": "^6.0.1",
+    "vitest": "^1.4.0"
+  }
+}

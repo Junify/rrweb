@@ -1,14 +1,17 @@
 {
-  "name": "@junify-app/_monorepo",
+  "name": "@rrweb/_monorepo",
   "description": "record and replay the web",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/rrweb-io/rrweb.git"
   },
   "keywords": [
+    "devtools",
+    "product-analytics",
+    "real-user-monitoring",
     "rrweb"
   ],
-  "author": "yanzhen@smartx.com",
+  "author": "rrweb Core Team <maintainers@rrweb.com>",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/rrweb-io/rrweb/issues"
@@ -20,8 +23,8 @@
     "packages/plugins/*"
   ],
   "devDependencies": {
-    "@changesets/changelog-github": "^0.5.0",
-    "@changesets/cli": "^2.27.1",
+    "@changesets/changelog-github": "^0.7.0",
+    "@changesets/cli": "^2.31.0",
     "@monorepo-utils/workspaces-to-typescript-project-references": "^2.8.2",
     "@types/prettier": "2.7.3",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
@@ -44,18 +47,20 @@
   },
   "scripts": {
     "build:all": "NODE_OPTIONS='--max-old-space-size=4096' yarn turbo run prepublish",
+    "pack:junify-boundaries": "node packages/junify-rrweb/scripts/canonical-packages.mjs",
     "references:update": "yarn workspaces-to-typescript-project-references",
     "test": "yarn turbo run test --concurrency=1 --continue",
     "test:watch": "yarn turbo run test:watch",
     "test:update": "yarn turbo run test:update",
+    "test:junify-packaging": "cd packages/junify-rrweb && vitest run --root . --config ../../vitest.config.ts test/canonical-packages.test.ts --pool=forks --no-file-parallelism",
     "check-types": "yarn turbo run check-types --continue",
     "format": "yarn prettier --write '**/*.{ts,md}'",
     "format:head": "git diff --name-only HEAD^ |grep '\\.ts$\\|\\.md$' |xargs yarn prettier --write",
     "dev": "yarn turbo run dev --concurrency=18",
     "repl": "cd packages/rrweb && npm run repl",
     "live-stream": "cd packages/rrweb && yarn live-stream",
-    "lint": "yarn run concurrently --success=all -r -m=1 'yarn run markdownlint docs' 'ESLINT_USE_FLAT_CONFIG=false yarn eslint packages/*/src --ext .ts,.tsx,.js,.jsx,.svelte'",
-    "lint:report": "ESLINT_USE_FLAT_CONFIG=false yarn eslint --output-file eslint_report.json --format json packages/*/src --ext .ts,.tsx,.js,.jsx",
+    "lint": "yarn run concurrently --success=all -r -m=1 'yarn run markdownlint docs' 'ESLINT_USE_FLAT_CONFIG=false yarn eslint \"packages/**/src/**/*.{ts,tsx,js,jsx,svelte}\"'",
+    "lint:report": "ESLINT_USE_FLAT_CONFIG=false yarn eslint --output-file eslint_report.json --format json \"packages/**/src/**/*.{ts,tsx,js,jsx}\"",
     "release": "yarn build:all && changeset publish"
   },
   "resolutions": {

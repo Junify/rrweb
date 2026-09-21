@@ -1,4 +1,4 @@
-import type { serializedNodeWithId } from '@junify-app/types';
+import type { serializedNodeWithId } from '@rrweb/types';
 
 export type tagMap = {
   [key: string]: string;
@@ -47,6 +47,7 @@ export type MaskInputOptions = Partial<{
   textarea: boolean;
   select: boolean;
   password: boolean;
+  hidden: boolean;
 }>;
 
 export type SlimDOMOptions = Partial<{
