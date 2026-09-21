@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`rrweb-plugin-console-record > should handle recursive console messages 1`] = `
+exports[`@junify-app/rrweb-plugin-console-record > should handle recursive console messages 1`] = `
 "[
   {
     \\"type\\": 4,
@@ -184,7 +184,7 @@ exports[`rrweb-plugin-console-record > should handle recursive console messages 
 ]"
 `;
 
-exports[`rrweb-plugin-console-record > should record console messages 1`] = `
+exports[`@junify-app/rrweb-plugin-console-record > should record console messages 1`] = `
 "[
   {
     \\"type\\": 4,

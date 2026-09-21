@@ -4,6 +4,7 @@ import {
   type canvasMutationCommand,
   type canvasMutationData,
   type canvasMutationParam,
+  type eventWithTime,
 } from '@rrweb/types';
 import webglMutation from './webgl';
 import canvas2DMutation from './2d';
@@ -13,27 +14,27 @@ export default async function canvasMutation({
   mutation,
   target,
   imageMap,
-  canvasEventMap,
+  isActive = () => true,
+  onImageLoad,
   errorHandler,
 }: {
   event: Parameters<Replayer['applyIncremental']>[0];
   mutation: canvasMutationData;
   target: HTMLCanvasElement;
   imageMap: Replayer['imageMap'];
-  canvasEventMap: Replayer['canvasEventMap'];
+  /** @deprecated Decoded events are no longer cached. */
+  canvasEventMap?: Map<eventWithTime, canvasMutationParam>;
+  isActive?: () => boolean;
+  onImageLoad?: (cancel?: () => void) => void;
   errorHandler: Replayer['warnCanvasMutationFailed'];
 }): Promise<void> {
   try {
-    const precomputedMutation: canvasMutationParam =
-      canvasEventMap.get(event) || mutation;
-
     const commands: canvasMutationCommand[] =
-      'commands' in precomputedMutation
-        ? precomputedMutation.commands
-        : [precomputedMutation];
+      'commands' in mutation ? mutation.commands : [mutation];
 
     if ([CanvasContext.WebGL, CanvasContext.WebGL2].includes(mutation.type)) {
       for (let i = 0; i < commands.length; i++) {
+        if (!isActive()) return;
         const command = commands[i];
         await webglMutation({
           mutation: command,
@@ -41,6 +42,8 @@ export default async function canvasMutation({
           target,
           imageMap,
           errorHandler,
+          isActive,
+          onImageLoad,
         });
       }
       return;
@@ -52,6 +55,8 @@ export default async function canvasMutation({
       target,
       imageMap,
       errorHandler,
+      isActive,
+      onImageLoad,
     });
   } catch (error) {
     errorHandler(mutation, error);

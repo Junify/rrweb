@@ -40,6 +40,7 @@ import type { playerConfig, missingNodeMap } from '../types';
 import {
   NodeType,
   EventType,
+  CanvasContext,
   IncrementalSource,
   MouseInteractions,
   ReplayerEvents,
@@ -60,11 +61,10 @@ import type {
   scrollData,
   inputData,
   canvasMutationData,
+  canvasMutationCommand,
   styleValueWithPriority,
   mouseMovePos,
   IWindow,
-  canvasMutationCommand,
-  canvasMutationParam,
   canvasEventWithTime,
   selectionData,
   styleSheetRuleData,
@@ -88,7 +88,7 @@ import {
 import getInjectStyleRules from './styles/inject-style';
 import './styles/style.css';
 import canvasMutation from './canvas';
-import { deserializeArg } from './canvas/deserialize-args';
+import { CanvasMutationQueue } from './canvas/queue';
 import { MediaManager } from './media';
 import { applyDialogToTopLevel, removeDialogFromTopLevel } from './dialog';
 
@@ -146,7 +146,7 @@ export class Replayer {
   private cache: BuildCache = createCache();
 
   private imageMap: Map<eventWithTime | string, HTMLImageElement> = new Map();
-  private canvasEventMap: Map<eventWithTime, canvasMutationParam> = new Map();
+  private canvasMutationQueue = new CanvasMutationQueue();
 
   private mirror: Mirror = createMirror();
 
@@ -241,14 +241,22 @@ export class Replayer {
             canvasMutationData: canvasMutationData,
             target: HTMLCanvasElement,
           ) => {
-            void canvasMutation({
-              event: canvasEvent,
-              mutation: canvasMutationData,
-              target,
-              imageMap: this.imageMap,
-              canvasEventMap: this.canvasEventMap,
-              errorHandler: this.warnCanvasMutationFailed.bind(this),
-            });
+            this.canvasMutationQueue.enqueue(
+              (isActive, onImageLoad) =>
+                canvasMutation({
+                  event: canvasEvent,
+                  mutation: canvasMutationData,
+                  target,
+                  imageMap: this.imageMap,
+                  isActive,
+                  onImageLoad,
+                  errorHandler: this.warnCanvasMutationFailed.bind(this),
+                }),
+              canvasMutationData.type === CanvasContext.WebGL ||
+                canvasMutationData.type === CanvasContext.WebGL2
+                ? undefined
+                : target,
+            );
           },
           applyInput: this.applyInput.bind(this),
           applyScroll: this.applyScroll.bind(this),
@@ -348,6 +356,7 @@ export class Replayer {
       }
     });
     this.addEmitterHandler(ReplayerEvents.PlayBack, () => {
+      this.canvasMutationQueue.reset();
       this.firstFullSnapshot = null;
       this.mirror.reset();
       this.styleMirror.reset();
@@ -573,7 +582,11 @@ export class Replayer {
    */
   public play(timeOffset = 0) {
     if (this.destroyed) return;
-    if (this.config.useVirtualDom && timeOffset !== this.getCurrentTime()) {
+    // Seeking to a new time can require many synchronous mutations; disable the
+    // next virtual-dom fast-forward so we rebuild from the real DOM for consistency.
+    const currentTime = this.getCurrentTime();
+    if (timeOffset !== currentTime) this.canvasMutationQueue.cancelImageLoad();
+    if (this.config.useVirtualDom && timeOffset !== currentTime) {
       this.disableVirtualDomForNextSync = true;
     }
     if (this.service.state.matches('paused')) {
@@ -658,8 +671,8 @@ export class Replayer {
     cleanup(() => this.styleMirror.reset());
     cleanup(() => this.virtualDom.destroyTree());
     cleanup(() => this.resetCache());
+    cleanup(() => this.canvasMutationQueue.reset());
     this.imageMap.clear();
-    this.canvasEventMap.clear();
     this.legacy_missingNodeRetryMap = {};
     this.newDocumentQueue = [];
     this.constructedStyleMutations = [];
@@ -937,6 +950,8 @@ export class Replayer {
         this.legacy_missingNodeRetryMap,
       );
     }
+    this.canvasMutationQueue.reset();
+    this.imageMap.clear();
     this.legacy_missingNodeRetryMap = {};
     const collectedIframes: AppendedIframe[] = [];
     const collectedDialogs = new Set<HTMLDialogElement>();
@@ -998,9 +1013,6 @@ export class Replayer {
     this.emitter.emit(ReplayerEvents.FullsnapshotRebuilded, event);
     if (!isSync) {
       this.waitForStylesheetLoad();
-    }
-    if (this.config.UNSAFE_replayCanvas) {
-      void this.preloadAllImages();
     }
   }
 
@@ -1183,70 +1195,6 @@ export class Replayer {
         timer = this.addTimeout(() => finish(false), this.config.loadTimeout);
       } else {
         dispose();
-      }
-    }
-  }
-
-  /**
-   * pause when there are some canvas drawImage args need to be loaded
-   */
-  private async preloadAllImages(): Promise<void[]> {
-    const promises: Promise<void>[] = [];
-    for (const event of this.service.state.context.events) {
-      if (
-        event.type === EventType.IncrementalSnapshot &&
-        event.data.source === IncrementalSource.CanvasMutation
-      ) {
-        promises.push(
-          this.deserializeAndPreloadCanvasEvents(event.data, event),
-        );
-        const commands =
-          'commands' in event.data ? event.data.commands : [event.data];
-        commands.forEach((c) => {
-          this.preloadImages(c, event);
-        });
-      }
-    }
-    return Promise.all(promises);
-  }
-
-  private preloadImages(data: canvasMutationCommand, event: eventWithTime) {
-    if (
-      data.property === 'drawImage' &&
-      typeof data.args[0] === 'string' &&
-      !this.imageMap.has(event)
-    ) {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const imgd = ctx?.createImageData(canvas.width, canvas.height);
-      ctx?.putImageData(imgd!, 0, 0);
-    }
-  }
-  private async deserializeAndPreloadCanvasEvents(
-    data: canvasMutationData,
-    event: eventWithTime,
-  ) {
-    if (!this.canvasEventMap.has(event)) {
-      const status = {
-        isUnchanged: true,
-      };
-      if ('commands' in data) {
-        const commands = await Promise.all(
-          data.commands.map(async (c) => {
-            const args = await Promise.all(
-              c.args.map(deserializeArg(this.imageMap, null, status)),
-            );
-            return { ...c, args };
-          }),
-        );
-        if (!this.destroyed && status.isUnchanged === false)
-          this.canvasEventMap.set(event, { ...data, commands });
-      } else {
-        const args = await Promise.all(
-          data.args.map(deserializeArg(this.imageMap, null, status)),
-        );
-        if (!this.destroyed && status.isUnchanged === false)
-          this.canvasEventMap.set(event, { ...data, args });
       }
     }
   }
@@ -1491,14 +1439,21 @@ export class Replayer {
           if (!target) {
             return this.debugNodeNotFound(d, d.id);
           }
-          void canvasMutation({
-            event: e,
-            mutation: d,
-            target: target as HTMLCanvasElement,
-            imageMap: this.imageMap,
-            canvasEventMap: this.canvasEventMap,
-            errorHandler: this.warnCanvasMutationFailed.bind(this),
-          });
+          this.canvasMutationQueue.enqueue(
+            (isActive, onImageLoad) =>
+              canvasMutation({
+                event: e,
+                mutation: d,
+                target: target as HTMLCanvasElement,
+                imageMap: this.imageMap,
+                isActive,
+                onImageLoad,
+                errorHandler: this.warnCanvasMutationFailed.bind(this),
+              }),
+            d.type === CanvasContext.WebGL || d.type === CanvasContext.WebGL2
+              ? undefined
+              : (target as HTMLCanvasElement),
+          );
         }
         break;
       }
@@ -1925,6 +1880,24 @@ export class Replayer {
           return;
         }
         return this.warnNodeNotFound(d, mutation.id);
+      }
+      if (
+        target.nodeName === 'CANVAS' &&
+        ('width' in mutation.attributes || 'height' in mutation.attributes)
+      ) {
+        const realCanvas = this.mirror.getNode(
+          mutation.id,
+        ) as HTMLCanvasElement | null;
+        if (realCanvas) this.canvasMutationQueue.resetCanvas(realCanvas);
+        if (this.usingVirtualDom) {
+          const canvas = target as RRCanvasElement;
+          canvas.canvasMutations = canvas.canvasMutations.filter(
+            ({ mutation }) =>
+              mutation.type === CanvasContext.WebGL ||
+              mutation.type === CanvasContext.WebGL2,
+          );
+          canvas.rr_dataURL = null;
+        }
       }
       for (const attributeName in mutation.attributes) {
         if (typeof attributeName === 'string') {

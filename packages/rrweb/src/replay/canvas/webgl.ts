@@ -1,5 +1,9 @@
 import type { Replayer } from '../';
-import { CanvasContext, type canvasMutationCommand } from '@rrweb/types';
+import {
+  CanvasContext,
+  type CanvasArg,
+  type canvasMutationCommand,
+} from '@rrweb/types';
 import { deserializeArg, variableListFor } from './deserialize-args';
 
 function getContext(
@@ -57,14 +61,20 @@ export default async function webglMutation({
   type,
   imageMap,
   errorHandler,
+  isActive = () => true,
+  onImageLoad,
 }: {
   mutation: canvasMutationCommand;
   target: HTMLCanvasElement;
   type: CanvasContext;
   imageMap: Replayer['imageMap'];
   errorHandler: Replayer['warnCanvasMutationFailed'];
+  isActive?: () => boolean;
+  onImageLoad?: (cancel?: () => void) => void;
 }): Promise<void> {
+  const resources = { bitmaps: new Set<ImageBitmap>(), isActive, onImageLoad };
   try {
+    if (!isActive()) return;
     const ctx = getContext(target, type);
     if (!ctx) return;
 
@@ -85,9 +95,12 @@ export default async function webglMutation({
       args: unknown[],
     ) => void;
 
-    const args = await Promise.all(
-      mutation.args.map(deserializeArg(imageMap, ctx)),
-    );
+    const args: unknown[] = (await deserializeArg(
+      imageMap,
+      ctx,
+      resources,
+    )(mutation.args as CanvasArg[])) as unknown[];
+    if (!isActive()) return;
     const result = original.apply(ctx, args);
     saveToWebGLVarMap(ctx, result);
 
@@ -96,21 +109,21 @@ export default async function webglMutation({
     if (debugMode) {
       if (mutation.property === 'compileShader') {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        if (!ctx.getShaderParameter(args[0], ctx.COMPILE_STATUS))
+        if (!ctx.getShaderParameter(args[0] as WebGLShader, ctx.COMPILE_STATUS))
           console.warn(
             'something went wrong in replay',
             // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-            ctx.getShaderInfoLog(args[0]),
+            ctx.getShaderInfoLog(args[0] as WebGLShader),
           );
       } else if (mutation.property === 'linkProgram') {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        ctx.validateProgram(args[0]);
+        ctx.validateProgram(args[0] as WebGLProgram);
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        if (!ctx.getProgramParameter(args[0], ctx.LINK_STATUS))
+        if (!ctx.getProgramParameter(args[0] as WebGLProgram, ctx.LINK_STATUS))
           console.warn(
             'something went wrong in replay',
             // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-            ctx.getProgramInfoLog(args[0]),
+            ctx.getProgramInfoLog(args[0] as WebGLProgram),
           );
       }
       const webglError = ctx.getError();
@@ -126,6 +139,12 @@ export default async function webglMutation({
       }
     }
   } catch (error) {
-    errorHandler(mutation, error);
+    if (
+      isActive() &&
+      !(error instanceof DOMException && error.name === 'AbortError')
+    )
+      errorHandler(mutation, error);
+  } finally {
+    for (const bitmap of resources.bitmaps) bitmap.close();
   }
 }
