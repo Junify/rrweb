@@ -6,11 +6,9 @@ import { record } from '../src/index';
 const distDir = path.resolve(__dirname, '../dist');
 const recordJsPath = path.join(distDir, 'record.js');
 
-// Measured before the tree-shaking fix: 397373 bytes.
-// Measured after the tree-shaking fix: 161287 bytes.
-// The fixed ESM bundle must stay at least 200 KiB smaller.
-const BASELINE_RECORD_JS_BYTES = 397373;
-const MAX_RECORD_JS_BYTES = BASELINE_RECORD_JS_BYTES - 200 * 1024;
+// The upstream tree-shaking fix measured 161287 bytes. Junify's recorder
+// privacy and lifecycle fixes bring the verified fork bundle to 195384 bytes.
+const MAX_RECORD_JS_BYTES = 200_000;
 
 function requireBuiltRecordBundle() {
   if (!existsSync(recordJsPath)) {
@@ -44,7 +42,7 @@ describe('record', () => {
     }
   });
 
-  it('keeps the ESM record bundle at least 200 KiB below the baseline size', () => {
+  it('keeps the ESM record bundle below the Junify regression ceiling', () => {
     requireBuiltRecordBundle();
 
     expect(statSync(recordJsPath).size).toBeLessThanOrEqual(

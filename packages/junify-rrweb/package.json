@@ -6,6 +6,7 @@
     "build": "yarn workspace @rrweb/types prepublish && yarn workspace @rrweb/utils prepublish && yarn workspace rrweb-snapshot prepublish && yarn workspace rrdom prepublish && yarn workspace rrweb prepublish && vite build",
     "check-types": "tsc --noEmit",
     "lint": "eslint src test",
+    "prepublish": "vite build",
     "prepack": "npm run build",
     "test": "vitest run --root . --config ../../vitest.config.ts test/package-boundary.test.ts --pool=forks --no-file-parallelism"
   },
