@@ -30,7 +30,7 @@ type RRvideoConfig = {
 
 const defaultConfig: Required<RRvideoConfig> = {
   input: '',
-  output: '/rrvideo-output.webm',
+  output: 'rrvideo-output.webm',
   headless: true,
   // A good trade-off value between quality and file size.
   resolutionRatio: 0.8,

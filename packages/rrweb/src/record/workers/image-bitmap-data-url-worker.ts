@@ -46,5 +46,5 @@ const handler = createWorkerMessageHandler((message) => {
 });
 
 worker.onmessage = (event) => {
-  return handler(event);
+  void handler(event);
 };

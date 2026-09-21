@@ -27,6 +27,12 @@ The reason why our serialization method is non-standard is because we still need
 3. Relative paths are converted to absolute paths. During replay, we will place the recorded page in an `<iframe>`. The page URL at this time is the address of the replay page. If there are some relative paths in the recorded page, an error will occur when the user tries to open them, so when recording we need to convert relative paths. Relative paths in the CSS style sheet also need to be converted.
 4. We want to record the contents of the CSS style sheet. If the recorded page links to external style sheets, we can get its parsed CSS rules from the browser, generate an inline style sheet containing all these rules. This way stylesheets that are not always accessible (for example, because they are located on an intranet or localhost) are included in the recording and can be replayed correctly.
 
+Images captured as `rr_dataURL` are rebuilt from their embedded data. The original
+`src` and `srcset` are preserved in `rrweb-original-src` and
+`rrweb-original-srcset` attributes; the live `srcset` is omitted so it cannot
+replace the embedded image. These are HTML attribute names, not npm package
+identifiers: adding a package scope such as `@junify-app/` makes them invalid.
+
 ## Uniquely identifies
 
 At the same time, our serialization should also include both full and incremental types. Full serialization can transform a DOM tree into a corresponding tree data structure.

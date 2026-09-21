@@ -20,6 +20,8 @@ async function getTransparentBlobFor(
     return '';
   }
   if (transparentBlobMap.has(id)) return transparentBlobMap.get(id)!;
+  // Availability is checked above; unsupported browsers take the fallback.
+  // eslint-disable-next-line compat/compat
   const offscreen = new OffscreenCanvas(width, height);
   // Creating the rendering context ensures convertToBlob runs correctly.
   offscreen.getContext('2d');
@@ -48,6 +50,8 @@ async function convertBitmapToDataURL(
     dataURLOptions,
   );
 
+  // Availability is checked above; unsupported browsers take the fallback.
+  // eslint-disable-next-line compat/compat
   const offscreen = new OffscreenCanvas(width, height);
   const ctx = offscreen.getContext('2d');
 

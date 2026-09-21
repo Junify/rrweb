@@ -322,7 +322,7 @@ function buildNode(
           ) {
             // backup original img srcset
             node.setAttribute(
-              '@junify-app/rrweb-original-srcset',
+              'rrweb-original-srcset',
               n.attributes.srcset as string,
             );
           } else {
@@ -357,7 +357,7 @@ function buildNode(
           if (!image.currentSrc.startsWith('data:')) {
             // Backup original img src. It may not have been set yet.
             image.setAttribute(
-              '@junify-app/rrweb-original-src',
+              'rrweb-original-src',
               n.attributes.src as string,
             );
             image.src = value.toString();
