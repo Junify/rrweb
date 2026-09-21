@@ -1,10 +1,9 @@
 import {
-  type MaskInputOptions,
   maskInputValue,
   Mirror,
   getInputType,
   toLowerCase,
-} from '@junify-app/rrweb-snapshot';
+} from 'rrweb-snapshot';
 import type { FontFaceSet } from 'css-font-loading-module';
 import {
   throttle,
@@ -18,14 +17,14 @@ import {
   StyleSheetMirror,
   nowTimestamp,
 } from '../utils';
-import { patch } from '@junify-app/utils';
+import { patch } from '@rrweb/utils';
 import type { observerParam, MutationBufferParam } from '../types';
 import {
   IncrementalSource,
   MouseInteractions,
   PointerTypes,
   MediaInteractions,
-} from '@junify-app/types';
+} from '@rrweb/types';
 import type {
   mutationCallBack,
   mousemoveCallBack,
@@ -49,12 +48,14 @@ import type {
   SelectionRange,
   selectionCallback,
   customElementCallback,
-} from '@junify-app/types';
-import MutationBuffer from './mutation';
+} from '@rrweb/types';
+import MutationBuffer, { transientPasswordInputs } from './mutation';
 import { callbackWrapper } from './error-handler';
-import dom, { mutationObserverCtor } from '@junify-app/utils';
+import dom, { mutationObserverCtor } from '@rrweb/utils';
 
-export const mutationBuffers: MutationBuffer[] = [];
+export const mutationBuffers = new Set<MutationBuffer>();
+export const firstMutationBuffer = (): MutationBuffer | undefined =>
+  mutationBuffers.values().next().value as MutationBuffer | undefined;
 
 // Event.path is non-standard and used in some older browsers
 type NonStandardEvent = Omit<Event, 'composedPath'> & {
@@ -81,12 +82,13 @@ function getEventTarget(event: Event | NonStandardEvent): EventTarget | null {
 export function initMutationObserver(
   options: MutationBufferParam,
   rootEl: Node,
-): MutationObserver {
+): [MutationObserver, () => void] {
   const mutationBuffer = new MutationBuffer();
-  mutationBuffers.push(mutationBuffer);
+  mutationBuffers.add(mutationBuffer);
   // see mutation.ts for details
   mutationBuffer.init(options);
-  const observer = new (mutationObserverCtor() as new (
+  const [ObserverCtor, iframeCleanup] = mutationObserverCtor();
+  const observer = new (ObserverCtor as new (
     callback: MutationCallback,
   ) => MutationObserver)(
     callbackWrapper(mutationBuffer.processMutations.bind(mutationBuffer)),
@@ -99,7 +101,27 @@ export function initMutationObserver(
     childList: true,
     subtree: true,
   });
-  return observer;
+  let disposed = false;
+  return [
+    observer,
+    () => {
+      if (disposed) return;
+      disposed = true;
+      const cleanups = [
+        () => observer.disconnect(),
+        iframeCleanup,
+        () => mutationBuffer.destroy(),
+        () => mutationBuffers.delete(mutationBuffer),
+      ];
+      cleanups.forEach((cleanup) => {
+        try {
+          cleanup();
+        } catch (error) {
+          console.warn('[rrweb] Failed to dispose mutation observer', error);
+        }
+      });
+    },
+  ];
 }
 
 function initMoveObserver({
@@ -185,6 +207,8 @@ function initMoveObserver({
   ];
   return callbackWrapper(() => {
     handlers.forEach((h) => h());
+    updatePosition.cancel();
+    wrappedCb.cancel();
   });
 }
 
@@ -347,7 +371,11 @@ export function initScrollObserver({
       sampling.scroll || 100,
     ),
   );
-  return on('scroll', updatePosition, doc);
+  const removeListener = on('scroll', updatePosition, doc);
+  return () => {
+    removeListener();
+    updatePosition.cancel();
+  };
 }
 
 function initViewportResizeObserver(
@@ -373,11 +401,14 @@ function initViewportResizeObserver(
       200,
     ),
   );
-  return on('resize', updateDimension, win);
+  const removeListener = on('resize', updateDimension, win);
+  return () => {
+    removeListener();
+    updateDimension.cancel();
+  };
 }
 
 export const INPUT_TAGS = ['INPUT', 'TEXTAREA', 'SELECT'];
-const lastInputValueMap: WeakMap<EventTarget, inputValue> = new WeakMap();
 function initInputObserver({
   inputCb,
   doc,
@@ -391,6 +422,14 @@ function initInputObserver({
   sampling,
   userTriggeredOnInput,
 }: observerParam): listenerHandler {
+  const lastInputValueMap: WeakMap<EventTarget, inputValue> = new WeakMap();
+  const knownPasswordInputs = new WeakSet<HTMLElement>();
+  const transientPasswordGenerations = new WeakMap<HTMLElement, number>();
+  const ownedTransientPasswordInputs = new Set<HTMLElement>();
+  doc.querySelectorAll('input').forEach((input) => {
+    if (getInputType(input) === 'password') knownPasswordInputs.add(input);
+  });
+
   function eventHandler(event: Event) {
     let target = getEventTarget(event) as HTMLElement | null;
     const userTriggered = event.isTrusted;
@@ -420,14 +459,18 @@ function initInputObserver({
     }
     let text = (target as HTMLInputElement).value;
     let isChecked = false;
-    const type: Lowercase<string> = getInputType(target) || '';
+    const currentType: Lowercase<string> = getInputType(target) || '';
+    if (target.tagName === 'INPUT' && currentType === 'password') {
+      knownPasswordInputs.add(target);
+    }
+    const type: Lowercase<string> =
+      knownPasswordInputs.has(target) || transientPasswordInputs.has(target)
+        ? 'password'
+        : currentType;
 
     if (type === 'radio' || type === 'checkbox') {
       isChecked = (target as HTMLInputElement).checked;
-    } else if (
-      maskInputOptions[tagName.toLowerCase() as keyof MaskInputOptions] ||
-      maskInputOptions[type as keyof MaskInputOptions]
-    ) {
+    } else {
       text = maskInputValue({
         element: target,
         maskInputOptions,
@@ -487,6 +530,14 @@ function initInputObserver({
       handlers.forEach((h) => h());
     };
   }
+  const pendingTimeouts = new Set<number>();
+  const schedule = (callback: () => void) => {
+    const timeout = currentWindow.setTimeout(() => {
+      pendingTimeouts.delete(timeout);
+      callback();
+    }, 0);
+    pendingTimeouts.add(timeout);
+  };
   const propertyDescriptor = currentWindow.Object.getOwnPropertyDescriptor(
     currentWindow.HTMLInputElement.prototype,
     'value',
@@ -521,7 +572,132 @@ function initInputObserver({
       ),
     );
   }
+  const inputPrototype = currentWindow.HTMLInputElement.prototype;
+  const typeDescriptor = currentWindow.Object.getOwnPropertyDescriptor(
+    inputPrototype,
+    'type',
+  );
+  if (typeDescriptor?.get && typeDescriptor.set) {
+    const getType = (input: HTMLInputElement) =>
+      typeDescriptor.get?.call(input) as string;
+    const setType = (input: HTMLInputElement, value: string) => {
+      typeDescriptor.set?.call(input, value);
+    };
+    const preserveTransientPasswordType = (
+      input: HTMLInputElement,
+      previousType: string,
+      currentType: string,
+    ) => {
+      if (previousType !== 'password' && currentType !== 'password') return;
+      transientPasswordInputs.add(input);
+      ownedTransientPasswordInputs.add(input);
+      const generation = (transientPasswordGenerations.get(input) || 0) + 1;
+      transientPasswordGenerations.set(input, generation);
+      schedule(() => {
+        schedule(() => {
+          if (transientPasswordGenerations.get(input) === generation) {
+            transientPasswordInputs.delete(input);
+            ownedTransientPasswordInputs.delete(input);
+          }
+        });
+      });
+    };
+    currentWindow.Object.defineProperty(inputPrototype, 'type', {
+      ...typeDescriptor,
+      set(this: HTMLInputElement, value: string) {
+        const previousType = toLowerCase(getType(this));
+        setType(this, value);
+        const currentType = toLowerCase(getType(this));
+        preserveTransientPasswordType(this, previousType, currentType);
+      },
+    });
+    handlers.push(() => {
+      currentWindow.Object.defineProperty(
+        inputPrototype,
+        'type',
+        typeDescriptor,
+      );
+    });
+
+    const elementPrototype = currentWindow.Element.prototype;
+    const setAttribute = currentWindow.Object.getOwnPropertyDescriptor(
+      elementPrototype,
+      'setAttribute',
+    )?.value as typeof elementPrototype.setAttribute;
+    const removeAttribute = currentWindow.Object.getOwnPropertyDescriptor(
+      elementPrototype,
+      'removeAttribute',
+    )?.value as typeof elementPrototype.removeAttribute;
+    let attributeMethodsActive = true;
+    const setAttributeProxy = new Proxy(setAttribute, {
+      apply(
+        target: typeof setAttribute,
+        thisArg: Element,
+        argumentsList: [qualifiedName: string, value: string],
+      ) {
+        if (!attributeMethodsActive) {
+          return target.apply(thisArg, argumentsList);
+        }
+        if (
+          !(thisArg instanceof currentWindow.HTMLInputElement) ||
+          toLowerCase(String(argumentsList[0])) !== 'type'
+        ) {
+          return target.apply(thisArg, argumentsList);
+        }
+        const previousType = toLowerCase(getType(thisArg));
+        const result = target.apply(thisArg, argumentsList);
+        preserveTransientPasswordType(
+          thisArg,
+          previousType,
+          toLowerCase(getType(thisArg)),
+        );
+        return result;
+      },
+    });
+    const removeAttributeProxy = new Proxy(removeAttribute, {
+      apply(
+        target: typeof removeAttribute,
+        thisArg: Element,
+        argumentsList: [qualifiedName: string],
+      ) {
+        if (!attributeMethodsActive) {
+          return target.apply(thisArg, argumentsList);
+        }
+        if (
+          !(thisArg instanceof currentWindow.HTMLInputElement) ||
+          toLowerCase(String(argumentsList[0])) !== 'type'
+        ) {
+          return target.apply(thisArg, argumentsList);
+        }
+        const previousType = toLowerCase(getType(thisArg));
+        const result = target.apply(thisArg, argumentsList);
+        preserveTransientPasswordType(
+          thisArg,
+          previousType,
+          toLowerCase(getType(thisArg)),
+        );
+        return result;
+      },
+    });
+    elementPrototype.setAttribute = setAttributeProxy;
+    elementPrototype.removeAttribute = removeAttributeProxy;
+    handlers.unshift(() => {
+      attributeMethodsActive = false;
+      if (elementPrototype.setAttribute === setAttributeProxy) {
+        elementPrototype.setAttribute = setAttribute;
+      }
+      if (elementPrototype.removeAttribute === removeAttributeProxy) {
+        elementPrototype.removeAttribute = removeAttribute;
+      }
+    });
+  }
   return callbackWrapper(() => {
+    pendingTimeouts.forEach((timeout) => currentWindow.clearTimeout(timeout));
+    pendingTimeouts.clear();
+    ownedTransientPasswordInputs.forEach((input) =>
+      transientPasswordInputs.delete(input),
+    );
+    ownedTransientPasswordInputs.clear();
     handlers.forEach((h) => h());
   });
 }
@@ -555,6 +731,7 @@ function getNestedCSSRulePositions(rule: CSSRule): number[] {
       );
       const index = rules.indexOf(childRule);
       pos.unshift(index);
+      return recurse(childRule.parentRule, pos);
     } else if (childRule.parentStyleSheet) {
       const rules = Array.from(childRule.parentStyleSheet.cssRules);
       const index = rules.indexOf(childRule);
@@ -903,7 +1080,7 @@ export function initAdoptedStyleSheetObserver(
       const result = originalPropertyDescriptor.set?.call(this, sheets);
       if (hostId !== null && hostId !== -1) {
         try {
-          stylesheetManager.adoptStyleSheets(sheets, hostId);
+          stylesheetManager.adoptStyleSheets(sheets, hostId, host);
         } catch (e) {
           // for safety
         }
@@ -1021,8 +1198,9 @@ function initMediaInteractionObserver({
   sampling,
   doc,
 }: observerParam): listenerHandler {
-  const handler = callbackWrapper((type: MediaInteractions) =>
-    throttle(
+  const throttledHandlers: ReturnType<typeof throttle<Event>>[] = [];
+  const handler = callbackWrapper((type: MediaInteractions) => {
+    const throttled = throttle(
       callbackWrapper((event: Event) => {
         const target = getEventTarget(event);
         if (
@@ -1044,8 +1222,10 @@ function initMediaInteractionObserver({
         });
       }),
       sampling.media || 500,
-    ),
-  );
+    );
+    throttledHandlers.push(throttled);
+    return throttled;
+  });
   const handlers = [
     on('play', handler(MediaInteractions.Play), doc),
     on('pause', handler(MediaInteractions.Pause), doc),
@@ -1055,6 +1235,7 @@ function initMediaInteractionObserver({
   ];
   return callbackWrapper(() => {
     handlers.forEach((h) => h());
+    throttledHandlers.forEach((handler) => handler.cancel());
   });
 }
 
@@ -1067,6 +1248,7 @@ function initFontObserver({ fontCb, doc }: observerParam): listenerHandler {
   }
 
   const handlers: listenerHandler[] = [];
+  const pendingTimeouts = new Set<number>();
 
   const fontMap = new WeakMap<FontFace, fontParam>();
 
@@ -1094,8 +1276,9 @@ function initFontObserver({ fontCb, doc }: observerParam): listenerHandler {
     'add',
     function (original: (font: FontFace) => void) {
       return function (this: FontFaceSet, fontFace: FontFace) {
-        setTimeout(
+        const timeout = win.setTimeout(
           callbackWrapper(() => {
+            pendingTimeouts.delete(timeout);
             const p = fontMap.get(fontFace);
             if (p) {
               fontCb(p);
@@ -1104,6 +1287,7 @@ function initFontObserver({ fontCb, doc }: observerParam): listenerHandler {
           }),
           0,
         );
+        pendingTimeouts.add(timeout);
         return original.apply(this, [fontFace]);
       };
     },
@@ -1115,6 +1299,8 @@ function initFontObserver({ fontCb, doc }: observerParam): listenerHandler {
   handlers.push(restoreHandler);
 
   return callbackWrapper(() => {
+    pendingTimeouts.forEach((timeout) => win.clearTimeout(timeout));
+    pendingTimeouts.clear();
     handlers.forEach((h) => h());
   });
 }
@@ -1306,9 +1492,9 @@ export function initObservers(
   }
 
   mergeHooks(o, hooks);
-  let mutationObserver: MutationObserver | undefined;
+  let mutationObserverCleanup: (() => void) | undefined;
   if (o.recordDOM) {
-    mutationObserver = initMutationObserver(o, o.doc);
+    [, mutationObserverCleanup] = initMutationObserver(o, o.doc);
   }
   const mousemoveHandler = initMoveObserver(o);
   const mouseInteractionHandler = initMouseInteractionObserver(o);
@@ -1348,23 +1534,31 @@ export function initObservers(
     );
   }
 
-  return callbackWrapper(() => {
-    mutationBuffers.forEach((b) => b.reset());
-    mutationObserver?.disconnect();
-    mousemoveHandler();
-    mouseInteractionHandler();
-    scrollHandler();
-    viewportResizeHandler();
-    inputHandler();
-    mediaInteractionHandler();
-    styleSheetObserver();
-    adoptedStyleSheetObserver();
-    styleDeclarationObserver();
-    fontObserver();
-    selectionObserver();
-    customElementObserver();
-    pluginHandlers.forEach((h) => h());
-  });
+  return () => {
+    const cleanups = [
+      mutationObserverCleanup,
+      mousemoveHandler,
+      mouseInteractionHandler,
+      scrollHandler,
+      viewportResizeHandler,
+      inputHandler,
+      mediaInteractionHandler,
+      styleSheetObserver,
+      adoptedStyleSheetObserver,
+      styleDeclarationObserver,
+      fontObserver,
+      selectionObserver,
+      customElementObserver,
+      ...pluginHandlers,
+    ];
+    cleanups.forEach((cleanup) => {
+      try {
+        cleanup?.();
+      } catch (error) {
+        console.warn('[rrweb] Failed to dispose recorder observer', error);
+      }
+    });
+  };
 }
 
 type CSSGroupingProp =

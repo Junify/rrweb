@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["test", "../junify-rrweb/test/package-test-utils.ts"],
+  "exclude": [],
+  "compilerOptions": {
+    "rootDir": "..",
+    "strict": true,
+    "types": ["node", "vitest/globals"]
+  }
+}

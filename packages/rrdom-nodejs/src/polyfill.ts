@@ -1,4 +1,4 @@
-import { BaseRRNode } from '@junify-app/rrdom';
+import { BaseRRNode } from 'rrdom';
 import { RRDocument } from './document-nodejs';
 
 /**

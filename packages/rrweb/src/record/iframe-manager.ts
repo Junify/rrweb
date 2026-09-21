@@ -1,14 +1,14 @@
-import type { Mirror } from '@junify-app/rrweb-snapshot';
-import { genId } from '@junify-app/rrweb-snapshot';
+import type { Mirror } from 'rrweb-snapshot';
+import { genId } from 'rrweb-snapshot';
 import type { CrossOriginIframeMessageEvent } from '../types';
 import CrossOriginIframeMirror from './cross-origin-iframe-mirror';
-import { EventType, NodeType, IncrementalSource } from '@junify-app/types';
+import { EventType, NodeType, IncrementalSource } from '@rrweb/types';
 import type {
   eventWithTime,
   eventWithoutTime,
   serializedNodeWithId,
   mutationCallBack,
-} from '@junify-app/types';
+} from '@rrweb/types';
 import type { StylesheetManager } from './stylesheet-manager';
 
 export class IframeManager {
@@ -22,9 +22,15 @@ export class IframeManager {
   private mirror: Mirror;
   private mutationCb: mutationCallBack;
   private wrappedEmit: (e: eventWithoutTime, isCheckout?: boolean) => void;
-  private loadListener?: (iframeEl: HTMLIFrameElement) => unknown;
+  private loadListener?: (iframeEl: HTMLIFrameElement) => (() => void) | void;
   private stylesheetManager: StylesheetManager;
   private recordCrossOriginIframes: boolean;
+  private iframeCleanups = new Map<HTMLIFrameElement, Set<() => void>>();
+  private iframeLoadCleanups = new Map<HTMLIFrameElement, () => void>();
+  private iframeDocuments = new Map<HTMLIFrameElement, Document>();
+  private documentCleanup?: (document: Document) => void;
+  private readonly messageHandler = (message: MessageEvent) =>
+    this.handleMessage(message);
 
   constructor(options: {
     mirror: Mirror;
@@ -44,7 +50,7 @@ export class IframeManager {
     );
     this.mirror = options.mirror;
     if (this.recordCrossOriginIframes) {
-      window.addEventListener('message', this.handleMessage.bind(this));
+      window.addEventListener('message', this.messageHandler);
     }
   }
 
@@ -54,14 +60,91 @@ export class IframeManager {
       this.crossOriginIframeMap.set(iframeEl.contentWindow, iframeEl);
   }
 
-  public addLoadListener(cb: (iframeEl: HTMLIFrameElement) => unknown) {
+  public addLoadListener(
+    cb: (iframeEl: HTMLIFrameElement) => (() => void) | void,
+  ) {
     this.loadListener = cb;
+  }
+
+  public addDocumentCleanup(cb: (document: Document) => void) {
+    this.documentCleanup = cb;
+  }
+
+  public addIframeCleanup(
+    iframeEl: HTMLIFrameElement,
+    cleanup: (() => void) | void,
+  ) {
+    if (!cleanup) return;
+    let cleanups = this.iframeCleanups.get(iframeEl);
+    if (!cleanups) {
+      cleanups = new Set();
+      this.iframeCleanups.set(iframeEl, cleanups);
+    }
+    cleanups.add(cleanup);
+  }
+
+  public setIframeLoadCleanup(
+    iframeEl: HTMLIFrameElement,
+    cleanup: () => void,
+  ) {
+    this.runCleanup(this.iframeLoadCleanups.get(iframeEl));
+    this.iframeLoadCleanups.set(iframeEl, cleanup);
+  }
+
+  private runCleanup(cleanup: (() => void) | undefined) {
+    if (!cleanup) return;
+    try {
+      cleanup();
+    } catch (error) {
+      const name = (error as { name?: unknown })?.name;
+      if (name !== 'SecurityError') {
+        console.warn('[rrweb] Failed to dispose iframe observer', error);
+      }
+    }
+  }
+
+  private cleanupIframeGeneration(
+    iframeEl: HTMLIFrameElement,
+  ): Document | undefined {
+    const iframeDocument = this.iframeDocuments.get(iframeEl);
+    this.iframeDocuments.delete(iframeEl);
+    const cleanups = this.iframeCleanups.get(iframeEl);
+    this.iframeCleanups.delete(iframeEl);
+    cleanups?.forEach((cleanup) => this.runCleanup(cleanup));
+    return iframeDocument;
+  }
+
+  public cleanupIframe(iframeEl: HTMLIFrameElement): Document | undefined {
+    const iframeDocument = this.cleanupIframeGeneration(iframeEl);
+    this.runCleanup(this.iframeLoadCleanups.get(iframeEl));
+    this.iframeLoadCleanups.delete(iframeEl);
+    return iframeDocument;
+  }
+
+  public destroy() {
+    Array.from(this.iframeCleanups.keys()).forEach((iframe) =>
+      this.cleanupIframe(iframe),
+    );
+    Array.from(this.iframeLoadCleanups.keys()).forEach((iframe) =>
+      this.cleanupIframe(iframe),
+    );
+    if (this.recordCrossOriginIframes) {
+      window.removeEventListener('message', this.messageHandler);
+    }
+    this.loadListener = undefined;
+    this.documentCleanup = undefined;
+    this.iframes = new WeakMap();
+    this.crossOriginIframeMap = new WeakMap();
+    this.crossOriginIframeRootIdMap = new WeakMap();
+    this.iframeDocuments.clear();
   }
 
   public attachIframe(
     iframeEl: HTMLIFrameElement,
     childSn: serializedNodeWithId,
   ) {
+    const previousDocument = this.cleanupIframeGeneration(iframeEl);
+    if (previousDocument) this.documentCleanup?.(previousDocument);
     this.mutationCb({
       adds: [
         {
@@ -77,13 +160,32 @@ export class IframeManager {
     });
 
     // Receive messages (events) coming from cross-origin iframes that are nested in this same-origin iframe.
-    if (this.recordCrossOriginIframes)
-      iframeEl.contentWindow?.addEventListener(
-        'message',
-        this.handleMessage.bind(this),
+    if (this.recordCrossOriginIframes && iframeEl.contentWindow) {
+      const iframeWindow = iframeEl.contentWindow;
+      iframeWindow.addEventListener('message', this.messageHandler);
+      this.addIframeCleanup(iframeEl, () =>
+        iframeWindow.removeEventListener('message', this.messageHandler),
       );
+    }
 
-    this.loadListener?.(iframeEl);
+    const iframeDocument = iframeEl.contentDocument;
+    if (iframeDocument) {
+      this.iframeDocuments.set(iframeEl, iframeDocument);
+      const iframeWindow = iframeDocument.defaultView;
+      if (iframeWindow) {
+        const onPageHide = () => {
+          if (this.iframeDocuments.get(iframeEl) !== iframeDocument) return;
+          const releasedDocument = this.cleanupIframeGeneration(iframeEl);
+          if (releasedDocument)
+            this.runCleanup(() => this.documentCleanup?.(releasedDocument));
+        };
+        iframeWindow.addEventListener('pagehide', onPageHide);
+        this.addIframeCleanup(iframeEl, () =>
+          iframeWindow.removeEventListener('pagehide', onPageHide),
+        );
+      }
+    }
+    this.addIframeCleanup(iframeEl, this.loadListener?.(iframeEl));
 
     if (
       iframeEl.contentDocument &&
@@ -93,12 +195,13 @@ export class IframeManager {
       this.stylesheetManager.adoptStyleSheets(
         iframeEl.contentDocument.adoptedStyleSheets,
         this.mirror.getId(iframeEl.contentDocument),
+        iframeEl.contentDocument,
       );
   }
   private handleMessage(message: MessageEvent | CrossOriginIframeMessageEvent) {
     const crossOriginMessageEvent = message as CrossOriginIframeMessageEvent;
     if (
-      crossOriginMessageEvent.data.type !== '@junify-app/rrweb' ||
+      crossOriginMessageEvent.data.type !== 'rrweb' ||
       // To filter out the rrweb messages which are forwarded by some sites.
       crossOriginMessageEvent.origin !== crossOriginMessageEvent.data.origin
     )

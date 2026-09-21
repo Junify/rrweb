@@ -4,30 +4,36 @@
   "commit": false,
   "fixed": [
     [
-      "@junify-app/rrweb",
-      "@junify-app/rrweb-snapshot",
-      "@junify-app/rrdom",
-      "@junify-app/rrdom-nodejs",
-      "@junify-app/rrweb-player",
-      "@junify-app/all",
-      "@junify-app/replay",
-      "@junify-app/record",
-      "@junify-app/types",
-      "@junify-app/packer",
-      "@junify-app/utils",
-      "@junify-app/web-extension",
-      "@junify-app/rrvideo",
-      "@junify-app/rrweb-plugin-console-record",
-      "@junify-app/rrweb-plugin-console-replay",
-      "@junify-app/rrweb-plugin-sequential-id-record",
-      "@junify-app/rrweb-plugin-sequential-id-replay",
-      "@junify-app/rrweb-plugin-canvas-webrtc-record",
-      "@junify-app/rrweb-plugin-canvas-webrtc-replay"
+      "rrweb",
+      "rrweb-snapshot",
+      "rrdom",
+      "rrdom-nodejs",
+      "rrweb-player",
+      "@rrweb/all",
+      "@rrweb/replay",
+      "@rrweb/record",
+      "@rrweb/types",
+      "@rrweb/packer",
+      "@rrweb/utils",
+      "@rrweb/browser-client",
+      "@rrweb/web-extension",
+      "rrvideo",
+      "@rrweb/rrweb-plugin-console-record",
+      "@rrweb/rrweb-plugin-console-replay",
+      "@rrweb/rrweb-plugin-sequential-id-record",
+      "@rrweb/rrweb-plugin-sequential-id-replay",
+      "@rrweb/rrweb-plugin-canvas-webrtc-record",
+      "@rrweb/rrweb-plugin-canvas-webrtc-replay",
+      "@rrweb/rrweb-plugin-network-record",
+      "@rrweb/rrweb-plugin-network-replay"
     ]
   ],
   "linked": [],
   "access": "public",
-  "baseBranch": "master",
+  "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": []
+  "ignore": [],
+  "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
+    "onlyUpdatePeerDependentsWhenOutOfRange": true
+  }
 }

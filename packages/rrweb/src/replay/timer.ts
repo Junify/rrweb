@@ -3,7 +3,7 @@ import {
   type eventWithTime,
   EventType,
   IncrementalSource,
-} from '@junify-app/types';
+} from '@rrweb/types';
 
 export class Timer {
   public timeOffset = 0;
@@ -12,6 +12,7 @@ export class Timer {
   private actions: actionWithDelay[];
   private raf: number | true | null = null;
   private lastTimestamp: number;
+  private generation = 0;
 
   constructor(
     actions: actionWithDelay[] = [],
@@ -39,17 +40,31 @@ export class Timer {
       this.actions.splice(index, 0, action);
     }
     if (rafWasActive) {
-      this.raf = requestAnimationFrame(this.rafCheck.bind(this));
+      this.scheduleAnimationFrame();
     }
   }
 
   public start() {
+    this.generation++;
     this.timeOffset = 0;
     this.lastTimestamp = performance.now();
-    this.raf = requestAnimationFrame(this.rafCheck.bind(this));
+    this.scheduleAnimationFrame();
   }
 
-  private rafCheck() {
+  public updateLiveTime() {
+    if (this.raf === true) {
+      // in live mode awaiting new events
+      // we don't run requestAnimationFrame
+      this.rafCheck(this.generation); // updates timeOffset
+    }
+  }
+
+  private scheduleAnimationFrame(generation = this.generation) {
+    this.raf = requestAnimationFrame(() => this.rafCheck(generation));
+  }
+
+  private rafCheck(generation: number) {
+    if (generation !== this.generation) return;
     const time = performance.now();
     this.timeOffset += (time - this.lastTimestamp) * this.speed;
     this.lastTimestamp = time;
@@ -64,20 +79,18 @@ export class Timer {
       }
     }
     if (this.actions.length > 0) {
-      this.raf = requestAnimationFrame(this.rafCheck.bind(this));
+      this.scheduleAnimationFrame(generation);
     } else {
       this.raf = true; // was active
     }
   }
 
   public clear() {
-    if (this.raf) {
-      if (this.raf !== true) {
-        cancelAnimationFrame(this.raf);
-      }
-      this.raf = null;
-    }
+    const raf = this.raf;
+    this.generation++;
+    this.raf = null;
     this.actions.length = 0;
+    if (raf && raf !== true) cancelAnimationFrame(raf);
   }
 
   public setSpeed(speed: number) {

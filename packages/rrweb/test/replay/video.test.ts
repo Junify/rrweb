@@ -17,8 +17,6 @@ import videoPlaybackEvents from '../events/video-playback';
 import videoPlaybackOnFullSnapshotEvents from '../events/video-playback-on-full-snapshot';
 expect.extend({ toMatchImageSnapshot });
 
-const VIDEO_SNAPSHOT_THRESHOLD = 0.12;
-
 type IWindow = typeof globalThis & Window & { replayer: Replayer };
 
 async function waitForVideoTo(triggerEventType: string, page: puppeteer.Page) {
@@ -34,36 +32,6 @@ async function waitForVideoTo(triggerEventType: string, page: puppeteer.Page) {
     triggerEventType,
   );
   await waitForRAF(page);
-}
-
-// Chromium occasionally renders native controls over the replayed video even when
-// the attributes in the recorded fixtures expect a bare frame. Those overlays add
-// bright UI chrome and blow up our image snapshots, so we explicitly strip them
-// before taking screenshots to keep the diff focused on the actual replay output.
-async function disableVideoControls(page: puppeteer.Page) {
-  return await page.evaluate(() => {
-    const iframe = document.querySelector('iframe');
-    const doc = iframe?.contentDocument;
-    if (!doc) return false;
-    const video = doc.querySelector('video');
-    if (!video) return false;
-
-    (video as HTMLVideoElement).controls = false;
-    video.removeAttribute('controls');
-
-    const styleId = '__rrweb-disable-video-controls';
-    if (!doc.getElementById(styleId)) {
-      const style = doc.createElement('style');
-      style.id = styleId;
-      style.textContent = `
-        video::-webkit-media-controls { display: none !important; }
-        video::-webkit-media-controls-enclosure { display: none !important; }
-      `;
-      doc.head.appendChild(style);
-    }
-
-    return true;
-  });
 }
 
 describe('video', () => {
@@ -113,13 +81,10 @@ describe('video', () => {
     // wait till video is done seeking
     await wait;
 
-    const controlsRemoved = await disableVideoControls(page);
-    expect(controlsRemoved).toBe(true);
-    await waitForRAF(page);
     const frameImage = await page!.screenshot();
     await waitForRAF(page);
     expect(frameImage).toMatchImageSnapshot({
-      failureThreshold: VIDEO_SNAPSHOT_THRESHOLD,
+      failureThreshold: 0.05,
       failureThresholdType: 'percent',
     });
   });
@@ -137,13 +102,10 @@ describe('video', () => {
     // wait till video is done seeking
     await wait;
 
-    const controlsRemoved = await disableVideoControls(page);
-    expect(controlsRemoved).toBe(true);
-    await waitForRAF(page);
     const frameImage = await page!.screenshot();
     await waitForRAF(page);
     expect(frameImage).toMatchImageSnapshot({
-      failureThreshold: VIDEO_SNAPSHOT_THRESHOLD,
+      failureThreshold: 0.05,
       failureThresholdType: 'percent',
     });
   });
@@ -159,14 +121,11 @@ describe('video', () => {
     // loading indicator lingers quite often
     await page.waitForTimeout(1000);
 
-    const controlsRemoved = await disableVideoControls(page);
-    expect(controlsRemoved).toBe(true);
-    await waitForRAF(page);
     const frameImage = await page!.screenshot();
 
     await waitForRAF(page);
     expect(frameImage).toMatchImageSnapshot({
-      failureThreshold: VIDEO_SNAPSHOT_THRESHOLD,
+      failureThreshold: 0.05,
       failureThresholdType: 'percent',
     });
   });
@@ -193,13 +152,10 @@ describe('video', () => {
     );
     await waitForRAF(page);
 
-    const controlsRemoved = await disableVideoControls(page);
-    expect(controlsRemoved).toBe(true);
-    await waitForRAF(page);
     const frameImage = await page!.screenshot();
     await waitForRAF(page);
     expect(frameImage).toMatchImageSnapshot({
-      failureThreshold: VIDEO_SNAPSHOT_THRESHOLD,
+      failureThreshold: 0.05,
       failureThresholdType: 'percent',
     });
 

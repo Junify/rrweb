@@ -7,8 +7,8 @@ import type {
   listenerHandler,
   eventWithTime,
   mutationData,
-} from '@junify-app/types';
-import { EventType, IncrementalSource } from '@junify-app/types';
+} from '@rrweb/types';
+import { EventType, IncrementalSource } from '@rrweb/types';
 import {
   assertSnapshot,
   getServerURL,

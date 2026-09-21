@@ -14,8 +14,13 @@ import {
   ISuite,
 } from './utils';
 import type { recordOptions } from '../src/types';
-import { eventWithTime, NodeType, EventType } from '@junify-app/types';
-import { visitSnapshot } from '@junify-app/rrweb-snapshot';
+import {
+  eventWithTime,
+  NodeType,
+  EventType,
+  IncrementalSource,
+} from '@rrweb/types';
+import { visitSnapshot } from 'rrweb-snapshot';
 
 describe('record integration tests', function (this: ISuite) {
   vi.setConfig({ testTimeout: 10_000 });
@@ -99,6 +104,1103 @@ describe('record integration tests', function (this: ISuite) {
       'window.snapshots',
     )) as eventWithTime[];
     await assertSnapshot(snapshots);
+  });
+
+  it('keeps hidden values out of serialized FullSnapshot and IncrementalSnapshot payloads', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const initialSecret = 'hidden-full-secret-001';
+    const attributeSecret = 'hidden-attribute-secret-0002';
+    const inputSecret = 'hidden-input-secret-00003';
+    const addedSecret = 'hidden-added-secret-000004';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="hidden-private" type="hidden" value="${initialSecret}">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskAllInputs: true,
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ attributeSecret, addedSecret }) => {
+        const hidden = document.querySelector(
+          '#hidden-private',
+        ) as HTMLInputElement;
+        hidden.setAttribute('value', attributeSecret);
+
+        const added = document.createElement('input');
+        added.id = 'hidden-added';
+        added.type = 'hidden';
+        added.value = addedSecret;
+        document.body.append(added);
+      },
+      { attributeSecret, addedSecret },
+    );
+    await waitForRAF(page);
+    await page.evaluate((inputSecret) => {
+      const hidden = document.querySelector(
+        '#hidden-private',
+      ) as HTMLInputElement;
+      hidden.value = inputSecret;
+      hidden.dispatchEvent(new Event('input', { bubbles: true }));
+    }, inputSecret);
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullSnapshot = events.find(
+      (event) => event.type === EventType.FullSnapshot,
+    );
+    const incrementalSnapshots = events.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        (event.data.source === IncrementalSource.Mutation ||
+          event.data.source === IncrementalSource.Input),
+    );
+    const fullPayload = JSON.stringify(fullSnapshot);
+    const incrementalPayload = JSON.stringify(incrementalSnapshots);
+
+    expect(fullSnapshot).toBeDefined();
+    expect(incrementalSnapshots.length).toBeGreaterThanOrEqual(2);
+    expect(fullPayload).not.toContain(initialSecret);
+    expect(fullPayload).toContain('*'.repeat(initialSecret.length));
+    for (const secret of [attributeSecret, inputSecret, addedSecret]) {
+      expect(incrementalPayload).not.toContain(secret);
+      expect(incrementalPayload).toContain('*'.repeat(secret.length));
+    }
+  });
+
+  it('masks value mutations using hidden and autocomplete states from the same batch', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const hiddenValueBeforeType = 'hidden-value-before-type-001';
+    const hiddenTypeBeforeValue = 'hidden-type-before-value-0002';
+    const autocompleteValueBeforeRemoval =
+      'autocomplete-value-before-removal-00003';
+    const autocompleteRemovalBeforeValue =
+      'autocomplete-removal-before-value-000004';
+    const visibleControl = 'normal-text-value-control-0000005';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="hidden-value-before-type" type="hidden" value="">
+      <input id="hidden-type-before-value" type="hidden" value="">
+      <input id="autocomplete-value-before-removal" type="text" autocomplete="current-password" value="">
+      <input id="autocomplete-removal-before-value" type="text" autocomplete="cc-number" value="">
+      <input id="normal-text-control" type="text" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { hidden: true },
+        maskInputFn: (value, element) =>
+          element.id.startsWith('autocomplete')
+            ? value
+            : '*'.repeat(value.length),
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({
+        hiddenValueBeforeType,
+        hiddenTypeBeforeValue,
+        autocompleteValueBeforeRemoval,
+        autocompleteRemovalBeforeValue,
+        visibleControl,
+      }) => {
+        const hiddenValueFirst = document.querySelector(
+          '#hidden-value-before-type',
+        ) as HTMLInputElement;
+        hiddenValueFirst.setAttribute('value', hiddenValueBeforeType);
+        hiddenValueFirst.setAttribute('type', 'text');
+
+        const hiddenTypeFirst = document.querySelector(
+          '#hidden-type-before-value',
+        ) as HTMLInputElement;
+        hiddenTypeFirst.setAttribute('type', 'text');
+        hiddenTypeFirst.setAttribute('value', hiddenTypeBeforeValue);
+
+        const autocompleteValueFirst = document.querySelector(
+          '#autocomplete-value-before-removal',
+        ) as HTMLInputElement;
+        autocompleteValueFirst.setAttribute(
+          'value',
+          autocompleteValueBeforeRemoval,
+        );
+        autocompleteValueFirst.removeAttribute('autocomplete');
+
+        const autocompleteRemovalFirst = document.querySelector(
+          '#autocomplete-removal-before-value',
+        ) as HTMLInputElement;
+        autocompleteRemovalFirst.removeAttribute('autocomplete');
+        autocompleteRemovalFirst.setAttribute(
+          'value',
+          autocompleteRemovalBeforeValue,
+        );
+
+        document
+          .querySelector('#normal-text-control')
+          ?.setAttribute('value', visibleControl);
+      },
+      {
+        hiddenValueBeforeType,
+        hiddenTypeBeforeValue,
+        autocompleteValueBeforeRemoval,
+        autocompleteRemovalBeforeValue,
+        visibleControl,
+      },
+    );
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullSnapshot = events.find(
+      (event) => event.type === EventType.FullSnapshot,
+    );
+    expect(fullSnapshot?.type).toBe(EventType.FullSnapshot);
+    const ids = new Map<string, number>();
+    if (fullSnapshot?.type === EventType.FullSnapshot) {
+      visitSnapshot(fullSnapshot.data.node, (node) => {
+        if (
+          node.type === NodeType.Element &&
+          typeof node.attributes.id === 'string'
+        ) {
+          ids.set(node.attributes.id, node.id);
+        }
+      });
+    }
+    const attributes = events.flatMap((event) =>
+      event.type === EventType.IncrementalSnapshot &&
+      event.data.source === IncrementalSource.Mutation
+        ? event.data.attributes
+        : [],
+    );
+    const attributesFor = (id: string) =>
+      attributes.find((mutation) => mutation.id === ids.get(id))?.attributes;
+
+    const hiddenValueFirst = attributesFor('hidden-value-before-type');
+    const hiddenTypeFirst = attributesFor('hidden-type-before-value');
+    const autocompleteValueFirst = attributesFor(
+      'autocomplete-value-before-removal',
+    );
+    const autocompleteRemovalFirst = attributesFor(
+      'autocomplete-removal-before-value',
+    );
+    const normalText = attributesFor('normal-text-control');
+
+    expect.soft(hiddenValueFirst).toMatchObject({
+      type: 'text',
+      value: '*'.repeat(hiddenValueBeforeType.length),
+    });
+    expect.soft(hiddenTypeFirst).toMatchObject({
+      type: 'text',
+      value: '*'.repeat(hiddenTypeBeforeValue.length),
+    });
+    expect.soft(autocompleteValueFirst).toMatchObject({
+      autocomplete: null,
+      value: '*'.repeat(autocompleteValueBeforeRemoval.length),
+    });
+    expect.soft(autocompleteRemovalFirst).toMatchObject({
+      autocomplete: null,
+      value: '*'.repeat(autocompleteRemovalBeforeValue.length),
+    });
+    expect(normalText).toMatchObject({ value: visibleControl });
+    for (const secret of [
+      hiddenValueBeforeType,
+      hiddenTypeBeforeValue,
+      autocompleteValueBeforeRemoval,
+      autocompleteRemovalBeforeValue,
+    ]) {
+      expect(JSON.stringify(attributes)).not.toContain(secret);
+    }
+  });
+
+  it('masks configured placeholder snapshots and mutations while preserving removal and controls', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const initialSecret = 'placeholder-full-secret-001';
+    const attributeSecret = 'placeholder-attribute-secret-0002';
+    const addedSecret = 'placeholder-added-secret-00003';
+    const visibleControl = 'placeholder-visible-control-000004';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="placeholder-private" type="password" placeholder="${initialSecret}">
+      <input id="placeholder-control" type="text" placeholder="control-initial">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { password: true, textarea: true },
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ attributeSecret, addedSecret, visibleControl }) => {
+        document
+          .querySelector('#placeholder-private')
+          ?.setAttribute('placeholder', attributeSecret);
+        document
+          .querySelector('#placeholder-control')
+          ?.setAttribute('placeholder', visibleControl);
+        const added = document.createElement('textarea');
+        added.id = 'placeholder-added';
+        added.placeholder = addedSecret;
+        document.body.append(added);
+      },
+      { attributeSecret, addedSecret, visibleControl },
+    );
+    await waitForRAF(page);
+    await page.evaluate(() => {
+      document
+        .querySelector('#placeholder-private')
+        ?.removeAttribute('placeholder');
+    });
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullPayload = JSON.stringify(
+      events.find((event) => event.type === EventType.FullSnapshot),
+    );
+    const mutationEvents = events.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        event.data.source === IncrementalSource.Mutation,
+    );
+    const incrementalPayload = JSON.stringify(mutationEvents);
+
+    expect(fullPayload).not.toContain(initialSecret);
+    expect(fullPayload).toContain('*'.repeat(initialSecret.length));
+    for (const secret of [attributeSecret, addedSecret]) {
+      expect(incrementalPayload).not.toContain(secret);
+      expect(incrementalPayload).toContain('*'.repeat(secret.length));
+    }
+    expect(incrementalPayload).toContain(visibleControl);
+    expect(
+      mutationEvents.some(
+        (event) =>
+          event.type === EventType.IncrementalSnapshot &&
+          event.data.source === IncrementalSource.Mutation &&
+          event.data.attributes.some(
+            ({ attributes }) => attributes.placeholder === null,
+          ),
+      ),
+    ).toBe(true);
+  });
+
+  it('forces sensitive autocomplete values out of FullSnapshot, mutation, add, and Input payloads', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const initialSecret = 'autocomplete-full-secret-001';
+    const attributeSecret = 'autocomplete-attribute-secret-0002';
+    const inputSecret = 'autocomplete-input-secret-00003';
+    const addedSecret = 'autocomplete-added-secret-000004';
+    const visibleControl = 'autocomplete-name-visible-control-000005';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="autocomplete-private" type="text" autocomplete="section-checkout SHIPPING Current-Password" value="${initialSecret}">
+      <input id="autocomplete-control" type="text" autocomplete="name" value="${visibleControl}">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputFn: (value) => value,
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ attributeSecret, addedSecret }) => {
+        document
+          .querySelector('#autocomplete-private')
+          ?.setAttribute('value', attributeSecret);
+        const added = document.createElement('input');
+        added.id = 'autocomplete-added';
+        added.autocomplete = 'section-payment CC-CSC';
+        added.value = addedSecret;
+        document.body.append(added);
+      },
+      { attributeSecret, addedSecret },
+    );
+    await waitForRAF(page);
+    await page.evaluate((inputSecret) => {
+      const input = document.querySelector(
+        '#autocomplete-private',
+      ) as HTMLInputElement;
+      input.value = inputSecret;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }, inputSecret);
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullPayload = JSON.stringify(
+      events.find((event) => event.type === EventType.FullSnapshot),
+    );
+    const incrementalPayload = JSON.stringify(
+      events.filter(
+        (event) =>
+          event.type === EventType.IncrementalSnapshot &&
+          (event.data.source === IncrementalSource.Mutation ||
+            event.data.source === IncrementalSource.Input),
+      ),
+    );
+
+    expect(fullPayload).not.toContain(initialSecret);
+    expect(fullPayload).toContain('*'.repeat(initialSecret.length));
+    expect(fullPayload).toContain(visibleControl);
+    for (const secret of [attributeSecret, inputSecret, addedSecret]) {
+      expect(incrementalPayload).not.toContain(secret);
+      expect(incrementalPayload).toContain('*'.repeat(secret.length));
+    }
+  });
+
+  it('masks password value attributes in both same-batch type mutation orders', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const initialSecret = 'password-full-secret-001';
+    const valueBeforeTypeSecret = 'password-value-before-type-secret-0002';
+    const typeBeforeValueSecret = 'password-type-before-value-secret-00003';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="password-initial" type="password" value="${initialSecret}">
+      <input id="password-value-before-type" type="password" value="">
+      <input id="password-type-before-value" type="password" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { password: true },
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ valueBeforeTypeSecret, typeBeforeValueSecret }) => {
+        const valueBeforeType = document.querySelector(
+          '#password-value-before-type',
+        ) as HTMLInputElement;
+        valueBeforeType.setAttribute('value', valueBeforeTypeSecret);
+        valueBeforeType.setAttribute('type', 'text');
+
+        const typeBeforeValue = document.querySelector(
+          '#password-type-before-value',
+        ) as HTMLInputElement;
+        typeBeforeValue.setAttribute('type', 'text');
+        typeBeforeValue.setAttribute('value', typeBeforeValueSecret);
+      },
+      { valueBeforeTypeSecret, typeBeforeValueSecret },
+    );
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullPayload = JSON.stringify(
+      events.find((event) => event.type === EventType.FullSnapshot),
+    );
+    const mutationPayload = JSON.stringify(
+      events.filter(
+        (event) =>
+          event.type === EventType.IncrementalSnapshot &&
+          event.data.source === IncrementalSource.Mutation,
+      ),
+    );
+
+    expect(fullPayload).not.toContain(initialSecret);
+    expect(fullPayload).toContain('*'.repeat(initialSecret.length));
+    for (const secret of [valueBeforeTypeSecret, typeBeforeValueSecret]) {
+      expect(mutationPayload).not.toContain(secret);
+      expect(mutationPayload).toContain('*'.repeat(secret.length));
+    }
+  });
+
+  it('masks pre-flush Input events for post-start and temporary password states without stale masking', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const addedBeforeFlushSecret = 'added-password-before-flush-001';
+    const addedAfterFlushSecret = 'added-password-after-flush-0000000002';
+    const temporaryPasswordSecret = 'temporary-password-before-flush-00003';
+    const afterBatchVisible = 'temporary-password-visible-after-batch-000004';
+    const ordinaryVisible = 'ordinary-text-input-control-0000005';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="temporary-password-input" type="text" value="">
+      <input id="ordinary-text-input" type="text" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { password: true },
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ addedBeforeFlushSecret, temporaryPasswordSecret }) => {
+        const added = document.createElement('input');
+        added.id = 'added-password-input';
+        added.type = 'password';
+        document.body.append(added);
+        added.type = 'text';
+        added.value = addedBeforeFlushSecret;
+        added.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const temporary = document.querySelector(
+          '#temporary-password-input',
+        ) as HTMLInputElement;
+        temporary.type = 'password';
+        temporary.type = 'text';
+        temporary.value = temporaryPasswordSecret;
+        temporary.dispatchEvent(new Event('input', { bubbles: true }));
+      },
+      { addedBeforeFlushSecret, temporaryPasswordSecret },
+    );
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({ addedAfterFlushSecret, afterBatchVisible, ordinaryVisible }) => {
+        const added = document.querySelector(
+          '#added-password-input',
+        ) as HTMLInputElement;
+        added.value = addedAfterFlushSecret;
+        added.dispatchEvent(new Event('input', { bubbles: true }));
+        const temporary = document.querySelector(
+          '#temporary-password-input',
+        ) as HTMLInputElement;
+        temporary.value = afterBatchVisible;
+        temporary.dispatchEvent(new Event('input', { bubbles: true }));
+        const control = document.querySelector(
+          '#ordinary-text-input',
+        ) as HTMLInputElement;
+        control.value = ordinaryVisible;
+        control.dispatchEvent(new Event('input', { bubbles: true }));
+      },
+      { addedAfterFlushSecret, afterBatchVisible, ordinaryVisible },
+    );
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullSnapshot = events.find(
+      (event) => event.type === EventType.FullSnapshot,
+    );
+    expect(fullSnapshot?.type).toBe(EventType.FullSnapshot);
+    let temporaryId = -1;
+    let ordinaryId = -1;
+    if (fullSnapshot?.type === EventType.FullSnapshot) {
+      visitSnapshot(fullSnapshot.data.node, (node) => {
+        if (node.type !== NodeType.Element) return;
+        if (node.attributes.id === 'temporary-password-input') {
+          temporaryId = node.id;
+        }
+        if (node.attributes.id === 'ordinary-text-input') {
+          ordinaryId = node.id;
+        }
+      });
+    }
+    let addedId = -1;
+    for (const event of events) {
+      if (
+        event.type !== EventType.IncrementalSnapshot ||
+        event.data.source !== IncrementalSource.Mutation
+      ) {
+        continue;
+      }
+      for (const add of event.data.adds) {
+        visitSnapshot(add.node, (node) => {
+          if (
+            node.type === NodeType.Element &&
+            node.attributes.id === 'added-password-input'
+          ) {
+            addedId = node.id;
+          }
+        });
+      }
+    }
+    const inputEvents = events.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        event.data.source === IncrementalSource.Input,
+    );
+
+    expect(temporaryId).toBeGreaterThan(0);
+    expect(ordinaryId).toBeGreaterThan(0);
+    expect(addedId).toBeGreaterThan(0);
+    expect(JSON.stringify(inputEvents)).not.toContain(addedBeforeFlushSecret);
+    expect(JSON.stringify(inputEvents)).not.toContain(temporaryPasswordSecret);
+    expect(inputEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: -1,
+            text: '*'.repeat(addedBeforeFlushSecret.length),
+          }),
+        }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: addedId,
+            text: '*'.repeat(addedAfterFlushSecret.length),
+          }),
+        }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: temporaryId,
+            text: '*'.repeat(temporaryPasswordSecret.length),
+          }),
+        }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: temporaryId,
+            text: afterBatchVisible,
+          }),
+        }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: ordinaryId,
+            text: ordinaryVisible,
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it('masks pre-flush Input events for password attribute methods without stale masking', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const addedSetSecret = 'attribute-added-set-password-secret-001';
+    const addedRemoveSecret = 'attribute-added-remove-password-secret-0002';
+    const assignedSetSecret = 'attribute-assigned-set-password-secret-00003';
+    const assignedRemoveSecret =
+      'attribute-assigned-remove-password-secret-000004';
+    const visibleValues = {
+      addedSet: 'attribute-added-set-visible-after-batch-0000005',
+      addedRemove: 'attribute-added-remove-visible-after-batch-00000006',
+      assignedSet: 'attribute-assigned-set-visible-after-batch-000000007',
+      assignedRemove:
+        'attribute-assigned-remove-visible-after-batch-0000000008',
+      ordinary: 'attribute-method-ordinary-control-visible-00000000009',
+    };
+    await page.setContent(`<!doctype html><html><body>
+      <input id="attribute-assigned-set" type="text" value="">
+      <input id="attribute-assigned-remove" type="text" value="">
+      <input id="attribute-method-control" type="text" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { password: true },
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate(
+      ({
+        addedSetSecret,
+        addedRemoveSecret,
+        assignedSetSecret,
+        assignedRemoveSecret,
+      }) => {
+        const addedSet = document.createElement('input');
+        addedSet.id = 'attribute-added-set';
+        document.body.append(addedSet);
+        addedSet.setAttribute('type', 'password');
+        addedSet.setAttribute('type', 'text');
+        addedSet.value = addedSetSecret;
+        addedSet.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const addedRemove = document.createElement('input');
+        addedRemove.id = 'attribute-added-remove';
+        document.body.append(addedRemove);
+        addedRemove.setAttribute('type', 'password');
+        addedRemove.removeAttribute('type');
+        addedRemove.value = addedRemoveSecret;
+        addedRemove.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const assignedSet = document.querySelector(
+          '#attribute-assigned-set',
+        ) as HTMLInputElement;
+        assignedSet.setAttribute('type', 'password');
+        assignedSet.setAttribute('type', 'text');
+        assignedSet.value = assignedSetSecret;
+        assignedSet.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const assignedRemove = document.querySelector(
+          '#attribute-assigned-remove',
+        ) as HTMLInputElement;
+        assignedRemove.setAttribute('type', 'password');
+        assignedRemove.removeAttribute('type');
+        assignedRemove.value = assignedRemoveSecret;
+        assignedRemove.dispatchEvent(new Event('input', { bubbles: true }));
+      },
+      {
+        addedSetSecret,
+        addedRemoveSecret,
+        assignedSetSecret,
+        assignedRemoveSecret,
+      },
+    );
+    await waitForRAF(page);
+
+    await page.evaluate((visibleValues) => {
+      const values = [
+        ['#attribute-added-set', visibleValues.addedSet],
+        ['#attribute-added-remove', visibleValues.addedRemove],
+        ['#attribute-assigned-set', visibleValues.assignedSet],
+        ['#attribute-assigned-remove', visibleValues.assignedRemove],
+      ] as const;
+      values.forEach(([selector, value]) => {
+        const input = document.querySelector(selector) as HTMLInputElement;
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      const ordinary = document.querySelector(
+        '#attribute-method-control',
+      ) as HTMLInputElement;
+      ordinary.setAttribute('data-privacy-control', 'unchanged');
+      ordinary.setAttribute('type', 'email');
+      ordinary.value = visibleValues.ordinary;
+      ordinary.dispatchEvent(new Event('input', { bubbles: true }));
+    }, visibleValues);
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullSnapshot = events.find(
+      (event) => event.type === EventType.FullSnapshot,
+    );
+    expect(fullSnapshot?.type).toBe(EventType.FullSnapshot);
+    const ids = new Map<string, number>();
+    if (fullSnapshot?.type === EventType.FullSnapshot) {
+      visitSnapshot(fullSnapshot.data.node, (node) => {
+        if (
+          node.type === NodeType.Element &&
+          typeof node.attributes.id === 'string'
+        ) {
+          ids.set(node.attributes.id, node.id);
+        }
+      });
+    }
+    events.forEach((event) => {
+      if (
+        event.type !== EventType.IncrementalSnapshot ||
+        event.data.source !== IncrementalSource.Mutation
+      ) {
+        return;
+      }
+      event.data.adds.forEach((add) => {
+        visitSnapshot(add.node, (node) => {
+          if (
+            node.type === NodeType.Element &&
+            typeof node.attributes.id === 'string'
+          ) {
+            ids.set(node.attributes.id, node.id);
+          }
+        });
+      });
+    });
+    const inputEvents = events.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        event.data.source === IncrementalSource.Input,
+    );
+    const hasInput = (id: number, text: string) =>
+      inputEvents.some(
+        (event) => event.data.id === id && event.data.text === text,
+      );
+    expect.soft(hasInput(-1, '*'.repeat(addedSetSecret.length))).toBe(true);
+    expect.soft(hasInput(-1, '*'.repeat(addedRemoveSecret.length))).toBe(true);
+    expect
+      .soft(
+        hasInput(
+          ids.get('attribute-assigned-set') as number,
+          '*'.repeat(assignedSetSecret.length),
+        ),
+      )
+      .toBe(true);
+    expect
+      .soft(
+        hasInput(
+          ids.get('attribute-assigned-remove') as number,
+          '*'.repeat(assignedRemoveSecret.length),
+        ),
+      )
+      .toBe(true);
+    expect(
+      hasInput(
+        ids.get('attribute-added-set') as number,
+        visibleValues.addedSet,
+      ),
+    ).toBe(true);
+    expect(
+      hasInput(
+        ids.get('attribute-added-remove') as number,
+        visibleValues.addedRemove,
+      ),
+    ).toBe(true);
+    expect(
+      hasInput(
+        ids.get('attribute-assigned-set') as number,
+        visibleValues.assignedSet,
+      ),
+    ).toBe(true);
+    expect(
+      hasInput(
+        ids.get('attribute-assigned-remove') as number,
+        visibleValues.assignedRemove,
+      ),
+    ).toBe(true);
+    expect(
+      hasInput(
+        ids.get('attribute-method-control') as number,
+        visibleValues.ordinary,
+      ),
+    ).toBe(true);
+    for (const secret of [
+      addedSetSecret,
+      addedRemoveSecret,
+      assignedSetSecret,
+      assignedRemoveSecret,
+    ]) {
+      expect.soft(JSON.stringify(inputEvents)).not.toContain(secret);
+    }
+  });
+
+  it('restores password attribute method hooks across stop and restart', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const restartSecret = 'attribute-method-restart-password-secret-001';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="attribute-method-restart" type="text" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    const firstCycle = await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        rrweb: typeof import('../src');
+      };
+      const originalSetAttribute = Element.prototype.setAttribute;
+      const originalRemoveAttribute = Element.prototype.removeAttribute;
+      const stop = pageWindow.rrweb.record({ emit: () => undefined });
+      const setWrapped =
+        Element.prototype.setAttribute !== originalSetAttribute;
+      const removeWrapped =
+        Element.prototype.removeAttribute !== originalRemoveAttribute;
+      stop?.();
+      stop?.();
+      return {
+        setWrapped,
+        removeWrapped,
+        setRestored: Element.prototype.setAttribute === originalSetAttribute,
+        removeRestored:
+          Element.prototype.removeAttribute === originalRemoveAttribute,
+      };
+    });
+    expect(firstCycle).toEqual({
+      setWrapped: true,
+      removeWrapped: true,
+      setRestored: true,
+      removeRestored: true,
+    });
+
+    const restartEvents = await page.evaluate(async (restartSecret) => {
+      const pageWindow = window as typeof window & {
+        rrweb: typeof import('../src');
+      };
+      const events: eventWithTime[] = [];
+      const originalSetAttribute = Element.prototype.setAttribute;
+      const originalRemoveAttribute = Element.prototype.removeAttribute;
+      const stop = pageWindow.rrweb.record({
+        emit: (event) => events.push(event),
+        maskInputOptions: { password: true },
+      });
+      const input = document.querySelector(
+        '#attribute-method-restart',
+      ) as HTMLInputElement;
+      input.setAttribute('type', 'password');
+      input.setAttribute('type', 'text');
+      input.value = restartSecret;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      stop?.();
+      if (
+        Element.prototype.setAttribute !== originalSetAttribute ||
+        Element.prototype.removeAttribute !== originalRemoveAttribute
+      ) {
+        throw new Error(
+          'attribute method hooks were not restored after restart',
+        );
+      }
+      return events;
+    }, restartSecret);
+    const restartInputEvents = restartEvents.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        event.data.source === IncrementalSource.Input,
+    );
+    expect(JSON.stringify(restartInputEvents)).not.toContain(restartSecret);
+    expect(JSON.stringify(restartInputEvents)).toContain(
+      '*'.repeat(restartSecret.length),
+    );
+
+    const preservesLaterPatch = await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        rrweb: typeof import('../src');
+      };
+      const stop = pageWindow.rrweb.record({ emit: () => undefined });
+      const recorderSetAttribute = Element.prototype.setAttribute;
+      const recorderRemoveAttribute = Element.prototype.removeAttribute;
+      const thirdPartySetAttribute = new Proxy(recorderSetAttribute, {});
+      const thirdPartyRemoveAttribute = new Proxy(recorderRemoveAttribute, {});
+      Element.prototype.setAttribute = thirdPartySetAttribute;
+      Element.prototype.removeAttribute = thirdPartyRemoveAttribute;
+      stop?.();
+      return (
+        Element.prototype.setAttribute === thirdPartySetAttribute &&
+        Element.prototype.removeAttribute === thirdPartyRemoveAttribute
+      );
+    });
+    await page.close();
+    expect(preservesLaterPatch).toBe(true);
+  });
+
+  it('keeps preserved third-party attribute wrappers inert after stop and active after restart', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const visibleAfterFirstStop =
+      'attribute-method-visible-after-first-stop-001';
+    const restartSecret = 'attribute-method-restart-secret-0002';
+    await page.setContent(`<!doctype html><html><body>
+      <input id="attribute-method-lifecycle" type="text" value="">
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    const result = await page.evaluate(
+      async ({ visibleAfterFirstStop, restartSecret }) => {
+        const pageWindow = window as typeof window & {
+          rrweb: typeof import('../src');
+        };
+        const input = document.querySelector(
+          '#attribute-method-lifecycle',
+        ) as HTMLInputElement;
+        const stopFirst = pageWindow.rrweb.record({ emit: () => undefined });
+        const firstRecorderSetAttribute = Element.prototype.setAttribute;
+        const firstRecorderRemoveAttribute = Element.prototype.removeAttribute;
+        const thirdPartySetAttribute = new Proxy(firstRecorderSetAttribute, {});
+        const thirdPartyRemoveAttribute = new Proxy(
+          firstRecorderRemoveAttribute,
+          {},
+        );
+        Element.prototype.setAttribute = thirdPartySetAttribute;
+        Element.prototype.removeAttribute = thirdPartyRemoveAttribute;
+        stopFirst?.();
+        stopFirst?.();
+        const thirdPartyPreservedAfterFirstStop =
+          Element.prototype.setAttribute === thirdPartySetAttribute &&
+          Element.prototype.removeAttribute === thirdPartyRemoveAttribute;
+
+        const nativeSetTimeout = window.setTimeout;
+        let firstInactiveScheduled = 0;
+        window.setTimeout = new Proxy(nativeSetTimeout, {
+          apply(target, thisArg, argumentsList) {
+            firstInactiveScheduled += 1;
+            return Reflect.apply(target, thisArg, argumentsList);
+          },
+        });
+        input.setAttribute('type', 'password');
+        input.removeAttribute('type');
+        window.setTimeout = nativeSetTimeout;
+
+        const restartEvents: eventWithTime[] = [];
+        const stopRestart = pageWindow.rrweb.record({
+          emit: (event) => restartEvents.push(event),
+          maskInputOptions: { password: true },
+        });
+        input.value = visibleAfterFirstStop;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise((resolve) => nativeSetTimeout(resolve, 40));
+        input.setAttribute('type', 'password');
+        input.setAttribute('type', 'text');
+        input.value = restartSecret;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise((resolve) => nativeSetTimeout(resolve, 40));
+        stopRestart?.();
+        stopRestart?.();
+        const thirdPartyPreservedAfterRestart =
+          Element.prototype.setAttribute === thirdPartySetAttribute &&
+          Element.prototype.removeAttribute === thirdPartyRemoveAttribute;
+
+        let secondInactiveScheduled = 0;
+        window.setTimeout = new Proxy(nativeSetTimeout, {
+          apply(target, thisArg, argumentsList) {
+            secondInactiveScheduled += 1;
+            return Reflect.apply(target, thisArg, argumentsList);
+          },
+        });
+        input.setAttribute('type', 'password');
+        input.setAttribute('type', 'text');
+        window.setTimeout = nativeSetTimeout;
+
+        return {
+          firstInactiveScheduled,
+          secondInactiveScheduled,
+          thirdPartyPreservedAfterFirstStop,
+          thirdPartyPreservedAfterRestart,
+          restartEvents,
+        };
+      },
+      { visibleAfterFirstStop, restartSecret },
+    );
+    await page.close();
+
+    expect.soft(result.firstInactiveScheduled).toBe(0);
+    expect.soft(result.secondInactiveScheduled).toBe(0);
+    expect(result.thirdPartyPreservedAfterFirstStop).toBe(true);
+    expect(result.thirdPartyPreservedAfterRestart).toBe(true);
+    const fullSnapshot = result.restartEvents.find(
+      (event) => event.type === EventType.FullSnapshot,
+    );
+    expect(fullSnapshot?.type).toBe(EventType.FullSnapshot);
+    let inputId = -1;
+    if (fullSnapshot?.type === EventType.FullSnapshot) {
+      visitSnapshot(fullSnapshot.data.node, (node) => {
+        if (
+          node.type === NodeType.Element &&
+          node.attributes.id === 'attribute-method-lifecycle'
+        ) {
+          inputId = node.id;
+        }
+      });
+    }
+    expect(inputId).toBeGreaterThan(0);
+    const restartInputEvents = result.restartEvents.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        event.data.source === IncrementalSource.Input &&
+        event.data.id === inputId,
+    );
+    expect
+      .soft(
+        restartInputEvents.some(
+          (event) => event.data.text === visibleAfterFirstStop,
+        ),
+      )
+      .toBe(true);
+    expect(
+      restartInputEvents.some(
+        (event) => event.data.text === '*'.repeat(restartSecret.length),
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(restartInputEvents)).not.toContain(restartSecret);
+  });
+
+  it('keeps configured textarea initial, add, attribute, child, and Input values out of payloads', async () => {
+    const page: puppeteer.Page = await browser.newPage();
+    const initialSecret = 'textarea-full-secret-001';
+    const addedSecret = 'textarea-added-secret-0002';
+    const attributeSecret = 'textarea-attribute-secret-00003';
+    const childSecret = 'textarea-child-secret-000004';
+    const inputSecret = 'textarea-input-secret-000005';
+    await page.setContent(`<!doctype html><html><body>
+      <textarea id="textarea-private">${initialSecret}</textarea>
+    </body></html>`);
+    await page.addScriptTag({ content: code });
+    await page.evaluate(() => {
+      const pageWindow = window as typeof window & {
+        snapshots?: eventWithTime[];
+        rrweb: typeof import('../src');
+      };
+      pageWindow.snapshots = [];
+      pageWindow.rrweb.record({
+        emit: (event) => pageWindow.snapshots?.push(event),
+        maskInputOptions: { textarea: true },
+      });
+    });
+    await waitForRAF(page);
+
+    await page.evaluate((addedSecret) => {
+      const added = document.createElement('textarea');
+      added.id = 'textarea-added';
+      added.textContent = addedSecret;
+      document.body.append(added);
+    }, addedSecret);
+    await waitForRAF(page);
+    await page.evaluate((attributeSecret) => {
+      document
+        .querySelector('#textarea-private')
+        ?.setAttribute('value', attributeSecret);
+    }, attributeSecret);
+    await waitForRAF(page);
+    await page.evaluate((childSecret) => {
+      const textarea = document.querySelector(
+        '#textarea-private',
+      ) as HTMLTextAreaElement;
+      textarea.textContent = childSecret;
+    }, childSecret);
+    await waitForRAF(page);
+    await page.evaluate((inputSecret) => {
+      const textarea = document.querySelector(
+        '#textarea-private',
+      ) as HTMLTextAreaElement;
+      textarea.value = inputSecret;
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    }, inputSecret);
+    await waitForRAF(page);
+
+    const events = (await page.evaluate('window.snapshots')) as eventWithTime[];
+    await page.close();
+    const fullPayload = JSON.stringify(
+      events.find((event) => event.type === EventType.FullSnapshot),
+    );
+    const incrementalPayload = JSON.stringify(
+      events.filter(
+        (event) =>
+          event.type === EventType.IncrementalSnapshot &&
+          (event.data.source === IncrementalSource.Mutation ||
+            event.data.source === IncrementalSource.Input),
+      ),
+    );
+
+    expect(fullPayload).not.toContain(initialSecret);
+    expect(fullPayload).toContain('*'.repeat(initialSecret.length));
+    for (const secret of [
+      addedSecret,
+      attributeSecret,
+      childSecret,
+      inputSecret,
+    ]) {
+      expect(incrementalPayload).not.toContain(secret);
+      expect(incrementalPayload).toContain('*'.repeat(secret.length));
+    }
   });
 
   it('can record and replay textarea mutations correctly', async () => {
@@ -770,6 +1872,9 @@ describe('record integration tests', function (this: ISuite) {
 
   it('should not record input values if dynamically added and maskAllInputs is true', async () => {
     const page: puppeteer.Page = await browser.newPage();
+    const inputPropertyValue = 'input attribute mutation should also be masked';
+    const textareaPropertyValue =
+      'textarea attribute mutation should also be masked';
     await page.goto('about:blank');
     await page.setContent(
       getHtml.call(this, 'empty.html', { maskAllInputs: true }),
@@ -796,13 +1901,76 @@ describe('record integration tests', function (this: ISuite) {
     await page.type('#input', 'moo');
     await page.type('#textarea', 'boo');
 
-    await page.evaluate(() => {
-      const el = document.querySelector('input');
-      el.value = 'input attribute mutation should also be masked';
+    await page.evaluate(
+      ({ inputPropertyValue, textareaPropertyValue }) => {
+        const el = document.querySelector('input');
+        el.value = inputPropertyValue;
 
-      const ta = document.querySelector('textarea');
-      ta.value = 'textarea attribute mutation should also be masked';
-    });
+        const ta = document.querySelector('textarea');
+        ta.value = textareaPropertyValue;
+      },
+      { inputPropertyValue, textareaPropertyValue },
+    );
+    await page.waitForFunction(
+      ({
+        inputMask,
+        textareaMask,
+        incrementalType,
+        inputSource,
+        mutationSource,
+      }) => {
+        type RecordedNode = {
+          id: number;
+          attributes?: { id?: string };
+          childNodes?: RecordedNode[];
+        };
+        type RecordedEvent = {
+          type: number;
+          data?: {
+            source?: number;
+            id?: number;
+            text?: string;
+            adds?: Array<{ node: RecordedNode }>;
+          };
+        };
+        const recorded = (
+          window as typeof window & { snapshots?: RecordedEvent[] }
+        ).snapshots;
+        if (!recorded) return false;
+        const ids = new Map<string, number>();
+        const visit = (node: RecordedNode): void => {
+          if (node.attributes?.id) ids.set(node.attributes.id, node.id);
+          node.childNodes?.forEach(visit);
+        };
+        recorded.forEach((event) => {
+          if (
+            event.type === incrementalType &&
+            event.data?.source === mutationSource
+          ) {
+            event.data.adds?.forEach((add) => visit(add.node));
+          }
+        });
+        return ['input', 'textarea'].every((nodeId) => {
+          const id = ids.get(nodeId);
+          const text = nodeId === 'input' ? inputMask : textareaMask;
+          return recorded.some(
+            (event) =>
+              event.type === incrementalType &&
+              event.data?.source === inputSource &&
+              event.data.id === id &&
+              event.data.text === text,
+          );
+        });
+      },
+      {},
+      {
+        inputMask: '*'.repeat(inputPropertyValue.length),
+        textareaMask: '*'.repeat(textareaPropertyValue.length),
+        incrementalType: EventType.IncrementalSnapshot,
+        inputSource: IncrementalSource.Input,
+        mutationSource: IncrementalSource.Mutation,
+      },
+    );
 
     await page.evaluate(() => {
       const el = document.querySelector('input');

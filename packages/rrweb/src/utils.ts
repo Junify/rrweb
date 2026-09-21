@@ -9,15 +9,12 @@ import type {
   DeprecatedMirror,
   textMutation,
   IMirror,
-} from '@junify-app/types';
-import type { Mirror, SlimDOMOptions } from '@junify-app/rrweb-snapshot';
-import {
-  isShadowRoot,
-  IGNORED_NODE,
-  classMatchesRegex,
-} from '@junify-app/rrweb-snapshot';
-import { RRNode, RRIFrameElement, BaseRRNode } from '@junify-app/rrdom';
-import dom from '@junify-app/utils';
+} from '@rrweb/types';
+import type { Mirror, SlimDOMOptions } from 'rrweb-snapshot';
+import { isShadowRoot, IGNORED_NODE, classMatchesRegex } from 'rrweb-snapshot';
+import { RRNode, RRIFrameElement, BaseRRNode } from 'rrdom';
+import dom from '@rrweb/utils';
+export { nowTimestamp } from '@rrweb/utils';
 
 export function on(
   type: string,
@@ -78,7 +75,7 @@ export function throttle<T>(
 ) {
   let timeout: ReturnType<typeof setTimeout> | null = null;
   let previous = 0;
-  return function (...args: T[]) {
+  const throttled = function (...args: T[]) {
     const now = Date.now();
     if (!previous && options.leading === false) {
       previous = now;
@@ -101,6 +98,14 @@ export function throttle<T>(
       }, remaining);
     }
   };
+  throttled.cancel = () => {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+    previous = 0;
+  };
+  return throttled;
 }
 
 export function hookSetter<T>(
@@ -111,6 +116,7 @@ export function hookSetter<T>(
   win = window,
 ): hookResetter {
   const original = win.Object.getOwnPropertyDescriptor(target, key);
+  const pending = new Set<number>();
   win.Object.defineProperty(
     target,
     key,
@@ -119,26 +125,23 @@ export function hookSetter<T>(
       : {
           set(value) {
             // put hooked setter into event loop to avoid of set latency
-            setTimeout(() => {
+            const timeout = win.setTimeout(() => {
+              pending.delete(timeout);
               d.set!.call(this, value);
             }, 0);
+            pending.add(timeout);
             if (original && original.set) {
               original.set.call(this, value);
             }
           },
         },
   );
-  return () => hookSetter(target, key, original || {}, true);
+  return () => {
+    pending.forEach((timeout) => win.clearTimeout(timeout));
+    pending.clear();
+    hookSetter(target, key, original || {}, true, win);
+  };
 }
-
-// guard against old third party libraries which redefine Date.now
-let nowTimestamp = Date.now;
-
-if (!(/*@__PURE__*/ /[1-9][0-9]{12}/.test(Date.now().toString()))) {
-  // they have already redefined it! use a fallback
-  nowTimestamp = () => new Date().getTime();
-}
-export { nowTimestamp };
 
 export function getWindowScroll(win: Window) {
   const doc = win.document;
@@ -424,18 +427,32 @@ export function hasShadowRoot<T extends Node | RRNode>(
   return Boolean(dom.shadowRoot(n as unknown as Element));
 }
 
+/**
+ * Traverses a CSSRuleList to find a nested rule at the given position.
+ *
+ * Returns null instead of throwing if the rule doesn't exist. This is important
+ * because during replay:
+ * - StyleDeclaration events may reference rules added dynamically that don't
+ *   exist yet due to timing/ordering issues
+ * - StyleSheetRule events that create rules may not have been processed yet
+ * - Constructed/adopted stylesheets may not be fully synchronized
+ *
+ * @param rules - The CSSRuleList to traverse
+ * @param position - Array of indices, e.g., [0, 1, 0] for rules[0].cssRules[1].cssRules[0]
+ * @returns The nested rule, or null if not found
+ */
 export function getNestedRule(
   rules: CSSRuleList,
   position: number[],
-): CSSGroupingRule {
-  const rule = rules[position[0]] as CSSGroupingRule;
+): CSSGroupingRule | null {
+  const rule = rules?.[position[0]] as CSSGroupingRule | null;
+  if (!rule) {
+    return null;
+  }
   if (position.length === 1) {
     return rule;
   } else {
-    return getNestedRule(
-      (rule.cssRules[position[1]] as CSSGroupingRule).cssRules,
-      position.slice(2),
-    );
+    return getNestedRule(rule.cssRules, position.slice(1));
   }
 }
 
@@ -496,6 +513,13 @@ export class StyleSheetMirror {
     return this.idStyleMap.get(id) || null;
   }
 
+  remove(stylesheet: CSSStyleSheet): void {
+    const id = this.styleIDMap.get(stylesheet);
+    if (id === undefined) return;
+    this.styleIDMap.delete(stylesheet);
+    this.idStyleMap.delete(id);
+  }
+
   reset(): void {
     this.styleIDMap = new WeakMap();
     this.idStyleMap = new Map();
@@ -536,14 +560,14 @@ export function getRootShadowHost(n: Node): Node {
 }
 
 export function shadowHostInDom(n: Node): boolean {
-  const doc = n.ownerDocument;
+  const doc = dom.ownerDocument(n);
   if (!doc) return false;
   const shadowHost = getRootShadowHost(n);
   return dom.contains(doc, shadowHost);
 }
 
 export function inDom(n: Node): boolean {
-  const doc = n.ownerDocument;
+  const doc = dom.ownerDocument(n);
   if (!doc) return false;
   return dom.contains(doc, n) || shadowHostInDom(n);
 }

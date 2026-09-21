@@ -10,7 +10,7 @@ import {
   isNativeShadowDom,
   getInputType,
   toLowerCase,
-} from '@junify-app/rrweb-snapshot';
+} from 'rrweb-snapshot';
 import type { observerParam, MutationBufferParam } from '../types';
 import type {
   mutationRecord,
@@ -19,7 +19,7 @@ import type {
   removedNodeMutation,
   addedNodeMutation,
   Optional,
-} from '@junify-app/types';
+} from '@rrweb/types';
 import {
   isBlocked,
   isAncestorRemoved,
@@ -32,7 +32,7 @@ import {
   getShadowHost,
   closestElementOfNode,
 } from '../utils';
-import dom from '@junify-app/utils';
+import dom from '@rrweb/utils';
 
 type DoubleLinkedListNode = {
   previous: DoubleLinkedListNode | null;
@@ -133,6 +133,24 @@ class DoubleLinkedList {
 }
 
 const moveKey = (id: number, parentId: number) => `${id}@${parentId}`;
+const sensitiveAutocompleteTokens = new Set([
+  'current-password',
+  'new-password',
+  'cc-number',
+  'cc-exp',
+  'cc-exp-month',
+  'cc-exp-year',
+  'cc-csc',
+]);
+
+function hasSensitiveAutocompleteToken(value: string | null): boolean {
+  if (!value) return false;
+  return value
+    .split(/[\t\n\f\r ]+/)
+    .some((token) => sensitiveAutocompleteTokens.has(toLowerCase(token)));
+}
+
+export const transientPasswordInputs = new WeakSet<HTMLElement>();
 
 /**
  * controls behaviour of a MutationObserver
@@ -144,6 +162,8 @@ export default class MutationBuffer {
   private texts: textCursor[] = [];
   private attributes: attributeCursor[] = [];
   private attributeMap = new WeakMap<Node, attributeCursor>();
+  private batchInputTypes = new WeakMap<HTMLElement, Lowercase<string>>();
+  private batchSensitiveAutocompleteInputs = new WeakSet<HTMLElement>();
   private removes: removedNodeMutation[] = [];
   private mapRemoves: Node[] = [];
 
@@ -192,7 +212,7 @@ export default class MutationBuffer {
   private shadowDomManager: observerParam['shadowDomManager'];
   private canvasManager: observerParam['canvasManager'];
   private processedNodeManager: observerParam['processedNodeManager'];
-  private unattachedDoc: HTMLDocument;
+  private unattachedDoc?: HTMLDocument;
 
   public init(options: MutationBufferParam) {
     (
@@ -251,12 +271,73 @@ export default class MutationBuffer {
     this.emit();
   }
 
-  public reset() {
-    this.shadowDomManager.reset();
-    this.canvasManager.reset();
+  public destroy() {
+    this.frozen = false;
+    this.locked = false;
+    this.texts = [];
+    this.attributes = [];
+    this.attributeMap = new WeakMap();
+    this.batchInputTypes = new WeakMap();
+    this.batchSensitiveAutocompleteInputs = new WeakSet();
+    this.removes = [];
+    this.mapRemoves = [];
+    this.movedMap = {};
+    this.addedSet = new Set();
+    this.movedSet = new Set();
+    this.droppedSet = new Set();
+    this.removesSubTreeCache = new Set();
+    this.unattachedDoc = undefined;
   }
 
+  private preservePasswordInputTypes = (mutations: mutationRecord[]) => {
+    const inputsWithKnownBatchStartType = new WeakSet<HTMLElement>();
+    mutations.forEach((mutation) => {
+      const target = mutation.target as HTMLElement;
+      if (
+        mutation.type !== 'attributes' ||
+        mutation.attributeName !== 'type' ||
+        target.tagName !== 'INPUT' ||
+        inputsWithKnownBatchStartType.has(target)
+      ) {
+        return;
+      }
+      inputsWithKnownBatchStartType.add(target);
+      if (
+        (mutation.oldValue || '').toLowerCase() === 'password' &&
+        !target.hasAttribute('data-rr-is-password')
+      ) {
+        target.setAttribute('data-rr-is-password', 'true');
+      }
+    });
+  };
+
+  private preserveBatchInputPrivacy = (mutations: mutationRecord[]) => {
+    this.batchInputTypes = new WeakMap();
+    this.batchSensitiveAutocompleteInputs = new WeakSet();
+    mutations.forEach((mutation) => {
+      if (mutation.type !== 'attributes') return;
+      const target = mutation.target as HTMLElement;
+      if (target.tagName !== 'INPUT') return;
+      if (
+        mutation.attributeName === 'type' &&
+        toLowerCase(mutation.oldValue || '') === 'hidden'
+      ) {
+        this.batchInputTypes.set(target, 'hidden');
+      }
+      if (
+        mutation.attributeName === 'autocomplete' &&
+        hasSensitiveAutocompleteToken(mutation.oldValue)
+      ) {
+        this.batchSensitiveAutocompleteInputs.add(target);
+      }
+    });
+  };
+
   public processMutations = (mutations: mutationRecord[]) => {
+    // Mark every input that was a password before any value record in the
+    // same observer batch reads the element's final type.
+    this.preservePasswordInputTypes(mutations);
+    this.preserveBatchInputPrivacy(mutations);
     mutations.forEach(this.processMutation); // adds mutations to the buffer
     this.emit(); // clears buffer if not locked/frozen
   };
@@ -312,6 +393,9 @@ export default class MutationBuffer {
       if (parentId === -1 || nextId === -1) {
         return addList.addNode(n);
       }
+      const isTransientPasswordInput = transientPasswordInputs.has(
+        n as HTMLElement,
+      );
       const sn = serializeNodeWithId(n, {
         doc: this.doc,
         mirror: this.mirror,
@@ -322,9 +406,13 @@ export default class MutationBuffer {
         skipChild: true,
         newlyAddedElement: true,
         inlineStylesheet: this.inlineStylesheet,
-        maskInputOptions: this.maskInputOptions,
+        maskInputOptions: isTransientPasswordInput
+          ? { ...this.maskInputOptions, text: true }
+          : this.maskInputOptions,
         maskTextFn: this.maskTextFn,
-        maskInputFn: this.maskInputFn,
+        maskInputFn: isTransientPasswordInput
+          ? (value) => '*'.repeat(value.length)
+          : this.maskInputFn,
         slimDOMOptions: this.slimDOMOptions,
         dataURLOptions: this.dataURLOptions,
         recordCanvas: this.recordCanvas,
@@ -345,10 +433,19 @@ export default class MutationBuffer {
         },
         onIframeLoad: (iframe, childSn) => {
           this.iframeManager.attachIframe(iframe, childSn);
-          this.shadowDomManager.observeAttachShadow(iframe);
+          this.iframeManager.addIframeCleanup(
+            iframe,
+            this.shadowDomManager.observeAttachShadow(iframe),
+          );
+        },
+        onIframeLoadObserver: (iframe, cleanup) => {
+          this.iframeManager.setIframeLoadCleanup(iframe, cleanup);
         },
         onStylesheetLoad: (link, childSn) => {
           this.stylesheetManager.attachLinkElement(link, childSn);
+        },
+        onStylesheetLoadObserver: (link, cleanup) => {
+          this.stylesheetManager.setLinkLoadCleanup(link, cleanup);
         },
         cssCaptured,
       });
@@ -363,7 +460,35 @@ export default class MutationBuffer {
     };
 
     while (this.mapRemoves.length) {
-      this.mirror.removeNodeFromMap(this.mapRemoves.shift()!);
+      const removedNode = this.mapRemoves.shift()!;
+      const permanentlyRemoved = !inDom(removedNode);
+      this.mirror.removeNodeFromMap(
+        removedNode,
+        permanentlyRemoved
+          ? {
+              removeMeta: true,
+              onVisit: (node: Node) => {
+                if ((node as Element).tagName === 'LINK') {
+                  this.stylesheetManager.releaseLinkLoadObserver(
+                    node as HTMLLinkElement,
+                  );
+                }
+                if ((node as Element).tagName === 'IFRAME') {
+                  const iframeDocument = this.iframeManager.cleanupIframe(
+                    node as HTMLIFrameElement,
+                  );
+                  if (iframeDocument) return iframeDocument;
+                }
+                if (isShadowRoot(node)) {
+                  this.shadowDomManager.removeShadowRoot(node);
+                  this.stylesheetManager.releaseHost(node);
+                } else if (node.nodeType === Node.DOCUMENT_NODE) {
+                  this.stylesheetManager.releaseHost(node as Document);
+                }
+              },
+            }
+          : undefined,
+      );
     }
 
     for (const n of this.movedSet) {
@@ -582,13 +707,27 @@ export default class MutationBuffer {
         let value = (m.target as HTMLElement).getAttribute(attributeName);
 
         if (attributeName === 'value') {
-          const type = getInputType(target);
-
+          const type = this.batchInputTypes.get(target) || getInputType(target);
+          value = this.batchSensitiveAutocompleteInputs.has(target)
+            ? '*'.repeat(value?.length || 0)
+            : maskInputValue({
+                element: target,
+                maskInputOptions: this.maskInputOptions,
+                tagName: target.tagName,
+                type,
+                value,
+                maskInputFn: this.maskInputFn,
+              });
+        } else if (
+          attributeName === 'placeholder' &&
+          value !== null &&
+          (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
+        ) {
           value = maskInputValue({
             element: target,
             maskInputOptions: this.maskInputOptions,
             tagName: target.tagName,
-            type,
+            type: getInputType(target),
             value,
             maskInputFn: this.maskInputFn,
           });
@@ -627,14 +766,6 @@ export default class MutationBuffer {
 
         // Keep this property on inputs that used to be password inputs
         // This is used to ensure we do not unmask value when using e.g. a "Show password" type button
-        if (
-          attributeName === 'type' &&
-          target.tagName === 'INPUT' &&
-          (m.oldValue || '').toLowerCase() === 'password'
-        ) {
-          target.setAttribute('data-rr-is-password', 'true');
-        }
-
         if (!ignoreAttribute(target.tagName, attributeName, value)) {
           // overwrite attribute if the mutations was triggered in same time
           item.attributes[attributeName] = transformAttribute(

@@ -48,6 +48,12 @@ describe('absolute url to stylesheet', () => {
     );
   });
 
+  it('can handle hashes', () => {
+    expect(absolutifyURLs('url("../a.jpg#c/d")', href + '#e/f')).toEqual(
+      `url("http://localhost/a.jpg#c/d")`,
+    );
+  });
+
   it('can handle absolute path', () => {
     expect(absolutifyURLs('url("/a.jpg")', href)).toEqual(
       `url("http://localhost/a.jpg")`,
@@ -227,6 +233,99 @@ describe('form', () => {
       },
     });
     expect(sel?.childNodes).toEqual([]); // shouldn't be stored in childNodes while in transit
+  });
+
+  it('masks configured textarea values in serialized FullSnapshots', () => {
+    const initialSecret = 'textarea-full-snapshot-secret-001';
+    const doc = new JSDOM(`<!doctype html><html><body>
+      <textarea id="textarea-private">${initialSecret}</textarea>
+    </body></html>`).window.document;
+
+    const payload = JSON.stringify(
+      snapshot(doc, { maskAllInputs: { textarea: true } }),
+    );
+
+    expect(payload).not.toContain(initialSecret);
+    expect(payload).toContain('*'.repeat(initialSecret.length));
+  });
+
+  it('masks hidden values in serialized FullSnapshots with the mask-all shorthand', () => {
+    const initialSecret = 'hidden-full-snapshot-secret-001';
+    const doc = new JSDOM(`<!doctype html><html><body>
+      <input id="hidden-private" type="hidden" value="${initialSecret}">
+    </body></html>`).window.document;
+
+    const serialized = snapshot(doc, { maskAllInputs: true });
+    const payload = JSON.stringify(serialized);
+
+    expect(payload).not.toContain(initialSecret);
+    expect(payload).toContain('*'.repeat(initialSecret.length));
+  });
+
+  it('masks placeholders only for configured input and textarea fields', () => {
+    const inputSecret = 'placeholder-password-secret-001';
+    const textareaSecret = 'placeholder-textarea-secret-0002';
+    const visibleControl = 'placeholder-visible-control-00003';
+    const doc = new JSDOM(`<!doctype html><html><body>
+      <input id="placeholder-password" type="password" placeholder="${inputSecret}">
+      <textarea id="placeholder-textarea" placeholder="${textareaSecret}"></textarea>
+      <input id="placeholder-control" type="text" placeholder="${visibleControl}">
+    </body></html>`).window.document;
+
+    const serialized = snapshot(doc, {
+      maskAllInputs: { password: true, textarea: true },
+    });
+    const payload = JSON.stringify(serialized);
+
+    expect(payload).not.toContain(inputSecret);
+    expect(payload).not.toContain(textareaSecret);
+    expect(payload).toContain('*'.repeat(inputSecret.length));
+    expect(payload).toContain('*'.repeat(textareaSecret.length));
+    expect(payload).toContain(visibleControl);
+  });
+
+  it.each([
+    'current-password',
+    'NEW-PASSWORD',
+    'section-checkout shipping cc-number',
+    'section-billing CC-EXP',
+    'cc-exp-month',
+    'cc-exp-year',
+    'cc-csc',
+  ])(
+    'forces sensitive autocomplete token %s to stay masked with an identity maskInputFn',
+    (autocomplete) => {
+      const secret = `autocomplete-${autocomplete}-secret-001`;
+      const doc = new JSDOM(`<!doctype html><html><body>
+        <input id="autocomplete-private" type="text" autocomplete="${autocomplete}" value="${secret}">
+      </body></html>`).window.document;
+
+      const payload = JSON.stringify(
+        snapshot(doc, {
+          maskAllInputs: false,
+          maskInputFn: (value) => value,
+        }),
+      );
+
+      expect(payload).not.toContain(secret);
+      expect(payload).toContain('*'.repeat(secret.length));
+    },
+  );
+
+  it('does not force masking for a non-sensitive autocomplete token', () => {
+    const visibleControl = 'autocomplete-name-visible-control-001';
+    const doc = new JSDOM(`<!doctype html><html><body>
+      <input id="autocomplete-control" type="text" autocomplete="name" value="${visibleControl}">
+    </body></html>`).window.document;
+
+    const payload = JSON.stringify(
+      snapshot(doc, {
+        maskAllInputs: false,
+        maskInputFn: (value) => value,
+      }),
+    );
+
+    expect(payload).toContain(visibleControl);
   });
 });
 

@@ -1,0 +1,74 @@
+{
+  "name": "@junify-app/rrweb",
+  "version": "2.1.1-junify.0",
+  "description": "Junify's narrow publish boundary for patched rrweb",
+  "scripts": {
+    "build": "yarn workspace @rrweb/types prepublish && yarn workspace @rrweb/utils prepublish && yarn workspace rrweb-snapshot prepublish && yarn workspace rrdom prepublish && yarn workspace rrweb prepublish && vite build",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src test",
+    "prepublish": "vite build",
+    "prepack": "npm run build",
+    "test": "vitest run --root . --config ../../vitest.config.ts test/package-boundary.test.ts --pool=forks --no-file-parallelism"
+  },
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/rrweb-io/rrweb.git"
+  },
+  "keywords": [
+    "devtools",
+    "product-analytics",
+    "real-user-monitoring",
+    "rrweb"
+  ],
+  "main": "./dist/rrweb.umd.cjs",
+  "module": "./dist/rrweb.js",
+  "unpkg": "./dist/rrweb.umd.cjs",
+  "jsdelivr": "./umd/rrweb.js",
+  "style": "./dist/style.css",
+  "typings": "dist/rrweb.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/rrweb.d.ts",
+        "default": "./dist/rrweb.js"
+      },
+      "require": {
+        "types": "./dist/rrweb.d.cts",
+        "default": "./dist/rrweb.cjs"
+      }
+    },
+    "./dist/style.css": "./dist/style.css"
+  },
+  "files": [
+    "umd",
+    "dist",
+    "package.json"
+  ],
+  "sideEffects": false,
+  "author": "rrweb Core Team <maintainers@rrweb.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/rrweb-io/rrweb/issues"
+  },
+  "homepage": "https://github.com/rrweb-io/rrweb#readme",
+  "devDependencies": {
+    "@types/node": "^18.15.11",
+    "playwright": "^1.60.0",
+    "rrweb": "2.1.1",
+    "typescript": "^5.4.5",
+    "vite": "^6.0.1",
+    "vite-plugin-dts": "^3.9.1",
+    "vitest": "^1.4.0"
+  },
+  "dependencies": {
+    "@rrweb/types": "2.1.1",
+    "@rrweb/utils": "2.1.1",
+    "@types/css-font-loading-module": "0.0.7",
+    "@xstate/fsm": "^1.4.0",
+    "base64-arraybuffer": "^1.0.1",
+    "mitt": "^3.0.0",
+    "rrdom": "2.1.1",
+    "rrweb-snapshot": "2.1.1"
+  }
+}

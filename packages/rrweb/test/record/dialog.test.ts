@@ -15,7 +15,7 @@ import {
   EventType,
   eventWithTime,
   listenerHandler,
-} from '@junify-app/types';
+} from '@rrweb/types';
 import { recordOptions } from '../../src/types';
 
 interface IWindow extends Window {

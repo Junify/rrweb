@@ -7,7 +7,7 @@ import type {
   ICanvas,
   DialogAttributes,
 } from './types';
-import { NodeType } from '@junify-app/types';
+import { NodeType } from '@rrweb/types';
 import type {
   serializedNode,
   serializedNodeWithId,
@@ -16,7 +16,7 @@ import type {
   attributes,
   mediaAttributes,
   DataURLOptions,
-} from '@junify-app/types';
+} from '@rrweb/types';
 import {
   Mirror,
   is2DCanvasBlank,
@@ -30,8 +30,8 @@ import {
   extractFileExtension,
   absolutifyURLs,
   markCssSplits,
-} from './utils';
-import dom from '@junify-app/utils';
+} from './snapshot-utils';
+import dom from '@rrweb/utils';
 
 let _id = 1;
 const tagNameRegex = new RegExp('[^a-z0-9-_:]');
@@ -190,10 +190,7 @@ export function transformAttribute(
   } else if (name === 'xlink:href' && value[0] !== '#') {
     // xlink:href starts with # is an id pointer
     return absoluteToDoc(doc, value);
-  } else if (
-    name === 'background' &&
-    (tagName === 'table' || tagName === 'td' || tagName === 'th')
-  ) {
+  } else if (name === 'background' && ['table', 'td', 'th'].includes(tagName)) {
     return absoluteToDoc(doc, value);
   } else if (name === 'srcset') {
     return getAbsoluteSrcsetString(doc, value);
@@ -212,7 +209,7 @@ export function ignoreAttribute(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _value: unknown,
 ): boolean {
-  return (tagName === 'video' || tagName === 'audio') && name === 'autoplay';
+  return ['video', 'audio'].includes(tagName) && name === 'autoplay';
 }
 
 export function _isBlockedElement(
@@ -312,10 +309,10 @@ function onceIframeLoaded(
   iframeEl: HTMLIFrameElement,
   listener: () => unknown,
   iframeLoadTimeout: number,
-) {
+): () => void {
   const win = iframeEl.contentWindow;
   if (!win) {
-    return;
+    return () => undefined;
   }
   // document is loading
   let fired = false;
@@ -324,21 +321,31 @@ function onceIframeLoaded(
   try {
     readyState = win.document.readyState;
   } catch (error) {
-    return;
+    return () => undefined;
   }
+  let active = true;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const onLoad = () => {
+    if (!active) return;
+    if (timer !== undefined) clearTimeout(timer);
+    fired = true;
+    listener();
+  };
+  const cleanup = () => {
+    if (!active) return;
+    active = false;
+    if (timer !== undefined) clearTimeout(timer);
+    iframeEl.removeEventListener('load', onLoad);
+  };
   if (readyState !== 'complete') {
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       if (!fired) {
         listener();
         fired = true;
       }
     }, iframeLoadTimeout);
-    iframeEl.addEventListener('load', () => {
-      clearTimeout(timer);
-      fired = true;
-      listener();
-    });
-    return;
+    iframeEl.addEventListener('load', onLoad);
+    return cleanup;
   }
   // check blank frame for Chrome
   const blankUrl = 'about:blank';
@@ -349,19 +356,23 @@ function onceIframeLoaded(
   ) {
     // iframe was already loaded, make sure we wait to trigger the listener
     // till _after_ the mutation that found this iframe has had time to process
-    setTimeout(listener, 0);
+    timer = setTimeout(() => {
+      if (active) listener();
+    }, 0);
 
-    return iframeEl.addEventListener('load', listener); // keep listing for future loads
+    iframeEl.addEventListener('load', onLoad); // keep listening for future loads
+    return cleanup;
   }
   // use default listener
-  iframeEl.addEventListener('load', listener);
+  iframeEl.addEventListener('load', onLoad);
+  return cleanup;
 }
 
 function onceStylesheetLoaded(
   link: HTMLLinkElement,
   listener: () => unknown,
   styleSheetLoadTimeout: number,
-) {
+): (() => void) | undefined {
   let fired = false;
   let styleSheetLoaded: StyleSheet | null;
   try {
@@ -372,18 +383,22 @@ function onceStylesheetLoaded(
 
   if (styleSheetLoaded) return;
 
-  const timer = setTimeout(() => {
-    if (!fired) {
-      listener();
-      fired = true;
-    }
-  }, styleSheetLoadTimeout);
-
-  link.addEventListener('load', () => {
+  let active = true;
+  const cleanup = () => {
+    if (!active) return;
+    active = false;
     clearTimeout(timer);
+    link.removeEventListener('load', onLoad);
+  };
+  const onLoad = () => {
+    if (!active || fired) return;
     fired = true;
+    cleanup();
     listener();
-  });
+  };
+  const timer = setTimeout(onLoad, styleSheetLoadTimeout);
+  link.addEventListener('load', onLoad);
+  return cleanup;
 }
 
 function serializeNode(
@@ -616,7 +631,7 @@ function serializeElementNode(
     }
   }
   // form fields
-  if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') {
+  if (['input', 'textarea', 'select'].includes(tagName)) {
     const value = (n as HTMLInputElement | HTMLTextAreaElement).value;
     const checked = (n as HTMLInputElement).checked;
     if (
@@ -637,6 +652,19 @@ function serializeElementNode(
     } else if (checked) {
       attributes.checked = checked;
     }
+  }
+  if (
+    (tagName === 'input' || tagName === 'textarea') &&
+    typeof attributes.placeholder === 'string'
+  ) {
+    attributes.placeholder = maskInputValue({
+      element: n,
+      type: getInputType(n),
+      tagName,
+      value: attributes.placeholder,
+      maskInputOptions,
+      maskInputFn,
+    });
   }
   if (tagName === 'option') {
     if ((n as HTMLOptionElement).selected && !maskInputOptions['select']) {
@@ -733,7 +761,7 @@ function serializeElementNode(
     else image.addEventListener('load', recordInlineImage);
   }
   // media elements
-  if (tagName === 'audio' || tagName === 'video') {
+  if (['audio', 'video'].includes(tagName)) {
     const mediaAttributes = attributes as mediaAttributes;
     mediaAttributes.rr_mediaState = (n as HTMLMediaElement).paused
       ? 'paused'
@@ -803,6 +831,32 @@ function lowerIfExists(
   } else {
     return (maybeAttr as string).toLowerCase();
   }
+}
+
+export function slimDOMDefaults(
+  _slimDOMOptions: SlimDOMOptions | 'all' | true | false | undefined,
+) {
+  if (_slimDOMOptions === true || _slimDOMOptions === 'all') {
+    // if true: set of sensible options that should not throw away any information
+    return {
+      script: true,
+      comment: true,
+      headFavicon: true,
+      headWhitespace: true,
+      headMetaSocial: true,
+      headMetaRobots: true,
+      headMetaHttpEquiv: true,
+      headMetaVerification: true,
+      // the following are off for slimDOMOptions === true,
+      // as they destroy some (hidden) info:
+      headMetaAuthorship: _slimDOMOptions === 'all',
+      headMetaDescKeywords: _slimDOMOptions === 'all',
+      headTitleMutations: _slimDOMOptions === 'all',
+    };
+  } else if (_slimDOMOptions) {
+    return _slimDOMOptions;
+  }
+  return {};
 }
 
 function slimDOMExcluded(
@@ -923,10 +977,18 @@ export function serializeNodeWithId(
       iframeNode: HTMLIFrameElement,
       node: serializedElementNodeWithId,
     ) => unknown;
+    onIframeLoadObserver?: (
+      iframeNode: HTMLIFrameElement,
+      cleanup: () => void,
+    ) => unknown;
     iframeLoadTimeout?: number;
     onStylesheetLoad?: (
       linkNode: HTMLLinkElement,
       node: serializedElementNodeWithId,
+    ) => unknown;
+    onStylesheetLoadObserver?: (
+      linkNode: HTMLLinkElement,
+      cleanup: () => void,
     ) => unknown;
     stylesheetLoadTimeout?: number;
     cssCaptured?: boolean;
@@ -950,8 +1012,10 @@ export function serializeNodeWithId(
     recordCanvas = false,
     onSerialize,
     onIframeLoad,
+    onIframeLoadObserver,
     iframeLoadTimeout = 5000,
     onStylesheetLoad,
+    onStylesheetLoadObserver,
     stylesheetLoadTimeout = 5000,
     keepIframeSrcFn = () => false,
     newlyAddedElement = false,
@@ -1062,8 +1126,10 @@ export function serializeNodeWithId(
       preserveWhiteSpace,
       onSerialize,
       onIframeLoad,
+      onIframeLoadObserver,
       iframeLoadTimeout,
       onStylesheetLoad,
+      onStylesheetLoadObserver,
       stylesheetLoadTimeout,
       keepIframeSrcFn,
       cssCaptured: false,
@@ -1113,7 +1179,7 @@ export function serializeNodeWithId(
     serializedNode.type === NodeType.Element &&
     serializedNode.tagName === 'iframe'
   ) {
-    onceIframeLoaded(
+    const iframeLoadCleanup = onceIframeLoaded(
       n as HTMLIFrameElement,
       () => {
         const iframeDoc = (n as HTMLIFrameElement).contentDocument;
@@ -1138,8 +1204,10 @@ export function serializeNodeWithId(
             preserveWhiteSpace,
             onSerialize,
             onIframeLoad,
+            onIframeLoadObserver,
             iframeLoadTimeout,
             onStylesheetLoad,
+            onStylesheetLoadObserver,
             stylesheetLoadTimeout,
             keepIframeSrcFn,
           });
@@ -1154,6 +1222,7 @@ export function serializeNodeWithId(
       },
       iframeLoadTimeout,
     );
+    onIframeLoadObserver?.(n as HTMLIFrameElement, iframeLoadCleanup);
   }
 
   // <link rel=stylesheet href=...>
@@ -1166,7 +1235,7 @@ export function serializeNodeWithId(
         typeof serializedNode.attributes.href === 'string' &&
         extractFileExtension(serializedNode.attributes.href) === 'css'))
   ) {
-    onceStylesheetLoaded(
+    const stylesheetLoadCleanup = onceStylesheetLoaded(
       n as HTMLLinkElement,
       () => {
         if (onStylesheetLoad) {
@@ -1190,8 +1259,10 @@ export function serializeNodeWithId(
             preserveWhiteSpace,
             onSerialize,
             onIframeLoad,
+            onIframeLoadObserver,
             iframeLoadTimeout,
             onStylesheetLoad,
+            onStylesheetLoadObserver,
             stylesheetLoadTimeout,
             keepIframeSrcFn,
           });
@@ -1206,6 +1277,8 @@ export function serializeNodeWithId(
       },
       stylesheetLoadTimeout,
     );
+    if (stylesheetLoadCleanup)
+      onStylesheetLoadObserver?.(n as HTMLLinkElement, stylesheetLoadCleanup);
   }
 
   return serializedNode;
@@ -1233,10 +1306,18 @@ function snapshot(
       iframeNode: HTMLIFrameElement,
       node: serializedElementNodeWithId,
     ) => unknown;
+    onIframeLoadObserver?: (
+      iframeNode: HTMLIFrameElement,
+      cleanup: () => void,
+    ) => unknown;
     iframeLoadTimeout?: number;
     onStylesheetLoad?: (
       linkNode: HTMLLinkElement,
       node: serializedElementNodeWithId,
+    ) => unknown;
+    onStylesheetLoadObserver?: (
+      linkNode: HTMLLinkElement,
+      cleanup: () => void,
     ) => unknown;
     stylesheetLoadTimeout?: number;
     keepIframeSrcFn?: KeepIframeSrcFn;
@@ -1259,8 +1340,10 @@ function snapshot(
     preserveWhiteSpace,
     onSerialize,
     onIframeLoad,
+    onIframeLoadObserver,
     iframeLoadTimeout,
     onStylesheetLoad,
+    onStylesheetLoadObserver,
     stylesheetLoadTimeout,
     keepIframeSrcFn = () => false,
   } = options || {};
@@ -1283,30 +1366,15 @@ function snapshot(
           textarea: true,
           select: true,
           password: true,
+          hidden: true,
         }
       : maskAllInputs === false
       ? {
           password: true,
         }
       : maskAllInputs;
-  const slimDOMOptions: SlimDOMOptions =
-    slimDOM === true || slimDOM === 'all'
-      ? // if true: set of sensible options that should not throw away any information
-        {
-          script: true,
-          comment: true,
-          headFavicon: true,
-          headWhitespace: true,
-          headMetaDescKeywords: slimDOM === 'all', // destructive
-          headMetaSocial: true,
-          headMetaRobots: true,
-          headMetaHttpEquiv: true,
-          headMetaAuthorship: true,
-          headMetaVerification: true,
-        }
-      : slimDOM === false
-      ? {}
-      : slimDOM;
+  const slimDOMOptions = slimDOMDefaults(slimDOM);
+
   return serializeNodeWithId(n, {
     doc: n,
     mirror,
@@ -1326,8 +1394,10 @@ function snapshot(
     preserveWhiteSpace,
     onSerialize,
     onIframeLoad,
+    onIframeLoadObserver,
     iframeLoadTimeout,
     onStylesheetLoad,
+    onStylesheetLoadObserver,
     stylesheetLoadTimeout,
     keepIframeSrcFn,
     newlyAddedElement: false,

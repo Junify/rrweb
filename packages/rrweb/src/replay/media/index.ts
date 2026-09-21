@@ -1,9 +1,9 @@
-import type { Emitter } from '@junify-app/types';
-import { MediaInteractions, ReplayerEvents } from '@junify-app/types';
-import type { RRMediaElement } from '@junify-app/rrdom';
+import type { Emitter, Handler } from '@rrweb/types';
+import { MediaInteractions, ReplayerEvents } from '@rrweb/types';
+import type { RRMediaElement } from 'rrdom';
 import type { createPlayerService, createSpeedService } from '../machine';
-import type { Mirror } from '@junify-app/rrweb-snapshot';
-import type { mediaInteractionData, mediaAttributes } from '@junify-app/types';
+import type { Mirror } from 'rrweb-snapshot';
+import type { mediaInteractionData, mediaAttributes } from '@rrweb/types';
 
 type MediaState = {
   isPlaying: boolean;
@@ -23,10 +23,12 @@ export class MediaManager {
   private speedService: ReturnType<typeof createSpeedService>;
   private emitter: Emitter;
   private getCurrentTime: () => number;
-  private metadataCallbackMap: WeakMap<
+  private metadataCallbackMap: Map<
     HTMLMediaElement | RRMediaElement,
     () => void
   > = new Map();
+  private emitterHandlers: Array<{ event: string; handler: Handler }> = [];
+  private speedServiceSubscription?: { unsubscribe(): void };
 
   constructor(options: {
     warn: (...args: Parameters<typeof console.warn>) => void;
@@ -41,13 +43,18 @@ export class MediaManager {
     this.emitter = options.emitter;
     this.getCurrentTime = options.getCurrentTime;
 
-    this.emitter.on(ReplayerEvents.Start, this.start.bind(this));
-    this.emitter.on(ReplayerEvents.SkipStart, this.start.bind(this));
-    this.emitter.on(ReplayerEvents.Pause, this.pause.bind(this));
-    this.emitter.on(ReplayerEvents.Finish, this.pause.bind(this));
-    this.speedService.subscribe(() => {
+    this.addEmitterHandler(ReplayerEvents.Start, this.start.bind(this));
+    this.addEmitterHandler(ReplayerEvents.SkipStart, this.start.bind(this));
+    this.addEmitterHandler(ReplayerEvents.Pause, this.pause.bind(this));
+    this.addEmitterHandler(ReplayerEvents.Finish, this.pause.bind(this));
+    this.speedServiceSubscription = this.speedService.subscribe(() => {
       this.syncAllMediaElements();
     });
+  }
+
+  private addEmitterHandler(event: string, handler: Handler) {
+    this.emitter.on(event, handler);
+    this.emitterHandlers.push({ event, handler });
   }
 
   private syncAllMediaElements(options = { pause: false }) {
@@ -285,11 +292,37 @@ export class MediaManager {
     this.syncTargetWithState(target);
   }
 
-  public isSupportedMediaElement(node: Node): node is HTMLMediaElement {
+  public isSupportedMediaElement(node: Node | { nodeName: string }): boolean {
     return ['AUDIO', 'VIDEO'].includes(node.nodeName);
   }
 
   public reset() {
+    for (const [target, callback] of this.metadataCallbackMap) {
+      try {
+        if ('removeEventListener' in target)
+          target.removeEventListener('loadedmetadata', callback);
+      } catch {
+        // Continue releasing the remaining media listeners.
+      }
+    }
+    this.metadataCallbackMap.clear();
     this.mediaMap.clear();
+  }
+
+  public destroy() {
+    this.reset();
+    for (const { event, handler } of this.emitterHandlers) {
+      try {
+        this.emitter.off(event, handler);
+      } catch {
+        // Continue releasing the remaining media subscriptions.
+      }
+    }
+    this.emitterHandlers = [];
+    try {
+      this.speedServiceSubscription?.unsubscribe();
+    } finally {
+      this.speedServiceSubscription = undefined;
+    }
   }
 }

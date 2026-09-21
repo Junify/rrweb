@@ -1,0 +1,74 @@
+{
+  "name": "@junify-app/rrweb-player",
+  "version": "2.1.1-junify.0",
+  "description": "Junify's narrow publish boundary for rrweb-player",
+  "scripts": {
+    "build": "yarn workspace @rrweb/types prepublish && yarn workspace @rrweb/utils prepublish && yarn workspace rrweb-snapshot prepublish && yarn workspace rrdom prepublish && yarn workspace rrweb prepublish && yarn workspace @rrweb/packer prepublish && yarn workspace @rrweb/replay prepublish && vite build",
+    "check-types": "tsc --noEmit && svelte-check --tsconfig ../rrweb-player/tsconfig.json",
+    "lint": "eslint ../rrweb-player/src/**/*.ts test",
+    "prepublish": "vite build",
+    "prepack": "npm run build",
+    "test": "vitest run --root . --config ../../vitest.config.ts test/package-boundary.test.ts --pool=forks --no-file-parallelism"
+  },
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rrweb-io/rrweb.git"
+  },
+  "keywords": [
+    "devtools",
+    "product-analytics",
+    "real-user-monitoring",
+    "rrweb"
+  ],
+  "main": "./dist/rrweb-player.umd.cjs",
+  "module": "./dist/rrweb-player.js",
+  "unpkg": "./dist/rrweb-player.umd.cjs",
+  "jsdelivr": "./umd/rrweb-player.js",
+  "style": "./dist/style.css",
+  "typings": "dist/rrweb-player.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/rrweb-player.d.ts",
+        "default": "./dist/rrweb-player.js"
+      },
+      "require": {
+        "types": "./dist/rrweb-player.d.cts",
+        "default": "./dist/rrweb-player.cjs"
+      }
+    },
+    "./dist/style.css": "./dist/style.css"
+  },
+  "files": [
+    "umd",
+    "dist",
+    "package.json"
+  ],
+  "author": "rrweb Core Team <maintainers@rrweb.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/rrweb-io/rrweb/issues"
+  },
+  "homepage": "https://github.com/rrweb-io/rrweb#readme",
+  "devDependencies": {
+    "@rrweb/types": "2.1.1",
+    "@sveltejs/vite-plugin-svelte": "^3.0.0",
+    "@types/node": "^18.15.11",
+    "fast-glob": "^3.3.2",
+    "playwright": "^1.60.0",
+    "rrweb-player": "2.1.1",
+    "svelte-check": "^3.4.3",
+    "svelte-preprocess": "^5.0.3",
+    "svelte2tsx": "^0.7.30",
+    "typescript": "^5.4.5",
+    "vite": "^6.0.1",
+    "vitest": "^1.4.0"
+  },
+  "dependencies": {
+    "@rrweb/packer": "2.1.1",
+    "@rrweb/replay": "2.1.1",
+    "@tsconfig/svelte": "^1.0.0",
+    "svelte": "^4.2.14"
+  }
+}

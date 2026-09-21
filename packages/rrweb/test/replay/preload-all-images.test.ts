@@ -11,7 +11,7 @@ import {
   IncrementalSource,
   EventType,
   eventWithTime,
-} from '@junify-app/types';
+} from '@rrweb/types';
 
 let replayer: Replayer;
 
