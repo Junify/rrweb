@@ -68,6 +68,10 @@ function viteSvelteDts(): Plugin {
       for (const file of generatedSourceDeclarations.splice(0)) {
         rmSync(file, { force: true });
       }
+      rmSync(path.resolve(upstreamPlayerRoot, 'types'), {
+        recursive: true,
+        force: true,
+      });
       rmSync(declarationDirectory, { recursive: true, force: true });
     },
   };
