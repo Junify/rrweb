@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -191,7 +192,16 @@ export function assertExactUpstreamDeclarationDiagnostics(
   diagnostics: string,
   rrwebPackageName: '@junify-app/rrweb' | 'rrweb',
 ): void {
-  const diagnosticLines = diagnostics.trim().split('\n').sort();
+  const diagnosticLines = diagnostics
+    .trim()
+    .split('\n')
+    .map((line) =>
+      line.replace(
+        'node_modules/rrweb/node_modules/rrdom/',
+        'node_modules/rrdom/',
+      ),
+    )
+    .sort();
   const diagnosticPattern =
     /^(node_modules\/.+)\((\d+),(\d+)\): error (TS\d+): (.+)$/;
   const unparsedLine = diagnosticLines.find(
@@ -253,6 +263,10 @@ function assertPinnedUpstreamDeclarationDigests(
     rrwebPackageName === '@junify-app/rrweb'
       ? 'c897bca0f949652764072c96557ec90ca44aed2d175a6f964673be214e11e894'
       : 'c59c5624be860f9b0ff3c6b29c4488e34941e0c2858f7a7e777b48d840513c74';
+  const nestedRrdomRoot = 'node_modules/rrweb/node_modules/rrdom';
+  const rrdomRoot = existsSync(path.join(consumerDirectory, nestedRrdomRoot))
+    ? nestedRrdomRoot
+    : 'node_modules/rrdom';
   const expectedDeclarationDigests = new Map([
     [
       `node_modules/${rrwebPackageName}/dist/rrweb.d.cts`,
@@ -263,11 +277,11 @@ function assertPinnedUpstreamDeclarationDigests(
       rrwebDeclarationDigest,
     ],
     [
-      'node_modules/rrdom/dist/index.d.cts',
+      `${rrdomRoot}/dist/index.d.cts`,
       '3aa897e61acfcbfe2c48421667186457457aafbd12de13ad6f2a6b569d2ed439',
     ],
     [
-      'node_modules/rrdom/dist/index.d.ts',
+      `${rrdomRoot}/dist/index.d.ts`,
       '3aa897e61acfcbfe2c48421667186457457aafbd12de13ad6f2a6b569d2ed439',
     ],
     [

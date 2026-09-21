@@ -741,8 +741,23 @@ exports[`record > captures adopted stylesheets in nested shadow doms and iframes
       \\"source\\": 15,
       \\"id\\": 33,
       \\"styleIds\\": [
-        1,
+        4,
         3
+      ],
+      \\"styles\\": [
+        {
+          \\"styleId\\": 4,
+          \\"rules\\": [
+            {
+              \\"rule\\": \\"h1 { color: blue; }\\",
+              \\"index\\": 0
+            },
+            {
+              \\"rule\\": \\"div { display: inline; }\\",
+              \\"index\\": 1
+            }
+          ]
+        }
       ]
     }
   }
