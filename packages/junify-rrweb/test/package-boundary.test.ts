@@ -181,7 +181,7 @@ console.log(JSON.stringify({ css, text: readFileSync(css, 'utf8') }));`,
       .split('\n')
       .find((line) =>
         line.startsWith(
-          'node_modules/@junify-app/rrweb/dist/rrweb.d.ts(241,25): error TS2395:',
+          'node_modules/@junify-app/rrweb/dist/rrweb.d.ts(244,25): error TS2395:',
         ),
       );
     if (!boundaryDiagnostic) {

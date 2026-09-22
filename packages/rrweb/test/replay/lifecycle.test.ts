@@ -390,7 +390,7 @@ describe('replayer lifecycle', () => {
           };
           emitter: { all: Map<string, unknown[]> };
           imageMap: Map<unknown, unknown>;
-          canvasEventMap: Map<unknown, unknown>;
+          canvasMutationQueue: { pending: unknown[] };
           legacy_missingNodeRetryMap: Record<string, unknown>;
           newDocumentQueue: unknown[];
           constructedStyleMutations: unknown[];
@@ -447,7 +447,7 @@ describe('replayer lifecycle', () => {
             0,
           ),
           imageMap: replayer.imageMap.size,
-          canvasEventMap: replayer.canvasEventMap.size,
+          pendingCanvasMutations: replayer.canvasMutationQueue.pending.length,
           legacyMissingNodes: Object.keys(replayer.legacy_missingNodeRetryMap)
             .length,
           newDocumentQueue: replayer.newDocumentQueue.length,
@@ -729,8 +729,8 @@ describe('replayer lifecycle', () => {
       expect(cycle.beforeDestroy.timerActive).toBe(true);
       expect(cycle.beforeDestroy.timerActions).toBeGreaterThan(0);
       expect(cycle.beforeDestroy.emitterHandlers).toBeGreaterThan(0);
-      expect(cycle.beforeDestroy.imageMap).toBeGreaterThan(0);
-      expect(cycle.beforeDestroy.canvasEventMap).toBeGreaterThan(0);
+      // Future canvas images are no longer preloaded into the replay cache.
+      expect(cycle.beforeDestroy.imageMap).toBe(0);
       expect(cycle.beforeDestroy.legacyMissingNodes).toBeGreaterThan(0);
       expect(cycle.beforeDestroy.newDocumentQueue).toBeGreaterThan(0);
       expect(cycle.beforeDestroy.constructedStyleMutations).toBeGreaterThan(0);
@@ -769,7 +769,7 @@ describe('replayer lifecycle', () => {
         speedServiceStatus: 2,
         emitterHandlers: 0,
         imageMap: 0,
-        canvasEventMap: 0,
+        pendingCanvasMutations: 0,
         legacyMissingNodes: 0,
         newDocumentQueue: 0,
         constructedStyleMutations: 0,

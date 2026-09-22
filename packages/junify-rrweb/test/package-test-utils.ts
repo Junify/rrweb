@@ -223,8 +223,8 @@ export function assertExactUpstreamDeclarationDiagnostics(
   const rrwebDiagnosticLocations =
     rrwebPackageName === '@junify-app/rrweb'
       ? [
-          [241, 25],
-          [243, 26],
+          [244, 25],
+          [246, 26],
           [519, 19],
         ]
       : [
@@ -261,7 +261,7 @@ function assertPinnedUpstreamDeclarationDigests(
 ): void {
   const rrwebDeclarationDigest =
     rrwebPackageName === '@junify-app/rrweb'
-      ? 'c897bca0f949652764072c96557ec90ca44aed2d175a6f964673be214e11e894'
+      ? '6a34eea72d44977891dd33034c7da9ca3f9e022ef5b7cecb031a8bbdc2885ffa'
       : 'c59c5624be860f9b0ff3c6b29c4488e34941e0c2858f7a7e777b48d840513c74';
   const nestedRrdomRoot = 'node_modules/rrweb/node_modules/rrdom';
   const rrdomRoot = existsSync(path.join(consumerDirectory, nestedRrdomRoot))
@@ -303,7 +303,7 @@ function assertPinnedUpstreamDeclarationDigests(
   const freshLocalDeclarationDigests = new Map([
     [
       'packages/rrweb/dist/rrweb.d.ts',
-      'c897bca0f949652764072c96557ec90ca44aed2d175a6f964673be214e11e894',
+      '6a34eea72d44977891dd33034c7da9ca3f9e022ef5b7cecb031a8bbdc2885ffa',
     ],
     [
       'packages/rrdom/dist/index.d.ts',
