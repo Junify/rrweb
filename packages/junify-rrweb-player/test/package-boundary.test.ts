@@ -138,17 +138,17 @@ describe('@junify-app/rrweb-player packed boundary', () => {
         'node_modules/@junify-app/rrweb-player/package.json',
       ),
     );
-    expect(installedCore.version).toBe('2.1.1-junify.0');
-    expect(installedPlayer.version).toBe('2.1.1-junify.0');
+    expect(installedCore.version).toBe('2.1.1-junify.1');
+    expect(installedPlayer.version).toBe('2.1.1-junify.1');
   });
 
   test('publishes the exact player identity and stable artifact names', () => {
     expect(playerBoundary.filename).toBe(
-      'junify-app-rrweb-player-2.1.1-junify.0.tgz',
+      'junify-app-rrweb-player-2.1.1-junify.1.tgz',
     );
     expect(playerBoundary.manifest).toMatchObject({
       name: '@junify-app/rrweb-player',
-      version: '2.1.1-junify.0',
+      version: '2.1.1-junify.1',
       main: './dist/rrweb-player.umd.cjs',
       module: './dist/rrweb-player.js',
       unpkg: './dist/rrweb-player.umd.cjs',

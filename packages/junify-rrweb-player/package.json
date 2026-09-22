@@ -1,6 +1,6 @@
 {
   "name": "@junify-app/rrweb-player",
-  "version": "2.1.1-junify.0",
+  "version": "2.1.1-junify.1",
   "description": "Junify's narrow publish boundary for rrweb-player",
   "scripts": {
     "build": "yarn workspace @rrweb/types prepublish && yarn workspace @rrweb/utils prepublish && yarn workspace rrweb-snapshot prepublish && yarn workspace rrdom prepublish && yarn workspace rrweb prepublish && yarn workspace @rrweb/packer prepublish && yarn workspace @rrweb/replay prepublish && vite build",
