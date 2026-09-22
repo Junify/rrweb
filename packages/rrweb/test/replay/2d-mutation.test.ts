@@ -19,7 +19,7 @@ describe('canvas2DMutation', () => {
     vi.useRealTimers();
   });
 
-  it('should execute all mutations after args are parsed', async () => {
+  it('should apply commands in order and wait for bitmap arguments', async () => {
     let resolve: (value: unknown) => void;
     const promise = new Promise((r) => {
       resolve = r;
@@ -34,7 +34,7 @@ describe('canvas2DMutation', () => {
 
     const createImageBitmapMock = vi.fn(() => {
       return new Promise((r) => {
-        setTimeout(r, 1000);
+        setTimeout(() => r({ close: vi.fn() }), 1000);
       });
     });
 
@@ -68,7 +68,7 @@ describe('canvas2DMutation', () => {
 
     await expect(createImageBitmapMock).toHaveBeenCalled();
 
-    expect(context.clearRect).not.toBeCalled();
+    expect(context.clearRect).toHaveBeenCalledWith(0, 0, 1000, 1000);
     expect(context.drawImage).not.toBeCalled();
 
     await vi.advanceTimersByTimeAsync(1000);

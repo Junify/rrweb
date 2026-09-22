@@ -386,29 +386,38 @@ describe('rebuild', function () {
   });
 
   describe('rr_dataURL', function () {
-    it('should rebuild dataURL', function () {
-      const dataURI =
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-      const node = buildNodeWithSN(
-        {
-          id: 1,
-          tagName: 'img',
-          type: NodeType.Element,
-          attributes: {
-            rr_dataURL: dataURI,
-            src: 'http://example.com/image.png',
+    it.each([undefined, 'http://example.com/image-2x.png 2x'])(
+      'rebuilds offline image data and preserves original URLs (srcset: %s)',
+      function (srcset) {
+        const dataURI =
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        const node = buildNodeWithSN(
+          {
+            id: 1,
+            tagName: 'img',
+            type: NodeType.Element,
+            attributes: {
+              rr_dataURL: dataURI,
+              src: 'http://example.com/image.png',
+              ...(srcset ? { srcset } : {}),
+            },
+            childNodes: [],
           },
-          childNodes: [],
-        },
-        {
-          doc: document,
-          mirror,
-          hackCss: false,
-          cache,
-        },
-      ) as HTMLImageElement;
-      expect(node?.src).toBe(dataURI);
-    });
+          {
+            doc: document,
+            mirror,
+            hackCss: false,
+            cache,
+          },
+        ) as HTMLImageElement;
+        expect(node?.src).toBe(dataURI);
+        expect(node.getAttribute('rrweb-original-src')).toBe(
+          'http://example.com/image.png',
+        );
+        expect(node.getAttribute('rrweb-original-srcset')).toBe(srcset ?? null);
+        expect(node.srcset).toBe('');
+      },
+    );
   });
 
   describe('rr_width/rr_height', function () {

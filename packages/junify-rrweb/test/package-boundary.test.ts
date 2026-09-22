@@ -81,10 +81,10 @@ describe('@junify-app/rrweb packed boundary', () => {
   });
 
   test('publishes the exact boundary identity and stable rrweb artifact names', () => {
-    expect(boundary.filename).toBe('junify-app-rrweb-2.1.1-junify.0.tgz');
+    expect(boundary.filename).toBe('junify-app-rrweb-2.1.1-junify.1.tgz');
     expect(boundary.manifest).toMatchObject({
       name: '@junify-app/rrweb',
-      version: '2.1.1-junify.0',
+      version: '2.1.1-junify.1',
       main: './dist/rrweb.umd.cjs',
       module: './dist/rrweb.js',
       unpkg: './dist/rrweb.umd.cjs',
@@ -181,7 +181,7 @@ console.log(JSON.stringify({ css, text: readFileSync(css, 'utf8') }));`,
       .split('\n')
       .find((line) =>
         line.startsWith(
-          'node_modules/@junify-app/rrweb/dist/rrweb.d.ts(241,25): error TS2395:',
+          'node_modules/@junify-app/rrweb/dist/rrweb.d.ts(244,25): error TS2395:',
         ),
       );
     if (!boundaryDiagnostic) {

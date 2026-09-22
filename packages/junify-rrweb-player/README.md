@@ -10,5 +10,9 @@ upstream `packages/rrweb-player/src/main.ts` entry preserves Svelte declaration
 generation without copying the player implementation or leaving a dead wrapper
 file.
 
-Version `2.1.1-junify.0` is release-gated. This repository task builds and
-packs local artifacts for verification only; it does not publish them.
+Version `2.1.1-junify.1` includes the bounded Canvas replay memory and seek
+fix from Junify/rrweb#9. Rebuild and release it together with
+`@junify-app/rrweb@2.1.1-junify.1`: the player bundles the replay implementation,
+so updating only the core package does not update the player runtime.
+
+Follow the [core boundary release instructions](../junify-rrweb/README.md).

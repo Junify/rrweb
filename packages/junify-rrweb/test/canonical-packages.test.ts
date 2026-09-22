@@ -441,14 +441,14 @@ describe('canonical Junify boundary package pipeline', () => {
       encoding: 'utf8',
     }).stdout.trim();
     const core = {
-      filename: 'junify-app-rrweb-2.1.1-junify.0.tgz',
+      filename: 'junify-app-rrweb-2.1.1-junify.1.tgz',
       name: '@junify-app/rrweb',
-      version: '2.1.1-junify.0',
+      version: '2.1.1-junify.1',
     };
     const player = {
-      filename: 'junify-app-rrweb-player-2.1.1-junify.0.tgz',
+      filename: 'junify-app-rrweb-player-2.1.1-junify.1.tgz',
       name: '@junify-app/rrweb-player',
-      version: '2.1.1-junify.0',
+      version: '2.1.1-junify.1',
     };
     const cases = [
       {
@@ -600,14 +600,14 @@ describe('canonical Junify boundary package pipeline', () => {
           })),
         ).toEqual([
           {
-            filename: 'junify-app-rrweb-2.1.1-junify.0.tgz',
+            filename: 'junify-app-rrweb-2.1.1-junify.1.tgz',
             name: '@junify-app/rrweb',
-            version: '2.1.1-junify.0',
+            version: '2.1.1-junify.1',
           },
           {
-            filename: 'junify-app-rrweb-player-2.1.1-junify.0.tgz',
+            filename: 'junify-app-rrweb-player-2.1.1-junify.1.tgz',
             name: '@junify-app/rrweb-player',
-            version: '2.1.1-junify.0',
+            version: '2.1.1-junify.1',
           },
         ]);
       }
@@ -670,7 +670,7 @@ describe('canonical Junify boundary package pipeline', () => {
         [
           'core',
           {
-            file: 'junify-app-rrweb-2.1.1-junify.0.tgz',
+            file: 'junify-app-rrweb-2.1.1-junify.1.tgz',
             name: '@junify-app/rrweb',
             regularFileCount: 19,
           },
@@ -678,7 +678,7 @@ describe('canonical Junify boundary package pipeline', () => {
         [
           'player',
           {
-            file: 'junify-app-rrweb-player-2.1.1-junify.0.tgz',
+            file: 'junify-app-rrweb-player-2.1.1-junify.1.tgz',
             name: '@junify-app/rrweb-player',
             regularFileCount: 18,
           },
@@ -687,7 +687,7 @@ describe('canonical Junify boundary package pipeline', () => {
         const packageManifest = manifest.packages[role];
         expect(packageManifest).toMatchObject({
           name: expected.name,
-          version: '2.1.1-junify.0',
+          version: '2.1.1-junify.1',
           artifact: {
             file: expected.file,
             regularFileCount: expected.regularFileCount,

@@ -34,7 +34,7 @@ const generatedResidueRoots = [
 const packageDefinitions = {
   core: {
     directory: 'packages/junify-rrweb',
-    filename: 'junify-app-rrweb-2.1.1-junify.0.tgz',
+    filename: 'junify-app-rrweb-2.1.1-junify.1.tgz',
     name: '@junify-app/rrweb',
     regularFileCount: 19,
     entrypoints: {
@@ -52,7 +52,7 @@ const packageDefinitions = {
   },
   player: {
     directory: 'packages/junify-rrweb-player',
-    filename: 'junify-app-rrweb-player-2.1.1-junify.0.tgz',
+    filename: 'junify-app-rrweb-player-2.1.1-junify.1.tgz',
     name: '@junify-app/rrweb-player',
     regularFileCount: 18,
     entrypoints: {
@@ -279,7 +279,7 @@ function packBoundaries(npmExecutable, runDirectory) {
     const matches = Object.entries(packageDefinitions).filter(
       ([, definition]) =>
         result.name === definition.name &&
-        result.version === '2.1.1-junify.0' &&
+        result.version === '2.1.1-junify.1' &&
         result.filename === definition.filename,
     );
     if (matches.length !== 1) {
@@ -404,7 +404,7 @@ function generateCanonicalPackages(outputDirectory, runCount) {
     const manifest = {
       schemaVersion: 3,
       source: {
-        repository: 'rrweb-io/rrweb',
+        repository: 'Junify/rrweb',
         rrwebCommit: sourceCommit,
         startHead: sourceState.expectedHead,
         endHead: finalSourceState.head,
@@ -444,7 +444,7 @@ function generateCanonicalPackages(outputDirectory, runCount) {
           role,
           {
             name: definition.name,
-            version: '2.1.1-junify.0',
+            version: '2.1.1-junify.1',
             rrwebCommit: sourceCommit,
             artifact: runsByRole[role][0],
             deterministicRuns: runsByRole[role],
